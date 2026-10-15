@@ -33,14 +33,33 @@ jobs:
       - run: pnpm --filter example run fetch-specs
       - run: pnpm test
       - run: pnpm --filter @specbook/ui exec playwright install --with-deps chromium
-      # the one step that has hung on a shared runner (a page that stops answering closes the connection);
-      # a second attempt is cheap, and a real failure fails twice. `||` only retries a failure, never a hang,
-      # so each attempt has its own limit (the suite takes about 25 s): a stall becomes a failure the second
-      # attempt can replace, instead of a run that sits until the job's timeout. The step's own limit is the
-      # backstop if `timeout` cannot stop what it started.
-      - run: timeout --kill-after=15 300 pnpm test:browser || timeout --kill-after=15 300 pnpm test:browser
-        timeout-minutes: 12
-      - run: pnpm test:viewer
+      # Diagnostic, remove once the browser stalls are understood: start Vite's dependency optimiser on its own,
+      # in a short run that exits cleanly, so the suite below starts on a warm cache and an optimiser problem
+      # is told apart from a stalled test. It never fails the job; `DEBUG` makes the optimiser say what it did.
+      - name: Warm the browser test cache
+        run: DEBUG=vite:deps timeout --kill-after=10 90 pnpm --filter @specbook/ui exec vitest run --config vitest.browser.config.ts test/browser/extension.test.ts
+        continue-on-error: true
+      # The one step that has hung on a shared runner (a page that stops answering closes the connection). The
+      # suite takes about 25 s, so each attempt is cut off at 120 s and retried once (scripts/ci-retry.sh): a
+      # plain `||` never retries a hang. The step's own limit is the backstop if the script cannot stop it.
+      # A dependency Vite finds while the tests run makes it re-optimise and reload the page, which stalls
+      # vitest. That reload is made a failure that says so, instead of a silent stall; what was found is
+      # shown as a warning (add it to `optimizeDeps.include` in packages/ui/vitest.browser.config.ts).
+      - name: Browser tests
+        shell: bash
+        run: |
+          DEBUG=vite:deps scripts/ci-retry.sh 120 pnpm test:browser 2>&1 | tee browser.log
+          # no match is the normal case, and would fail the step under pipefail
+          grep -E 'new dependencies found' browser.log | while read -r line; do echo "::warning::$line"; done || true
+          if grep -qE 'optimized dependencies changed|Outdated Optimize Dep' browser.log; then
+            echo '::error::Vite reloaded the page while the browser tests ran (see the lines below). Add the dependency to optimizeDeps.include in packages/ui/vitest.browser.config.ts.'
+            grep -nE 'new dependencies found|optimized dependencies changed|Outdated Optimize Dep' browser.log
+            exit 1
+          fi
+        timeout-minutes: 8
+      # the viewer suite is a browser too, and was the one that suffered after a stall
+      - run: scripts/ci-retry.sh 180 pnpm test:viewer
+        timeout-minutes: 10
       - run: pnpm test:slow
       # the packages as npm would serve them, installed outside the workspace
       - run: pnpm test:pack
