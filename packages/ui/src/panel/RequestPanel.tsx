@@ -243,6 +243,8 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setRunning(false)
+      // what you sent a request to see is the response, so show it (the tab stays one click away)
+      setTab('response')
     }
   }
 

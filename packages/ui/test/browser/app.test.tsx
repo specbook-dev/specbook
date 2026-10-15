@@ -120,6 +120,27 @@ describe('docs and play panel', () => {
     expect($('.op-row.active')?.textContent).toContain('Find pet by ID')
   })
 
+  it('shows the response as soon as a request has been sent, and the request is one click away', async () => {
+    await mount()
+    await play('petstore/FindPetsByStatus')
+    const on = () => $('.request-panel .rq-tab.on')?.textContent?.trim() ?? ''
+    // before sending, the tab is the request's own (its parameters)
+    expect(on()).not.toMatch(/^Response/)
+    await send()
+    await waitFor(() => expect(on()).toMatch(/^Response/))
+    expect($('.response .state-badge')).not.toBeNull()
+
+    // going back to the request does not lose the response, and sending again returns to it
+    const tab = (label: string) =>
+      [...root.querySelectorAll<HTMLButtonElement>('.request-panel .rq-tab')].find((t) =>
+        t.textContent?.trim().startsWith(label),
+      )
+    tab('Params')?.click()
+    await waitFor(() => expect(on()).toMatch(/^Params/))
+    await send()
+    await waitFor(() => expect(on()).toMatch(/^Response/))
+  })
+
   it('offers a copyable cURL and Node fetch sample on the Request tab', async () => {
     await mount()
     await play('petstore/AddPet')
