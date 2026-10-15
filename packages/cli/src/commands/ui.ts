@@ -34,6 +34,15 @@ export async function devCommand(project: Project, port = 5173) {
   })
   await server.listen()
   server.printUrls()
+  // a provider only sends the person back to an address it was told about: say which one this is
+  const signIn = Object.entries(project.config.auth ?? {}).filter(([, p]) => p.oauth)
+  const url = server.resolvedUrls?.local[0]
+  if (signIn.length && url) {
+    console.log(
+      `  OAuth redirect URI to register for ${signIn.map(([n]) => n).join(', ')}: ${url}\n` +
+        '  (it follows the port; pass --port to keep it the same between runs)',
+    )
+  }
   return server
 }
 

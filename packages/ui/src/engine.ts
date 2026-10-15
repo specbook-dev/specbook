@@ -22,6 +22,13 @@ import { type ExtensionBridge, extensionTransport } from './extension'
 import { absoluteBase, routingTransport, withPageSecrets } from './routing'
 import { originOf, type SecretStore, secretStore } from './secrets'
 
+/**
+ * The reserved service name a sign-in's token exchange is addressed to. The dev server's proxy answers
+ * `auth:<profile>` from the profile's own `oauth.tokenUrl` (the same prefix lives in `@specbook/vite`).
+ */
+const AUTH_SERVICE_PREFIX = 'auth:'
+const authService = (profile: string) => `${AUTH_SERVICE_PREFIX}${encodeURIComponent(profile)}`
+
 export interface ExampleEntry {
   name: string
   source: 'generated' | 'project'
@@ -147,12 +154,19 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
    * One transport per run, routing each request by its service (`routeFor`). Typed values are bound to
    * the API's origin first; placeholders left over are filled by the dev server or reported as missing.
    */
-  async function transportFor(env: string, proxyBase: string, version: number): Promise<Transport> {
+  async function transportFor(
+    env: string,
+    proxyBase: string,
+    version: number,
+    /** extra services by name -> base URL: a sign-in's token endpoint, which is not a configured service */
+    extra: Record<string, string> = {},
+  ): Promise<Transport> {
     if (env === 'mock') return createMockTransport({ loader: mockLoader })
     const cfg = await config(version)
     const pageHref = globalThis.location?.href
     const pageOrigin = globalThis.location?.origin
     const baseOf = (service: string) => {
+      if (extra[service]) return extra[service]
       const url = cfg.services?.[service]?.baseUrl?.[env]
       if (!url) throw new Error(`No base URL for ${service} in the "${env}" environment`)
       return absoluteBase(url, pageHref)
@@ -194,6 +208,10 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
           return await inner(req, signal)
         } catch (e) {
           // a blocked cross-origin call surfaces as a bare TypeError("Failed to fetch")
+          if (e instanceof TypeError && req.service.startsWith(AUTH_SERVICE_PREFIX))
+            throw new Error(
+              `The browser could not reach the sign-in token endpoint (${extra[req.service] ?? 'unknown'}). It probably does not allow calls from this page (CORS). Embedding the viewer on the API's origin does not help when the sign-in server is on another host; the browser extension can make the call. You can still paste an access token.`,
+            )
           if (e instanceof TypeError)
             throw new Error(
               `The browser could not reach ${req.service} in "${env}". The API probably does not allow calls from this page (CORS). It works when the viewer runs on the API's own origin: embed it in the API's docs route ("Embed the viewer" in the README). Mock data keeps working.`,
@@ -217,6 +235,46 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     } catch {
       return {}
     }
+  }
+
+  /**
+   * A sign-in's code exchange, sent the way any other call from this page is: through the dev server's
+   * proxy when there is one, else direct or through the extension. The token endpoint comes from the
+   * profile in the config, never from the caller, so the proxy only ever forwards to the project's own.
+   */
+  async function oauthExchange(i: {
+    env: string
+    version: number
+    profile: string
+    fields: Record<string, string>
+    proxyBase?: string
+    signal?: AbortSignal
+  }): Promise<unknown> {
+    if (i.env === 'mock') throw new Error('Sign in needs a live environment, not mock')
+    const oauth = ((await config(i.version)).auth?.[i.profile] as AuthProfile | undefined)?.oauth
+    if (!oauth) throw new Error(`"${i.profile}" has no sign-in configured`)
+    const token = new URL(oauth.tokenUrl)
+    const service = authService(i.profile)
+    const send = await transportFor(i.env, i.proxyBase ?? '/__specbook/proxy', i.version, {
+      [service]: token.origin,
+    })
+    const res = await send(
+      {
+        service,
+        opId: 'oauth-token',
+        method: 'POST',
+        url: token.pathname,
+        query: Object.fromEntries(token.searchParams),
+        headers: { accept: 'application/json' },
+        body: i.fields,
+        encoding: 'form',
+      },
+      i.signal,
+    )
+    const body = res.body as { error?: unknown } | undefined
+    if (res.status >= 400 && typeof body?.error !== 'string')
+      throw new Error(`The token endpoint answered ${res.status}`)
+    return res.body
   }
 
   const norm = (p: string) => p.replace(/^\.\//, '')
@@ -401,6 +459,7 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     environments,
     environmentRisks,
     managedSecrets,
+    oauthExchange,
     run,
     operationRequest,
     operationMeta,

@@ -112,8 +112,8 @@ async function open(id: number, source: Source, signal: AbortSignal): Promise<Op
       (o.examples as { name: string }[]).map((e) => e.name),
     ]),
   )
-  const { auth, secrets, defaultProfile } = authFromSpec(doc)
   const sourceUrl = source.kind === 'url' ? source.url : undefined
+  const { auth, secrets, defaultProfile } = authFromSpec(doc, sourceUrl)
   const baseUrl = liveBaseUrl(doc, sourceUrl ?? name ?? '')
   const relativeServer =
     typeof doc.servers?.[0]?.url === 'string' && !/^https?:\/\//i.test(doc.servers[0].url)

@@ -85,7 +85,7 @@ export async function previewCommand(
     await writeFile(specFile, await res.text())
   }
 
-  const { auth, secrets, defaultProfile } = authFromSpec(api)
+  const { auth, secrets, defaultProfile } = authFromSpec(api, source)
   const config = {
     project: service,
     secrets,

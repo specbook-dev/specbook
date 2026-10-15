@@ -438,12 +438,23 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
     const cfg = (mod.default ?? {}) as {
       services?: Record<string, { baseUrl?: Record<string, string> }>
       secrets?: Record<string, { env?: string }>
+      auth?: Record<string, { oauth?: { tokenUrl?: string } }>
+    }
+    const tokenOrigins: Record<string, string> = {}
+    for (const [name, profile] of Object.entries(cfg.auth ?? {})) {
+      try {
+        const url = profile.oauth?.tokenUrl
+        if (url) tokenOrigins[name] = new URL(url).origin
+      } catch {
+        /* an unparsable tokenUrl is left out; a sign-in against it fails with a 404 */
+      }
     }
     return {
       services: Object.fromEntries(
         Object.entries(cfg.services ?? {}).map(([k, v]) => [k, { baseUrl: v.baseUrl ?? {} }]),
       ),
       secretNames: cfg.secrets ?? {},
+      tokenOrigins,
     }
   }
 

@@ -3,11 +3,33 @@
  * the CLI's `preview` and the browser viewer, so both read a spec the same way.
  */
 
+import type { OAuthSettings } from './oauth'
+
 const isUrl = (s: string) => /^https?:\/\//i.test(s)
 
 export interface JsonAuthProfile {
   title: string
   apply: { headers?: Record<string, string>; query?: Record<string, string> }
+  /** present when the scheme has an authorization code flow the UI can sign in to */
+  oauth?: OAuthSettings
+}
+
+/** The authorization code flow of an OAuth scheme (OpenAPI 3 `flows`, or Swagger 2 `accessCode`). */
+function codeFlow(s: any, base: string | undefined): OAuthSettings | undefined {
+  const flow = s.flows?.authorizationCode ?? (s.flow === 'accessCode' ? s : undefined)
+  if (!flow?.authorizationUrl || !flow?.tokenUrl) return undefined
+  const abs = (u: string) => {
+    try {
+      return new URL(u, base).toString()
+    } catch {
+      return u
+    }
+  }
+  return {
+    authorizationUrl: abs(flow.authorizationUrl),
+    tokenUrl: abs(flow.tokenUrl),
+    ...(flow.scopes && Object.keys(flow.scopes).length ? { scopes: flow.scopes } : {}),
+  }
 }
 
 export interface SpecAuth {
@@ -28,7 +50,7 @@ const secretName = (scheme: string) =>
  * Turns a document's security schemes into auth profiles whose secrets are filled in at run time, so
  * previewing a protected API only needs the user to paste a key. OAuth-style schemes take an access token.
  */
-export function authFromSpec(api: any): SpecAuth {
+export function authFromSpec(api: any, source?: string): SpecAuth {
   const schemes: Record<string, any> =
     api.components?.securitySchemes ?? api.securityDefinitions ?? {}
   const out: SpecAuth = { auth: {}, secrets: {} }
@@ -37,6 +59,7 @@ export function authFromSpec(api: any): SpecAuth {
     const ref = `{{secrets.${secret}}}`
     let apply: JsonAuthProfile['apply'] | undefined
     let title = name
+    let oauth: OAuthSettings | undefined
     if (s.type === 'apiKey') {
       const key = s.name as string
       if (s.in === 'header') apply = { headers: { [key]: ref } }
@@ -55,10 +78,12 @@ export function authFromSpec(api: any): SpecAuth {
       title = `${name} (basic auth, paste base64 of user:password)`
     } else if (s.type === 'oauth2' || s.type === 'openIdConnect') {
       apply = { headers: { authorization: `Bearer ${ref}` } }
-      title = `${name} (OAuth, paste an access token)`
+      oauth =
+        s.type === 'oauth2' ? codeFlow(s, source && isUrl(source) ? source : undefined) : undefined
+      title = `${name} (OAuth, ${oauth ? 'sign in or ' : ''}paste an access token)`
     }
     if (!apply) continue
-    out.auth[name] = { title, apply }
+    out.auth[name] = { title, apply, ...(oauth ? { oauth } : {}) }
     out.secrets[secret] = {}
   }
   // the document's top-level `security` says which scheme most operations use

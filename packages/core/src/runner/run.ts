@@ -1,6 +1,7 @@
 import { createAsserter } from '../assert'
 import { ControlError, type Controls, describeControls, resolveControls } from '../controls'
 import type { Example, ExampleLoader, FileReader } from '../example'
+import type { OAuthSettings } from '../oauth'
 import { MissingSecretsError, maskDeep } from '../secrets'
 import type { Sequence, StepCtx } from '../sequence'
 import {
@@ -40,6 +41,8 @@ export interface AuthProfile {
   token?: (res: ApiResponse<number, any>) => Session
   apply: { headers?: Record<string, string>; query?: Record<string, string> }
   retryOn401?: boolean
+  /** an interactive sign-in the UI can offer (authorization code with PKCE); the runner ignores it */
+  oauth?: OAuthSettings
 }
 
 export type RunEvent =
