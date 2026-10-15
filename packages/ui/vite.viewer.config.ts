@@ -1,0 +1,76 @@
+import { resolve } from 'node:path'
+import { defineConfig } from 'vite'
+
+const here = import.meta.dirname
+const stub = resolve(here, 'viewer/node-stub.js')
+// swagger2openapi reaches for Node modules it never uses for an in-memory document
+const node = [
+  'fs',
+  'path',
+  'url',
+  'http',
+  'https',
+  'util',
+  'os',
+  'stream',
+  'zlib',
+  'assert',
+  'events',
+  'buffer',
+  'querystring',
+  'tty',
+  'crypto',
+  'child_process',
+  'net',
+  'tls',
+  'node-fetch-h2',
+]
+
+/**
+ * The viewer: the same app, with `virtual:specbook/registry` answered by a spec the person opens at run
+ * time instead of a project on disk. Output is `dist-viewer`, built with relative URLs so one build
+ * serves `/v1/`, an exact release path, a webjar and `specbook build --viewer`.
+ */
+export default defineConfig({
+  root: resolve(here, 'viewer'),
+  base: './',
+  publicDir: resolve(here, 'viewer/public'),
+  oxc: { jsx: { runtime: 'automatic', importSource: 'preact' } },
+  resolve: {
+    alias: [
+      { find: 'virtual:specbook/registry', replacement: resolve(here, 'src/viewer/registry.ts') },
+      ...node.flatMap((n) => [
+        { find: new RegExp(`^${n}$`), replacement: stub },
+        { find: new RegExp(`^node:${n}$`), replacement: stub },
+      ]),
+    ],
+  },
+  define: { 'process.env': '{}', 'process.platform': '"browser"', 'process.version': '"v0"' },
+  worker: { format: 'es' },
+  build: {
+    outDir: resolve(here, 'dist-viewer'),
+    emptyOutDir: true,
+    sourcemap: false,
+    target: 'es2022',
+    rollupOptions: {
+      // two entries over shared chunks: the viewer page, and `specbook.js` for a host page to load
+      input: {
+        index: resolve(here, 'viewer/index.html'),
+        specbook: resolve(here, 'src/viewer/embed.ts'),
+      },
+      preserveEntrySignatures: 'exports-only',
+      output: {
+        entryFileNames: (chunk) =>
+          chunk.name === 'specbook' ? 'specbook.js' : 'assets/[name]-[hash].js',
+        // faker is only needed when a request uses {{faker.*}}, so it is named to be left out of the
+        // landing page's preload list (see scripts/assemble-site.mjs)
+        chunkFileNames: (chunk) =>
+          chunk.moduleIds.some(
+            (id) => id.includes('@faker-js/faker') || id.includes('viewer/faker-en'),
+          )
+            ? 'assets/faker-[hash].js'
+            : 'assets/[name]-[hash].js',
+      },
+    },
+  },
+})

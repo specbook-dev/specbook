@@ -1,0 +1,93 @@
+name: Release
+
+# Cut a GitHub release (tag v1.2.3) to publish the five packages at that version, attach the viewer zip
+# and deploy the viewer (ui.specbook.dev) and the demo (demo.specbook.dev).
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # attach files to the release
+      id-token: write # npm trusted publishing and provenance
+      attestations: write # build provenance for the release files
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      # the packages already carry the release's version (committed before tagging); stop if they do not
+      - run: node scripts/version.mjs --expect "${{ github.event.release.tag_name }}"
+      - run: pnpm build
+      # the CLI serves this from @specbook/ui, so it has to be in the tarball
+      - run: pnpm --filter @specbook/ui build:viewer
+      - run: pnpm test:pack
+      # what a team that hosts the viewer itself, or vets what it installs, downloads from the release.
+      # Done before publishing so a failure here leaves nothing half released.
+      - name: Package the release files
+        run: node scripts/release-assets.mjs "${{ github.event.release.tag_name }}"
+      - name: Attest the release files
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release-assets/*
+      - name: Attach the release files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" release-assets/* --clobber
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: >
+          pnpm --filter './packages/*' publish
+          --access public --no-git-checks --provenance
+          --tag ${{ github.event.release.prerelease && 'next' || 'latest' }}
+
+  deploy-ui:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm deploy:site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  deploy-demo:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm deploy:demo
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

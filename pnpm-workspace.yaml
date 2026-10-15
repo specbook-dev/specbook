@@ -1,0 +1,15 @@
+packages:
+  - packages/*
+  - apps/*
+
+allowBuilds:
+  esbuild: true
+
+minimumReleaseAgeExclude:
+  - '@vitest/browser-playwright@5.0.4'
+  - '@vitest/browser@5.0.4'
+  - '@vitest/mocker@5.0.4'
+  - '@vitest/pretty-format@5.0.4'
+  - '@vitest/ui@5.0.4'
+  - '@vitest/utils@5.0.4'
+  - vitest@5.0.4

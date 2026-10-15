@@ -1,0 +1,9 @@
+{
+  "title": "Acme VIP customer",
+  "summary": "Our own example on top of the Stripe spec: a VIP-tier customer.",
+  "body": {
+    "name": "{{faker.person.fullName}}",
+    "email": "{{faker.internet.email}}",
+    "metadata": { "tier": "vip" }
+  }
+}

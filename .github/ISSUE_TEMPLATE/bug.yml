@@ -1,0 +1,33 @@
+name: Bug report
+description: Something does not work, or works wrongly
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Spec
+      description: A public URL to the OpenAPI or Swagger document, or the smallest excerpt that reproduces it.
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - ui.specbook.dev (the viewer)
+        - specbook dev / build (a project)
+        - Embedded specbook.js
+        - specbook CLI
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version and browser
+      description: "For example: specbook 0.1.0, Chrome 130, Node 24"

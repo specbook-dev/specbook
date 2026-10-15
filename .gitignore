@@ -1,0 +1,9 @@
+node_modules
+dist
+.turbo
+.generated
+.specbook/secrets.local.env
+.DS_Store
+.vitest
+dist-viewer
+dist-site

@@ -1,0 +1,11 @@
+name: Request
+description: Something you wanted to do and could not
+labels: [enhancement]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: What you wanted to do
+      description: The goal first, then what got in the way. A spec or API you tried it on helps.
+    validations:
+      required: true

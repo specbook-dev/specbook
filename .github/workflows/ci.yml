@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm version:check
+      - run: pnpm typecheck
+      - run: pnpm build
+      # the example's large public specs are not in the repository
+      - run: pnpm --filter example run fetch-specs
+      - run: pnpm test
+      - run: pnpm --filter @specbook/ui exec playwright install --with-deps chromium
+      - run: pnpm test:browser
+      - run: pnpm test:viewer
+      - run: pnpm test:slow
+      # the packages as npm would serve them, installed outside the workspace
+      - run: pnpm test:pack

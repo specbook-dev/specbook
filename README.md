@@ -1,0 +1,197 @@
+<p align="center">
+  <img src="packages/ui/landing/favicon.svg" alt="Specbook" width="96" height="96" />
+</p>
+
+<h1 align="center">Specbook</h1>
+
+<p align="center"><strong>Storybook for APIs</strong></p>
+
+<p align="center"><em>Same spec. Way more swagger.</em></p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/screenshot-pair-dark.png" />
+    <img src=".github/screenshot-pair.png" alt="Specbook with the Petstore spec open on a laptop and on a phone: a mock request to POST /store/order returned 200 and matches the spec." width="840" />
+  </picture>
+  <br />
+  <sub>Petstore, opened from a link, on a laptop and on a phone. The response is a mock that matches the spec. Set Environment to live and the same request goes to the real API.</sub>
+</p>
+
+A drop-in alternative to Swagger UI. Open an OpenAPI or Swagger document and get a browsable, runnable API
+explorer: mock responses from the first request, live calls from the browser, flows that chain requests, and
+links you can share. Serve it from your API's own docs route and it runs on your origin, so there is no CORS
+to configure.
+
+**Try it:** [ui.specbook.dev](https://ui.specbook.dev). Paste the address of a spec, or drop the file. It is
+read in your browser; nothing is uploaded.
+
+- **Mock from the first request.** Responses are generated from the spec and follow what you send: posted
+  fields come back, query filters shape lists, path parameters become ids.
+- **Live calls.** The same requests run against the real API from your browser. Served from the API's own
+  origin there is no CORS; from elsewhere it works for APIs that allow browser calls. Credentials stay in the tab.
+- **Flows.** Chain requests, capture values from one response into the next, and assert on the way.
+- **Share a view.** A link opens the same operation for someone else, for any spec served from a public address.
+- **Embed it.** Serve the viewer from your API's docs route: it runs on your origin, so no CORS, and your
+  visitors' cookies are sent.
+
+## Embed the viewer
+
+```html
+<div id="app"></div>
+<script type="application/json" id="specbook-config">{"spec": "/v3/api-docs"}</script>
+<script type="module" src="https://ui.specbook.dev/v1/specbook.js"></script>
+```
+
+The script runs on your page's origin, so the spec and the API calls need no CORS and carry the visitor's
+cookies. `spec` may be relative; `baseUrl` supplies the API address when the document has none.
+
+## CORS: which option?
+
+| Situation | What to do |
+| --- | --- |
+| It is your API | Embed the viewer in your docs route (above). It runs on your origin: no CORS, cookies sent. |
+| Your policy will not load a third-party script | Self-host the viewer (below). |
+| You want the hosted viewer inside your page | An iframe of ui.specbook.dev works, but it is cross-origin, so the API still has to allow it. An iframe of your self-hosted copy is same-origin. |
+| It is someone else's API | It works when that API allows browser calls. A browser extension for the rest is planned. |
+
+## Self-host the viewer
+
+Each release attaches `specbook-viewer-<version>.zip` and `SHA256SUMS`, with a build attestation, and the same
+files ship in the `@specbook/ui` package under `dist-viewer/`. The viewer uses relative paths, so unpack it
+into any directory your server already serves and open it with the address of your spec:
+
+```sh
+unzip specbook-viewer-0.1.0.zip -d public/specbook
+# https://your-host/specbook/?spec=https://your-host/openapi.json
+```
+
+On the same origin, a strict Content-Security-Policy needs `script-src 'self'` and `worker-src 'self'`. Loading
+the hosted script instead needs the viewer's host in `script-src` and `worker-src blob:`.
+
+In a Spring Boot app, put the unpacked files under `src/main/resources/META-INF/resources/specbook/` and they
+are served at `/specbook/`.
+
+## Add a button to your README
+
+```md
+[![Open in Specbook](https://ui.specbook.dev/badge.svg)](https://ui.specbook.dev/v1/?spec=<address of your OpenAPI file>)
+```
+
+Anyone who clicks it gets your API open and runnable, with nothing to install. The landing page at
+[ui.specbook.dev](https://ui.specbook.dev) has a generator that writes this line for you.
+
+## Theme it
+
+Every colour, font and radius is a CSS variable, so a page that embeds the viewer restyles it from its own
+stylesheet. Light and dark follow the visitor's system; `data-theme="light"` or `"dark"` on the root forces one.
+
+```css
+:root {
+  --sb-accent: #e11d48;
+  --sb-accent-hover: #be123c;
+  --sb-font-sans: "Inter", system-ui, sans-serif;
+  --sb-radius-card: 14px;
+}
+```
+
+The variables are in [`tokens.css`](packages/ui/src/styles/tokens.css): surfaces (`--sb-bg`, `--sb-surface`,
+`--sb-border`), text, accent, status colours, one colour per HTTP method, code colours, fonts, radii and spacing.
+
+## Use it in a project
+
+The command line turns a project's specs into types, examples, a docs site and runnable requests. Needs Node 24.
+
+```sh
+npm install --save-dev @specbook/cli @specbook/core
+```
+
+Run the install above first; after that, `npx specbook` runs the installed copy. To look at a document with
+no project, `npx @specbook/cli preview <url|file>` works without installing anything.
+
+```sh
+npx specbook init                # scaffold config, the #api/* import and an environments folder
+npx specbook add petstore --spec ./openapi/petstore.json --base-url https://petstore3.swagger.io/api/v3
+npx specbook generate            # types, operations, examples and metadata from the specs
+npx specbook dev                 # the UI: docs, a play panel and a credential proxy
+npx specbook build               # a static docs site, and specbook.js to embed it
+npx specbook run 'sequences/*.seq.ts' --env mock
+npx specbook check               # validate specs, generated code drift and environment files
+npx specbook preview <url|file>  # open any document in the UI, with no project
+```
+
+`npx specbook build --viewer` also copies the spec viewer next to the site, for a team that serves it from its
+own host (open it with `?spec=<url>`).
+
+### Environments and secrets
+
+Variables and secrets come from the project's config, the environment files in `.specbook/environments/`
+and the process environment. Secret values go in `<env>.secrets.env`, which the folder's own `.gitignore`
+keeps out of the repository. `npx specbook secrets --env <name>` shows where each declared secret resolves from,
+never the values. In the UI you can also type a value for the tab, which wins over files and variables.
+
+### Documentation beside the code
+
+Markdown lives next to what it describes:
+
+| File | Documents |
+| --- | --- |
+| `sequences/<name>.seq.md` | the flow in `<name>.seq.ts` |
+| `requests/<name>.req.md` | the saved request in `<name>.req.ts` |
+| `requests/<service>/<Operation>/README.md` | an operation, above its parameter tables |
+| `requests/<service>/docs/<Operation>.md` | the same, flat: one `docs/` folder per service |
+
+A heading made of one code span (`` ## `name` ``) attaches the text under it to that field.
+
+## Develop
+
+Needs Node 24 (`nvm use`) and pnpm.
+
+```sh
+pnpm install
+pnpm build
+pnpm lint
+pnpm typecheck
+pnpm test            # unit tests
+pnpm test:browser    # the UI in a real browser
+pnpm test:viewer     # the built viewer and landing page
+pnpm test:slow       # a full site build, checking what the bundle contains
+```
+
+Try the example project (Petstore, Stripe, GitHub and a GraphQL API):
+
+```sh
+cd apps/example
+pnpm exec specbook generate
+pnpm exec specbook dev
+```
+
+### Layout
+
+| Path | What |
+| --- | --- |
+| `packages/core` | the runner, mock engine, template engine and the shared proxy |
+| `packages/codegen` | OpenAPI to types, examples, schemas and metadata (also runs in a browser) |
+| `packages/cli` | the `specbook` command |
+| `packages/vite` | the Vite plugin and the dev server's proxy |
+| `packages/ui` | the app, the viewer, the landing page and the site assembly |
+| `apps/example` | a project to try it on, and the fixtures for the tests |
+
+## Contributing
+
+Specbook's source is public, but it is not run as a pull-request project. The way to contribute is an
+[issue](https://github.com/specbook-dev/specbook/issues): a bug with a spec that reproduces it, or a
+document that does not load, or something you wanted to do and could not. Fixes are made in this repository
+from those reports, with a test for each.
+
+## License
+
+The licence is set per package:
+
+| Package | Licence |
+| --- | --- |
+| `@specbook/core`, `@specbook/codegen`, `@specbook/ui` (the viewer, the embed and the libraries behind them) | [MIT](LICENSE) |
+| `@specbook/cli`, `@specbook/vite` (the project workflow tooling) | [FSL-1.1-MIT](packages/cli/LICENSE): free for internal and personal use, not for offering a competing commercial product, and each version becomes MIT two years after its release |
+
+The Specbook name and logo are not licensed for use in forks.
+
+Specbook is an independent project and is not affiliated with Storybook (storybook.js.org) or Swagger.

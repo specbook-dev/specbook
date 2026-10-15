@@ -1,0 +1,57 @@
+{
+  "name": "@specbook/codegen",
+  "version": "0.1.0",
+  "description": "Turns an OpenAPI or Swagger document into types, examples, schemas and metadata, in Node or in a browser.",
+  "keywords": [
+    "specbook",
+    "openapi",
+    "swagger",
+    "codegen",
+    "typescript"
+  ],
+  "license": "MIT",
+  "homepage": "https://ui.specbook.dev",
+  "bugs": {
+    "url": "https://github.com/specbook-dev/specbook/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/specbook-dev/specbook.git",
+    "directory": "packages/codegen"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./browser": {
+      "types": "./src/browser.ts",
+      "default": "./src/browser.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@apidevtools/swagger-parser": "10.1.1",
+    "js-yaml": "4.3.2",
+    "swagger2openapi": "7.0.8"
+  },
+  "devDependencies": {
+    "@specbook/core": "workspace:*",
+    "@types/node": "24.19.2",
+    "@types/swagger2openapi": "7.0.4",
+    "typescript": "7.0.2"
+  },
+  "files": [
+    "src",
+    "!**/*.test.*"
+  ]
+}

@@ -1,0 +1,5 @@
+# large vendored specs: pnpm fetch-specs
+openapi/stripe.json
+openapi/github.json
+.generated
+dist-docs

@@ -1,0 +1,821 @@
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+  body {
+    background: var(--sb-bg);
+    color: var(--sb-text);
+    font: 14px / 1.5 var(--sb-font-sans);
+  }
+  code,
+  pre,
+  kbd {
+    font-family: var(--sb-font-mono);
+    font-size: 12.5px;
+  }
+  kbd {
+    padding: 1px 6px;
+    border: 1px solid var(--sb-border);
+    border-radius: 4px;
+    background: var(--sb-surface-raised);
+    color: var(--sb-text-muted);
+  }
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+  h2 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--sb-text-muted);
+  }
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--sb-focus-ring);
+    outline-offset: 1px;
+  }
+}
+
+@layer components {
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  /* a phone's address bar comes and goes; dvh follows it, so nothing sits behind the toolbar */
+  @supports (height: 100dvh) {
+    .app {
+      height: 100dvh;
+    }
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    gap: var(--sb-space-4);
+    height: var(--sb-header-h, 53px);
+    flex: 0 0 auto;
+    padding: 8px var(--sb-space-4);
+    background: var(--sb-surface);
+    border-bottom: 1px solid var(--sb-border);
+    flex-wrap: wrap;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font-size: 15px;
+  }
+  .spacer {
+    flex: 1;
+  }
+  .row {
+    display: flex;
+    gap: var(--sb-space-3);
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .muted {
+    color: var(--sb-text-muted);
+  }
+  .small {
+    font-size: 12px;
+  }
+  .count {
+    font-weight: 400;
+    opacity: 0.7;
+    margin-left: 4px;
+  }
+
+  /* ---- shell: a list that never changes width, and a stage the panel docks into */
+  .app {
+    --sb-list-w: clamp(320px, 28vw, 440px);
+  }
+  .layout {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: var(--sb-list-w) minmax(0, 1fr);
+  }
+  /* classic scrollbars (a mouse, or "always show") are thin and quiet rather than a wide grey bar */
+  .list-col,
+  .stage,
+  .panel-body,
+  .panel-main.scroll,
+  .tab-pane,
+  .seq-left {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sb-border) transparent;
+  }
+  .list-col {
+    min-height: 0;
+    overflow: auto;
+    /* scrolling to the end of the list must not drag the whole page along */
+    overscroll-behavior: contain;
+    padding: var(--sb-space-3);
+    background: var(--sb-surface);
+    border-right: 1px solid var(--sb-border);
+  }
+  .stage {
+    min-height: 0;
+    overflow: auto;
+    padding: var(--sb-space-6) 32px 96px;
+  }
+  @media (max-width: 900px) {
+    .layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .stage {
+      display: none;
+    }
+    /* a phone opens on the overview as a splash; the list comes after "Browse" */
+    .layout[data-view="splash"] .list-col {
+      display: none;
+    }
+    .layout[data-view="splash"] .stage {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--sb-space-6) var(--sb-space-4);
+    }
+    .layout[data-view="splash"] .overview {
+      min-height: 0;
+      /* a touch above the exact middle reads as centred */
+      padding-bottom: 6vh;
+    }
+  }
+  .overview .overview-browse {
+    display: none;
+  }
+  @media (max-width: 820px) {
+    .overview .overview-browse {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding-block: 0;
+      padding-inline: var(--sb-space-6);
+      font-size: 16px;
+      line-height: 1.2;
+      text-align: center;
+    }
+    .overview-hint,
+    .overview-keys {
+      display: none;
+    }
+  }
+  /* the environment chip repeats the header's selector on a phone, where that sits behind a menu */
+  .header-env {
+    display: none;
+  }
+  /* the header's settings: inline on a desktop, a menu on a phone */
+  .header-controls {
+    display: contents;
+  }
+  /* `.header` raises it above the shared `.icon` rule, which would otherwise show it on a desktop */
+  .header .menu-btn {
+    display: none;
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+    line-height: 1;
+  }
+  .theme-toggle {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--sb-border);
+    border-radius: var(--sb-radius-control);
+    color: var(--sb-text);
+  }
+  .brand-logo {
+    height: 24px;
+    width: auto;
+    max-width: 120px;
+    object-fit: contain;
+  }
+  .seed-input {
+    width: 80px;
+  }
+  .palette-btn {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--sb-space-6);
+    min-width: min(360px, 40vw);
+    padding: 6px 10px;
+    border: 1px solid var(--sb-border);
+    border-radius: var(--sb-radius-control);
+    background: var(--sb-bg);
+    color: var(--sb-text-muted);
+    cursor: pointer;
+  }
+  .palette-btn:hover {
+    border-color: var(--sb-text-muted);
+  }
+
+  /* ---- palette */
+  .palette-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    background: rgb(15 23 42 / 40%);
+    display: flex;
+    justify-content: center;
+    padding-top: 14vh;
+  }
+  .palette-dismiss {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: none;
+    cursor: default;
+  }
+  .palette {
+    position: relative;
+    width: min(620px, 92vw);
+    max-height: 60vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--sb-surface);
+    border: 1px solid var(--sb-border);
+    border-radius: var(--sb-radius-card);
+    box-shadow: 0 20px 50px rgb(0 0 0 / 25%);
+    overflow: hidden;
+  }
+  .palette input {
+    border: 0;
+    border-bottom: 1px solid var(--sb-border);
+    border-radius: 0;
+    padding: 14px 16px;
+    font-size: 15px;
+    outline: none;
+  }
+  .palette ul {
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    overflow: auto;
+  }
+  .palette li button {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--sb-space-3);
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: var(--sb-radius-control);
+    background: none;
+    text-align: left;
+    cursor: pointer;
+  }
+  .palette li button.sel {
+    background: var(--sb-surface-raised);
+  }
+  .pad {
+    padding: 12px;
+  }
+
+  /* ---- shared pieces */
+  .states {
+    display: flex;
+    gap: var(--sb-space-2);
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: var(--sb-space-4);
+  }
+  .state {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    padding: 3px 10px;
+    border: 1px solid var(--sb-border);
+    border-radius: 999px;
+    background: var(--sb-surface);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .state span {
+    color: var(--sb-text-muted);
+  }
+  table.headers {
+    border-collapse: collapse;
+    font-size: 12px;
+    width: 100%;
+  }
+  table.headers th {
+    text-align: left;
+    padding: 3px 12px 3px 0;
+    font-family: var(--sb-font-mono);
+    color: var(--sb-text-muted);
+    vertical-align: top;
+  }
+  table.headers td {
+    word-break: break-all;
+  }
+  .state.s2 {
+    border-color: var(--sb-success);
+  }
+  .state.s4,
+  .state.s5 {
+    border-color: var(--sb-warning);
+  }
+  .state.forced {
+    background: var(--sb-accent);
+    border-color: var(--sb-accent);
+    color: var(--sb-text-on-accent);
+  }
+  .state.forced span {
+    color: inherit;
+  }
+  .state.last::before {
+    content: "●";
+    font-size: 8px;
+    color: var(--sb-success);
+  }
+  .tabs {
+    display: inline-flex;
+    border: 1px solid var(--sb-border);
+    border-radius: var(--sb-radius-control);
+    overflow: hidden;
+  }
+  .tabs .tab {
+    padding: 3px 12px;
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+  .tabs .tab.on {
+    background: var(--sb-surface-raised);
+    font-weight: 600;
+  }
+  .lock {
+    margin-bottom: var(--sb-space-3);
+  }
+  /* ---- response */
+  .state-badge {
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 12px;
+  }
+  .state-badge.s2 {
+    background: var(--sb-success-subtle);
+    color: var(--sb-success);
+  }
+  .state-badge.s3 {
+    background: var(--sb-surface-raised);
+  }
+  .state-badge.s4,
+  .state-badge.s5 {
+    background: var(--sb-warning-subtle);
+    color: var(--sb-warning);
+  }
+  .conf {
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .conf.ok {
+    color: var(--sb-success);
+  }
+  .conf.warn {
+    color: var(--sb-warning);
+  }
+  .conf.none {
+    color: var(--sb-text-muted);
+    font-weight: 400;
+  }
+  .checks {
+    list-style: none;
+    margin: var(--sb-space-3) 0 0;
+    padding: var(--sb-space-3) 0 0;
+    border-top: 1px solid var(--sb-border);
+  }
+  .checks .ok {
+    color: var(--sb-success);
+  }
+  .checks .bad {
+    color: var(--sb-danger);
+  }
+  .error-text {
+    color: var(--sb-danger);
+  }
+
+  /* ---- sequence journey */
+  .journey {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .jstep {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: var(--sb-space-3);
+    position: relative;
+    padding-bottom: var(--sb-space-4);
+  }
+  .jstep::before {
+    content: "";
+    position: absolute;
+    left: 13px;
+    top: 28px;
+    bottom: 0;
+    width: 2px;
+    background: var(--sb-border);
+  }
+  .jstep:last-child::before {
+    display: none;
+  }
+  .jmark {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--sb-surface-raised);
+    border: 2px solid var(--sb-border);
+    font-weight: 700;
+    font-size: 12px;
+  }
+  .jstep.pass .jmark {
+    background: var(--sb-success-subtle);
+    border-color: var(--sb-success);
+    color: var(--sb-success);
+  }
+  .jstep.fail .jmark,
+  .jstep.error .jmark {
+    background: var(--sb-danger-subtle);
+    border-color: var(--sb-danger);
+    color: var(--sb-danger);
+  }
+  .jstep.paused .jmark,
+  .jstep.running .jmark {
+    border-color: var(--sb-accent);
+    color: var(--sb-accent);
+  }
+  .jstep.skipped {
+    opacity: 0.6;
+  }
+  .jhead {
+    display: flex;
+    gap: var(--sb-space-3);
+    align-items: baseline;
+    flex-wrap: wrap;
+    border: 0;
+    background: none;
+    padding: 2px 0;
+    text-align: left;
+    cursor: pointer;
+  }
+  .jhead:disabled {
+    cursor: default;
+  }
+  .jname {
+    font-weight: 600;
+  }
+  .cap {
+    font-size: 12px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--sb-surface-raised);
+    color: var(--sb-text-muted);
+  }
+  .cap b {
+    color: var(--sb-text);
+    font-weight: 600;
+  }
+  .cap em {
+    font-style: normal;
+    opacity: 0.8;
+  }
+  .cap.use {
+    background: var(--sb-warning-subtle);
+    color: var(--sb-warning);
+  }
+  .cap.make {
+    background: var(--sb-success-subtle);
+    color: var(--sb-success);
+  }
+  .pause {
+    margin-top: var(--sb-space-3);
+    padding: var(--sb-space-3);
+    border-left: 3px solid var(--sb-accent);
+    background: var(--sb-bg);
+    border-radius: var(--sb-radius-control);
+  }
+
+  /* ---- shared controls */
+  .btn {
+    padding: 6px 14px;
+    border: 1px solid var(--sb-border);
+    border-radius: var(--sb-radius-control);
+    background: var(--sb-surface);
+    cursor: pointer;
+  }
+  .btn:hover {
+    background: var(--sb-surface-raised);
+  }
+  .btn.primary {
+    background: var(--sb-accent);
+    border-color: var(--sb-accent);
+    color: var(--sb-text-on-accent);
+    font-weight: 600;
+  }
+  .btn.primary:hover {
+    background: var(--sb-accent-hover);
+  }
+  .btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  select,
+  textarea.val {
+    padding: 5px 8px;
+    border: 1px solid var(--sb-border);
+    border-radius: var(--sb-radius-control);
+    background: var(--sb-surface);
+  }
+  .field {
+    display: grid;
+    gap: 4px;
+    margin-bottom: var(--sb-space-3);
+  }
+  .field > .label {
+    font-weight: 600;
+    font-size: 12px;
+  }
+  .nested {
+    border-left: 2px solid var(--sb-border);
+    padding-left: var(--sb-space-3);
+  }
+  .method {
+    font: 700 11px var(--sb-font-mono);
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--sb-surface-raised);
+  }
+  .method.GET {
+    color: var(--sb-method-get);
+  }
+  .method.POST {
+    color: var(--sb-method-post);
+  }
+  .method.PUT {
+    color: var(--sb-method-put);
+  }
+  .method.PATCH {
+    color: var(--sb-method-patch);
+  }
+  .method.DELETE {
+    color: var(--sb-method-delete);
+  }
+  .badge {
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .badge.pass {
+    background: var(--sb-success-subtle);
+    color: var(--sb-success);
+  }
+  .badge.fail,
+  .badge.error {
+    background: var(--sb-danger-subtle);
+    color: var(--sb-danger);
+  }
+}
+
+@layer components {
+  /* the header's settings move into the menu where they no longer fit on one line */
+  @media (max-width: 900px) {
+    .header {
+      position: relative;
+      gap: var(--sb-space-3);
+      flex-wrap: nowrap;
+    }
+    /* the name gives way before the header can outgrow the screen: the palette cannot shrink below its
+       padding, so a long name or a wider system font would otherwise push the menu button off the edge */
+    .brand {
+      flex: 0 1 auto;
+      min-width: 0;
+    }
+    .brand-logo {
+      flex: none;
+    }
+    .brand-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .palette-btn {
+      flex: 1;
+      min-width: 0;
+    }
+    .palette-btn span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .palette-btn kbd,
+    .header .spacer {
+      display: none;
+    }
+    .header .menu-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
+    .header-env {
+      display: inline-flex;
+      flex: 0 0 auto;
+    }
+    .header-controls {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: var(--sb-space-2);
+      left: var(--sb-space-2);
+      z-index: 30;
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--sb-space-3);
+      padding: var(--sb-space-4);
+      border: 1px solid var(--sb-border);
+      border-radius: var(--sb-radius-control);
+      background: var(--sb-surface);
+      box-shadow: 0 12px 32px color-mix(in srgb, var(--sb-text) 18%, transparent);
+    }
+    .header-controls.open {
+      display: flex;
+    }
+    .header-controls .row {
+      justify-content: space-between;
+      flex-wrap: nowrap;
+    }
+    .header-controls select {
+      min-width: 140px;
+    }
+    /* in the menu there is room for the words, and each link is a full row */
+    .header-controls .gh-label,
+    .header-controls .share-label {
+      display: inline;
+    }
+    .header-controls .gh-star,
+    .header-controls .share > .btn {
+      width: 100%;
+      justify-content: flex-start;
+    }
+    .list-col {
+      padding: var(--sb-space-2);
+    }
+  }
+}
+
+@layer components {
+  /* iOS zooms the page whenever a field under 16px is focused, so on a phone every field is 16px.
+     !important because individual cells and editors set their own smaller sizes. */
+  @media (max-width: 820px) {
+    input,
+    select,
+    textarea {
+      /* biome-ignore lint/complexity/noImportantStyles: cell editors set their own smaller sizes */
+      font-size: 16px !important;
+    }
+  }
+}
+
+@layer components {
+  .share {
+    position: relative;
+  }
+  .share-pop {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 40;
+    width: min(360px, 90vw);
+    display: grid;
+    gap: var(--sb-space-3);
+    padding: var(--sb-space-3);
+    background: var(--sb-surface);
+    border: 1px solid var(--sb-border);
+    border-radius: var(--sb-radius-control);
+    box-shadow: 0 12px 32px color-mix(in srgb, var(--sb-text) 18%, transparent);
+  }
+  .share-pop p {
+    margin: 0;
+  }
+  .share-link {
+    width: 100%;
+    min-width: 0;
+    font-size: 12px;
+  }
+  .share-actions {
+    display: flex;
+    gap: var(--sb-space-2);
+    flex-wrap: wrap;
+  }
+  .share-targets {
+    display: flex;
+    gap: var(--sb-space-3);
+    flex-wrap: wrap;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .share-targets a {
+    color: var(--sb-accent);
+  }
+  @media (max-width: 820px) {
+    .share-pop {
+      position: static;
+      width: auto;
+    }
+  }
+}
+
+@layer components {
+  .powered-by {
+    margin: var(--sb-space-6) 0 0;
+    font-size: 12px;
+  }
+  .powered-by a {
+    color: var(--sb-text-muted);
+    text-decoration: none;
+  }
+  .powered-by a:hover {
+    color: var(--sb-accent);
+    text-decoration: underline;
+  }
+}
+
+@layer components {
+  /* one line, always: the palette gives way before anything wraps out of sight */
+  .header {
+    flex-wrap: nowrap;
+  }
+  .palette-btn {
+    flex: 1 1 180px;
+    min-width: 120px;
+    max-width: 360px;
+  }
+  /* GitHub and Share keep their icons and lose their words where the header is tight */
+  @media (max-width: 1360px) {
+    .gh-label,
+    .share-label {
+      display: none;
+    }
+  }
+  .gh-star {
+    color: var(--sb-text);
+  }
+  .share > .btn,
+  .gh-star {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+}

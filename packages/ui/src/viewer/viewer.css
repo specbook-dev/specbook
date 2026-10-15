@@ -1,0 +1,184 @@
+.vw {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--sb-bg);
+  color: var(--sb-text);
+  font-family: var(--sb-font-sans);
+}
+.vw-card {
+  width: min(640px, 100%);
+  display: grid;
+  gap: 16px;
+}
+.vw h1 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.01em;
+}
+.vw p {
+  margin: 0;
+  color: var(--sb-text-muted);
+}
+.vw form {
+  display: flex;
+  gap: 8px;
+}
+.vw input[type="url"],
+.vw input[type="text"],
+.vw textarea {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 16px;
+  padding: 10px 12px;
+  color: var(--sb-text);
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-border);
+  border-radius: var(--sb-radius-control);
+}
+.vw textarea {
+  width: 100%;
+  min-height: 120px;
+  font-family: var(--sb-font-mono);
+  font-size: 13px;
+}
+.vw .vw-drop {
+  border: 1px dashed var(--sb-border);
+  border-radius: var(--sb-radius-control);
+  padding: 14px;
+  text-align: center;
+  color: var(--sb-text-muted);
+}
+.vw .vw-drop.over {
+  border-color: var(--sb-accent);
+  color: var(--sb-text);
+}
+.vw .vw-error {
+  color: var(--sb-danger);
+  background: var(--sb-danger-subtle);
+  border-radius: var(--sb-radius-control);
+  padding: 10px 12px;
+}
+.vw .vw-warn {
+  color: var(--sb-warning);
+}
+.vw ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.vw li button.link {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vw .vw-progress {
+  color: var(--sb-text-muted);
+}
+@media (max-width: 480px) {
+  .vw form {
+    flex-direction: column;
+  }
+}
+
+/* the opening screen: the app's header and columns, with placeholders where its content will be */
+.sk .sk-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--sb-text);
+  /* the real brand is a button, and carries its padding */
+  padding: 1px 6px;
+}
+.sk .sk-search {
+  min-width: min(360px, 40vw);
+  height: 34px;
+  border: 1px solid var(--sb-border);
+  border-radius: var(--sb-radius-control);
+  background: var(--sb-bg);
+}
+.sk .sk-pill {
+  height: 32px;
+  border-radius: var(--sb-radius-control);
+  background: var(--sb-surface-raised);
+}
+.sk .sk-menu {
+  display: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--sb-radius-control);
+  background: var(--sb-surface-raised);
+}
+.sk .sk-filter {
+  display: block;
+  height: 34px;
+  border: 1px solid var(--sb-border);
+  border-radius: var(--sb-radius-control);
+  background: var(--sb-bg);
+}
+.sk .stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.sk .sk-row {
+  display: block;
+  height: 34px;
+  margin: 12px 0 0;
+  border-radius: var(--sb-radius-control);
+  background: linear-gradient(
+    90deg,
+    var(--sb-surface-raised) 0%,
+    var(--sb-bg) 50%,
+    var(--sb-surface-raised) 100%
+  );
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s linear infinite;
+}
+.sk .sk-status {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--sb-text);
+}
+.sk .sk-what {
+  margin: 6px 0 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--sb-text-muted);
+}
+@keyframes sk-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk .sk-row {
+    animation: none;
+  }
+}
+@media (max-width: 900px) {
+  .sk .sk-search {
+    flex: 1;
+    min-width: 0;
+  }
+  .sk .sk-pill,
+  .sk .spacer {
+    display: none;
+  }
+  .sk .sk-menu {
+    display: block;
+  }
+}

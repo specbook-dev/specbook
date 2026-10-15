@@ -1,0 +1,29 @@
+{
+  "name": "specbook",
+  "license": "MIT",
+  "private": true,
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "test:browser": "turbo run test:browser",
+    "test:slow": "turbo run test:slow",
+    "test:viewer": "turbo run test:viewer",
+    "deploy:site": "pnpm --filter @specbook/ui run deploy:site",
+    "version:check": "node scripts/version.mjs",
+    "test:pack": "node scripts/smoke-pack.mjs",
+    "deploy:demo": "pnpm --filter example run deploy"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "turbo": "2.11.7",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}

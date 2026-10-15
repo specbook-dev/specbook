@@ -1,0 +1,20 @@
+{
+  "title": "Rex (shared fixture)",
+  "summary": "A complete pet that sends as it is. A request can start from it with example: 'rex' and override fields.",
+  "body": {
+    "id": 1001,
+    "name": "Rex",
+    "category": {
+      "id": 1,
+      "name": "Dogs"
+    },
+    "photoUrls": ["https://example.com/rex.png"],
+    "tags": [
+      {
+        "id": 1,
+        "name": "friendly"
+      }
+    ],
+    "status": "available"
+  }
+}

@@ -1,0 +1,2 @@
+# secrets never leave this machine
+*.secrets.env

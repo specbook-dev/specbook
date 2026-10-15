@@ -1,0 +1,309 @@
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --text: #111318;
+  --muted: #5b6270;
+  --border: #d9dde4;
+  --accent: #6d28d9;
+  --surface: #f6f7f9;
+  --danger: #b42318;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115;
+    --text: #eceef2;
+    --muted: #9aa3b2;
+    --border: #2a2f3a;
+    --accent: #a78bfa;
+    --surface: #171a21;
+    --danger: #f97066;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+.page {
+  min-height: 100dvh;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 8px 48px;
+}
+.brand {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+h1 {
+  margin: 0 0 12px;
+  font-size: clamp(28px, 6vw, 40px);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.lead {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.5;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+input[type="url"],
+textarea {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 16px;
+  padding: 12px 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+textarea {
+  width: 100%;
+  min-height: 140px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  margin-block: 8px;
+}
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+button[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+button.link,
+.file {
+  background: none;
+  color: var(--accent);
+  padding: 0;
+  font-weight: 500;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.status {
+  min-height: 1.4em;
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+.status.error {
+  color: var(--danger);
+}
+.fallback {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.fallback p {
+  margin: 0 0 8px;
+}
+.try,
+.hint {
+  margin: 20px 0 0;
+  color: var(--muted);
+}
+.try button.link {
+  margin-inline: 8px 0;
+}
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+}
+@media (max-width: 480px) {
+  .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.gh {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.gh:hover {
+  border-color: var(--accent);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.mark {
+  border-radius: 7px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.foot {
+  margin-top: 64px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+}
+.foot p {
+  margin: 0;
+}
+
+.foot .joke {
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.shot {
+  margin: 2.5rem 0 0;
+}
+/* the two pictures are 2560x1520 and 1170x2532: columns in the ratio of their aspect ratios (1.684 : 0.462)
+   give them the same height */
+.shot-pair {
+  display: grid;
+  grid-template-columns: 3.645fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.shot picture {
+  display: block;
+  min-width: 0;
+}
+.shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* a shadow, not a border: a border would make the two heights differ by their aspect ratios */
+  box-shadow: 0 0 0 1px var(--border);
+  border-radius: 10px;
+}
+/* a phone gets the phone picture alone: the wide one would be unreadable at that size */
+@media (max-width: 600px) {
+  .shot-pair {
+    grid-template-columns: minmax(0, 340px);
+    justify-content: center;
+  }
+  .shot .shot-wide {
+    display: none;
+  }
+}
+.shot figcaption {
+  margin-top: 0.6rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.badge {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+}
+.badge h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+.badge p {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+.badge input {
+  width: 100%;
+}
+.badge .status {
+  display: flex;
+  align-items: center;
+  min-height: 2.2rem;
+}
+.badge pre {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 13px;
+}
+.badge pre code {
+  white-space: pre;
+}
+
+.gets {
+  margin-top: 2.5rem;
+}
+.gets h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+.gets ul {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gets li {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  line-height: 1.5;
+}
+.gets li strong {
+  display: block;
+  color: var(--text);
+}
+
+/* a small secondary button: copying a line is not the page's main action */
+.badge .copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.badge .copy:hover {
+  border-color: var(--muted);
+}

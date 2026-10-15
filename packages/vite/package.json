@@ -1,0 +1,61 @@
+{
+  "name": "@specbook/vite",
+  "version": "0.1.0",
+  "description": "The Specbook plugin for Vite: the registry, the docs UI hooks and the dev server credential proxy.",
+  "keywords": [
+    "specbook",
+    "vite",
+    "vite-plugin",
+    "openapi",
+    "api-explorer"
+  ],
+  "license": "FSL-1.1-MIT",
+  "homepage": "https://ui.specbook.dev",
+  "bugs": {
+    "url": "https://github.com/specbook-dev/specbook/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/specbook-dev/specbook.git",
+    "directory": "packages/vite"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup && tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@specbook/codegen": "workspace:*",
+    "@specbook/core": "workspace:*",
+    "fast-glob": "3.3.2",
+    "marked": "^18.1.1"
+  },
+  "peerDependencies": {
+    "vite": ">=5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "tsup": "8.5.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.4"
+  },
+  "files": [
+    "dist",
+    "src",
+    "!**/*.test.*"
+  ]
+}

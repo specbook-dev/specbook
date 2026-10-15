@@ -1,0 +1,61 @@
+{
+  "name": "@specbook/core",
+  "version": "0.1.0",
+  "description": "The runner, mock engine, template engine and shared proxy behind Specbook: Storybook for APIs.",
+  "keywords": [
+    "specbook",
+    "openapi",
+    "api-mocking",
+    "api-testing",
+    "mock-server"
+  ],
+  "license": "MIT",
+  "homepage": "https://ui.specbook.dev",
+  "bugs": {
+    "url": "https://github.com/specbook-dev/specbook/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/specbook-dev/specbook.git",
+    "directory": "packages/core"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./assert": {
+      "types": "./src/assert.ts",
+      "default": "./src/assert.ts"
+    },
+    "./runner": {
+      "types": "./src/runner/index.ts",
+      "default": "./src/runner/index.ts"
+    },
+    "./reporters": {
+      "types": "./src/reporters/index.ts",
+      "default": "./src/reporters/index.ts"
+    },
+    "./faker": {
+      "types": "./src/faker.ts",
+      "default": "./src/faker.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "uvu": "0.5.6"
+  },
+  "files": [
+    "src",
+    "!**/*.test.*"
+  ]
+}

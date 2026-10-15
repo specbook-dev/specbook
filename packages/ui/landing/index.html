@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Specbook · Same spec. Way more swagger.</title>
+    <meta
+      name="description"
+      content="A Swagger UI alternative for OpenAPI and Swagger documents. Paste a link and explore it, with mock data or live calls, in your browser. Nothing is uploaded."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Specbook · Same spec. Way more swagger." />
+    <meta
+      property="og:description"
+      content="A Swagger UI alternative. Paste a link to an OpenAPI or Swagger document and explore it, with mock data or live calls. Nothing is uploaded."
+    />
+    <meta property="og:url" content="https://ui.specbook.dev/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <meta property="og:image" content="https://ui.specbook.dev/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Specbook: Same spec. Way more swagger." />
+    <meta name="twitter:image" content="https://ui.specbook.dev/og.png" />
+    <link rel="stylesheet" href="./landing.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="top">
+        <span class="brand"><img class="mark" src="./favicon.svg" alt="" width="28" height="28" />Specbook</span>
+        <a
+          class="gh"
+          href="https://github.com/specbook-dev/specbook"
+          target="_blank"
+          rel="noopener"
+          title="Specbook's source is on GitHub"
+        >
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+          </svg>
+          <span>GitHub</span>
+        </a>
+      </header>
+
+      <section class="hero">
+        <p class="eyebrow">A Swagger UI alternative</p>
+        <h1>Same spec. Way more swagger.</h1>
+        <p class="lead">
+          Paste a link to any OpenAPI or Swagger document and Specbook opens it as an explorer you can click
+          through, send requests from, and share. Requests start on mock data, so there is something to try
+          before you have set anything up. Nothing is uploaded.
+        </p>
+
+        <form id="open" class="row" novalidate>
+          <input
+            id="url"
+            type="url"
+            inputmode="url"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            placeholder="https://example.com/openapi.json"
+            aria-label="Address of an OpenAPI or Swagger document"
+          />
+          <button id="go" type="submit">Open</button>
+        </form>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+
+        <div id="fallback" class="fallback" hidden>
+          <p id="why"></p>
+          <textarea
+            id="paste"
+            aria-label="OpenAPI or Swagger document text"
+            placeholder="Paste the JSON or YAML here"
+            spellcheck="false"
+          ></textarea>
+          <div class="row">
+            <button id="open-paste" type="button">Open pasted document</button>
+            <label class="file">
+              or choose a file
+              <input id="file" type="file" accept=".json,.yaml,.yml,application/json" hidden />
+            </label>
+          </div>
+        </div>
+
+        <p class="try">
+          Try one:
+          <button
+            type="button"
+            class="link"
+            data-spec="https://petstore3.swagger.io/api/v3/openapi.json"
+          >
+            Petstore
+          </button>
+          <button
+            type="button"
+            class="link"
+            data-spec="https://httpbin.org/spec.json"
+            title="Echoes what you send: live requests work without a key"
+          >
+            httpbin
+          </button>
+          <button
+            type="button"
+            class="link"
+            data-spec="https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json"
+            title="Form-encoded requests; about 8 MB"
+          >
+            Stripe
+          </button>
+          <button
+            type="button"
+            class="link"
+            data-spec="https://raw.githubusercontent.com/openai/openai-openapi/master/openapi.yaml"
+            title="About 4 MB"
+          >
+            OpenAI
+          </button>
+          <button
+            type="button"
+            class="link"
+            data-spec="https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json"
+            title="A large document: about 13 MB, over 1,000 operations"
+          >
+            GitHub
+          </button>
+        </p>
+      </section>
+      <figure class="shot">
+        <div class="shot-pair">
+          <picture class="shot-wide">
+            <source media="(prefers-color-scheme: dark)" srcset="./screenshot-dark.png" />
+            <img
+              src="./screenshot.png"
+              width="2560"
+              height="1520"
+              loading="lazy"
+              decoding="async"
+              alt="Specbook on a laptop with the Petstore spec open: a list of operations on the left, and on the right a mock request to POST /store/order that returned 200 and matches the spec."
+            />
+          </picture>
+          <picture class="shot-phone">
+            <source media="(prefers-color-scheme: dark)" srcset="./screenshot-mobile-dark.png" />
+            <img
+              src="./screenshot-mobile.png"
+              width="1170"
+              height="2532"
+              loading="lazy"
+              decoding="async"
+              alt="The same operation on a phone: the request and the 200 response with its body, full width."
+            />
+          </picture>
+        </div>
+        <figcaption>
+          Petstore, opened from a link, on a laptop and on a phone. The response is a mock that matches the
+          spec. Set Environment to live and the same request goes to the real API.
+        </figcaption>
+      </figure>
+      <section class="gets" aria-labelledby="gets-title">
+        <h2 id="gets-title">What you get</h2>
+        <ul>
+          <li>
+            <strong>Try it before there is a backend.</strong> Mock responses come from your spec and follow
+            what you send: posted fields come back, filters shape the list.
+          </li>
+          <li>
+            <strong>Reads well where people read docs.</strong> Phone, tablet, dark mode, and a link to any
+            single operation.
+          </li>
+          <li>
+            <strong>One script tag.</strong> Serve it from your docs route and it runs on your origin: no
+            CORS to configure, and your visitors' cookies are sent.
+          </li>
+        </ul>
+      </section>
+      <section class="badge" aria-labelledby="badge-title">
+        <h2 id="badge-title">Add an "Open in Specbook" button to your README</h2>
+        <p>
+          Paste the address of your OpenAPI file. Anyone who clicks the button gets your API open and
+          runnable, with nothing to install.
+        </p>
+        <input
+          id="badge-url"
+          type="url"
+          inputmode="url"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="https://raw.githubusercontent.com/you/repo/main/openapi.yaml"
+          aria-label="Address of your OpenAPI or Swagger document"
+        />
+        <p id="badge-note" class="status" role="status" aria-live="polite">
+          <img src="./badge.svg" alt="Open in Specbook" width="136" height="20" />
+        </p>
+        <div id="badge-out" hidden>
+          <pre><code id="badge-md"></code></pre>
+          <button id="badge-copy" type="button" class="copy" aria-label="Copy Markdown">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+              <path d="M10.5 3.5v-1a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h1" />
+            </svg>
+            <span id="badge-copy-label">Copy</span>
+          </button>
+        </div>
+      </section>
+      <footer class="foot">
+        <p class="joke">
+          We kept the best part of Swagger UI: a button that says "Try it out". We just made it work, even on mobile.
+        </p>
+        <p>Specbook is an independent project and is not affiliated with Storybook (storybook.js.org) or Swagger.</p>
+      </footer>
+    </main>
+    <script type="module" src="./landing.js"></script>
+  </body>
+</html>

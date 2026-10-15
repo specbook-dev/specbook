@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>specbook embed example</title>
+    <style>
+      body { font: 16px/1.6 Georgia, serif; max-width: 720px; margin: 48px auto; color: #1a1f36; }
+      /* The host page can theme the panel with plain CSS... */
+      specbook-play, specbook-panel {
+        --sb-accent: #635bff;
+        --sb-accent-hover: #4b45c6;
+        --sb-font-sans: "Helvetica Neue", Arial, sans-serif;
+        --sb-radius-control: 999px;
+      }
+      /* ...and reach structural pieces through ::part */
+      specbook-play::part(play) { font-weight: 600; }
+      specbook-panel::part(header) { border-bottom-color: #635bff; }
+    </style>
+  </head>
+  <body>
+    <h1>Pets</h1>
+    <p data-specbook="petstore" data-operation="AddPet">Register a pet in the store.</p>
+    <p data-specbook="petstore" data-sequence="adopt-pet">Walk through adopting a pet end to end.</p>
+    <!-- build first: specbook build --out dist-docs; serve this folder over http -->
+    <script type="module" src="./dist-docs/specbook.js"></script>
+  </body>
+</html>

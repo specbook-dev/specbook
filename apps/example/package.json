@@ -1,0 +1,24 @@
+{
+  "name": "example",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#api/*": "./.generated/*/index.ts"
+  },
+  "scripts": {
+    "generate": "specbook generate",
+    "run:mock": "specbook run 'sequences/*.seq.ts' --env mock",
+    "test": "specbook generate && specbook run 'sequences/*.seq.ts' 'requests/**/*.req.ts' --env mock",
+    "fetch-specs": "node scripts/fetch-specs.mjs",
+    "build:docs": "specbook generate && specbook build --out dist-docs",
+    "deploy": "pnpm run fetch-specs && pnpm run build:docs && npx --yes wrangler@4 pages deploy dist-docs --project-name specbook-demo --branch main"
+  },
+  "dependencies": {
+    "@specbook/core": "workspace:*",
+    "@faker-js/faker": "9.3.0"
+  },
+  "devDependencies": {
+    "@specbook/cli": "workspace:*"
+  }
+}
