@@ -9,6 +9,7 @@
  * The script takes the page over (it owns the document, as `/docs` does). `spec` may be relative.
  * `baseUrl` gives the API address when the document has none, `target` names another container.
  */
+import { handleOAuthCallback } from '../oauth-callback'
 import { SpecWorker } from './client'
 import { mountOpened } from './mount'
 
@@ -46,6 +47,10 @@ const say = (el: HTMLElement, text: string, error = false) => {
 }
 
 async function start() {
+  // A sign-in's popup comes back to this page, so the viewer is what has to hand the code on. The address
+  // is left alone unless a viewer tab claims it: the page is the host's, and its `?code=&state=` may be
+  // the host application's own sign-in.
+  if (await handleOAuthCallback({ stripWhenUnclaimed: false })) return
   const cfg = readConfig()
   const target = container(cfg.target)
   if (!cfg.spec)

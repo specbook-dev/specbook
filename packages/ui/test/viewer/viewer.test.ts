@@ -173,6 +173,16 @@ beforeAll(async () => {
         seen.auth = req.headers.authorization as string | undefined
         return void res.end('{"ok":true}')
       }
+      // a docs page that loads the embed script, as a framework's docs route would; it answers any query,
+      // so a sign-in's return (`?code=&state=`) comes back to the same page
+      if (p === '/host/embed.html') {
+        res.setHeader('content-type', 'text/html')
+        return void res.end(
+          `<!doctype html><div id="app"></div>` +
+            `<script type="application/json" id="specbook-config">${JSON.stringify({ spec: `${apiUrl}/oauth/openapi.json` })}</script>` +
+            `<script type="module" src="${siteUrl}/v1/specbook.js"></script>`,
+        )
+      }
       // a page on another site that frames the hosted viewer
       if (p === '/host/iframe.html') {
         const spec = encodeURIComponent(`${apiUrl}/oauth/openapi.json`)
@@ -482,6 +492,64 @@ describe('the sign-in callback page', () => {
     expect(seen.auth).toBe('Bearer tok-iframe')
     // the provider was sent the stable address, not a path under /v1/
     expect(seen.redirect).toBe(`${siteUrl}/oauth/callback/`)
+    await page.close()
+  })
+})
+
+describe('sign-in from an embedded viewer', () => {
+  it('completes on the host page: the popup returns there, and the script hands the code on', async () => {
+    const hostPage = `http://host.localhost:${new URL(apiUrl).port}/host/embed.html`
+    const page = await browser.newPage()
+    const errors: string[] = []
+    page.on('pageerror', (e) => errors.push(e.message))
+    await page.goto(hostPage)
+    await page.waitForSelector('.header .brand', { timeout: 30_000 })
+    await page.evaluate((k: string) => {
+      location.hash = `#/op/${encodeURIComponent(k)}`
+    }, 'oauth-gate/GetThing')
+    await page.waitForSelector('.request-panel .rq-bar', { timeout: 30_000 })
+    await page
+      .locator('.header-controls label.row', { hasText: 'Environment' })
+      .locator('select')
+      .selectOption('live')
+
+    await page.getByLabel(/Client id for/).fill('docs')
+    await expect
+      .poll(() => page.getByRole('button', { name: 'Sign in' }).isEnabled(), { timeout: 20_000 })
+      .toBe(true)
+    const popup = page.waitForEvent('popup')
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    const opened = await popup
+    if (!opened.isClosed()) await opened.waitForEvent('close', { timeout: 30_000 })
+
+    try {
+      await page.locator('.secrets-chip').waitFor({ state: 'visible', timeout: 15_000 })
+    } catch (e) {
+      const prompt = await page
+        .locator('fieldset.needs-vars')
+        .innerText({ timeout: 2_000 })
+        .catch(() => '(no prompt)')
+      throw new Error(
+        `sign-in did not complete. Prompt: ${JSON.stringify(prompt)}. Popup closed: ${opened.isClosed()}.`,
+        { cause: e },
+      )
+    }
+    await page.getByRole('button', { name: 'Send' }).click()
+    await page.waitForSelector('.result-chip:has-text("200")', { timeout: 20_000 })
+    expect(seen.auth).toBe('Bearer tok-iframe')
+    // an embed has no declared callback: the provider was sent the host page's own address
+    expect(seen.redirect).toBe(hostPage)
+    expect(errors).toEqual([])
+    await page.close()
+  })
+
+  it('leaves a host application’s own ?code=&state= in the address', async () => {
+    const hostPage = `http://host.localhost:${new URL(apiUrl).port}/host/embed.html`
+    const page = await browser.newPage()
+    await page.goto(`${hostPage}?code=their-code&state=their-state`)
+    // nobody here is waiting, so after the short wait the viewer comes up as usual
+    await page.waitForSelector('.header .brand', { timeout: 30_000 })
+    expect(new URL(page.url()).search).toBe('?code=their-code&state=their-state')
     await page.close()
   })
 })
