@@ -1,7 +1,9 @@
 import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
+import { noticesPlugins } from './scripts/third-party-notices.mjs'
 
 const here = import.meta.dirname
+const notices = noticesPlugins()
 const stub = resolve(here, 'viewer/node-stub.js')
 // swagger2openapi reaches for Node modules it never uses for an in-memory document
 const node = [
@@ -46,7 +48,9 @@ export default defineConfig({
     ],
   },
   define: { 'process.env': '{}', 'process.platform': '"browser"', 'process.version': '"v0"' },
-  worker: { format: 'es' },
+  // the worker is built on its own: its packages are recorded too, then written out with the main build's
+  worker: { format: 'es', plugins: () => [notices.collect] },
+  plugins: [notices.emit],
   build: {
     outDir: resolve(here, 'dist-viewer'),
     emptyOutDir: true,

@@ -716,6 +716,18 @@ describe('the self-hosted viewer from the release zip', () => {
     host?.close()
   })
 
+  it('carries the third-party notices, so the licence texts travel with the bundles', async () => {
+    const text = await readFile(join(work, 'site/docs/specbook/THIRD-PARTY-NOTICES.txt'), 'utf8')
+    expect(text).toContain('Third-party notices')
+    // a library in the main bundle and one that only the worker uses
+    expect(text).toMatch(/^preact \d/m)
+    expect(text).toMatch(/^swagger2openapi \d/m)
+    // its licence text, not only its name
+    expect(text).toContain('Permission is hereby granted')
+    // our own packages are not third-party
+    expect(text).not.toMatch(/^@specbook\//m)
+  })
+
   it('lists the zip and a checksum for it', async () => {
     const sums = await readFile(join(work, 'assets/SHA256SUMS'), 'utf8')
     expect(sums).toMatch(/^[0-9a-f]{64} {2}specbook-viewer-9\.9\.9\.zip$/m)

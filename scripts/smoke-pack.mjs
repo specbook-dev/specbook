@@ -95,6 +95,7 @@ try {
     'package/index.html',
     'package/src/embed.ts',
     'package/dist-viewer/index.html',
+    'package/dist-viewer/THIRD-PARTY-NOTICES.txt',
   ])
     if (!uiList.includes(need)) fail(`@specbook/ui is missing ${need}`)
 
