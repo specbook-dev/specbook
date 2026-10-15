@@ -111,6 +111,23 @@ async function login(popup: Page) {
   await closed
 }
 
+/** What the page sent the provider, read from the address of the popup it opened. */
+function expectAuthorizationRequest(popup: Page, page: Page) {
+  const here = new URL(page.url())
+  const q = new URL(popup.url()).searchParams
+  expect(q.get('response_type')).toBe('code')
+  expect(q.get('client_id')).toBe(CLIENT_ID)
+  expect(q.get('redirect_uri')).toBe(`${here.origin}${here.pathname}`)
+  expect(q.get('scope')?.split(' ')).toContain('openid')
+  // PKCE with S256: a challenge is a SHA-256 digest, 43 characters of base64url; a state is not guessable
+  expect(q.get('code_challenge_method')).toBe('S256')
+  expect(q.get('code_challenge')).toMatch(/^[A-Za-z0-9_-]{43}$/)
+  expect(q.get('state')).toMatch(/^[A-Za-z0-9_-]{20,}$/)
+  // nothing a browser must not hold, and nothing only the exchange should carry
+  expect(q.has('client_secret')).toBe(false)
+  expect(q.has('code_verifier')).toBe(false)
+}
+
 async function expectSignedIn(page: Page, secret: string, visited: string[]) {
   await page.locator('.secrets-chip').waitFor({ state: 'visible', timeout: 30_000 })
   const { token, local } = await storedFor(page, kcOrigin, secret)
@@ -140,7 +157,10 @@ for (const pass of ['dev', 'static'] as const) {
     it('signs in with an OAuth 2.0 scheme, calls the API with the token, and keeps it in this tab only', async () => {
       const ctx = await fresh()
       const { page, errors, visited } = await openOperation(ctx, urlFor('oauth'), OAUTH_KEY)
-      await login(await startSignIn(page, CLIENT_ID))
+      const popup = await startSignIn(page, CLIENT_ID)
+      await popup.waitForURL(/\/protocol\/openid-connect\/auth/, { timeout: 60_000 })
+      expectAuthorizationRequest(popup, page)
+      await login(popup)
       await expectSignedIn(page, OAUTH_SECRET, visited)
       await callApi(page)
       expect(errors).toEqual([])
@@ -196,6 +216,49 @@ describe('the static viewer, when the provider will not talk to this page', () =
       .waitFor({ state: 'visible', timeout: 30_000 })
     expect((await storedFor(page, kcOrigin, OAUTH_SECRET)).token).toBeUndefined()
     expect(await page.locator('input[type="password"]').isVisible()).toBe(true)
+  })
+})
+
+describe('the realm the suite signs in to', () => {
+  // The sign-in cases above pass because the page sends a challenge. Without this one they would pass
+  // just as well if the realm's PKCE setting were silently ignored, and they would prove nothing about it.
+  it('refuses an authorization request with no PKCE challenge, or with a plain one', async () => {
+    const redirectUri = `${new URL(site.viewerUrl('oauth')).origin}/v1/`
+    const ask = async (extra: Record<string, string>) => {
+      const url = new URL(`${kc.url}/realms/${kc.realm}/protocol/openid-connect/auth`)
+      const params = {
+        client_id: CLIENT_ID,
+        response_type: 'code',
+        scope: 'openid',
+        state: 'a-state-the-test-chose',
+        redirect_uri: redirectUri,
+        ...extra,
+      }
+      for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+      // `manual`: Node reports the redirect itself instead of following it to the page
+      const r = await fetch(url, { redirect: 'manual' })
+      return { status: r.status, location: r.headers.get('location') ?? '', body: await r.text() }
+    }
+    const showsLogin = (r: Awaited<ReturnType<typeof ask>>) =>
+      r.status === 200 && /name="username"|id="username"/.test(r.body)
+    // the RFC 7636 appendix B challenge: any well-formed one will do
+    const challenge = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
+
+    // control: a proper S256 request gets the login form, so a refusal below is about PKCE and nothing else
+    const good = await ask({ code_challenge: challenge, code_challenge_method: 'S256' })
+    expect(showsLogin(good), `control request answered ${good.status}`).toBe(true)
+
+    const refused: Record<string, string>[] = [
+      {},
+      { code_challenge: challenge, code_challenge_method: 'plain' },
+    ]
+    for (const extra of refused) {
+      const r = await ask(extra)
+      expect(showsLogin(r), `${JSON.stringify(extra)} was offered a login`).toBe(false)
+      // an error redirect back to the page, or an error page: never a form to log in with
+      if (r.status >= 300 && r.status < 400) expect(r.location).toMatch(/[?&]error=/)
+      else expect(r.status).toBeGreaterThanOrEqual(400)
+    }
   })
 })
 
