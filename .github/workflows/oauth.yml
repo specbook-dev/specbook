@@ -1,9 +1,13 @@
 name: OAuth (real provider)
 
-# Signs in against a real Keycloak in Docker, through the real UI in a real browser. Not part of CI: run it by
-# hand (Actions > OAuth (real provider) > Run workflow) when sign-in, the dev proxy or the viewer's hand-off
-# changes. Locally: `packages/ui/test/oauth/keycloak.sh up`, then `pnpm test:oauth`.
+# Signs in against a real Keycloak in Docker, through the real UI in a real browser. Not part of CI: it runs
+# weekly (to catch a new Keycloak, Chromium or runner image breaking sign-in) and by hand (Actions > OAuth (real
+# provider) > Run workflow) when sign-in, the dev proxy or the viewer's hand-off changes.
+# Locally: `packages/ui/test/oauth/keycloak.sh up`, then `pnpm test:oauth`.
 on:
+  schedule:
+    # Mondays 06:17 UTC; scheduled runs always use the default branch's copy of this file and its pinned image
+    - cron: '17 6 * * 1'
   workflow_dispatch:
     inputs:
       keycloak_image:
