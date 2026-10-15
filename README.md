@@ -192,8 +192,8 @@ pnpm test:oauth      # sign-in against a real Keycloak (Docker); not part of CI,
 ```
 
 `pnpm test:oauth` needs a Keycloak to talk to: `packages/ui/test/oauth/keycloak.sh up` starts one in Docker
-(`down` removes it). The suite creates its own realm, client and user each run. In GitHub it is the manual
-"OAuth (real provider)" workflow.
+(`down` removes it). The suite creates its own realm, client and user each run. In GitHub it is the
+"OAuth (real provider)" workflow: weekly, and by hand from the Actions tab.
 
 Try the example project (Petstore, Stripe, GitHub and a GraphQL API):
 
