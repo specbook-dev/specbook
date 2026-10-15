@@ -101,6 +101,8 @@ export function OAuthSignIn({
   }
 
   const failedLookup = !endpoints && status.kind === 'error'
+  // the idle line (the address to register) is the only one a phone can do without
+  const hint = !busy && status.kind !== 'error' && !!endpoints
   return (
     <span class="needs-var oauth-signin">
       <input
@@ -143,7 +145,11 @@ export function OAuthSignIn({
           ))}
         </details>
       )}
-      <span class="muted small" role="status" aria-live="polite">
+      <span
+        class={`muted small oauth-status ${hint ? 'oauth-hint' : ''}`}
+        role="status"
+        aria-live="polite"
+      >
         {busy
           ? 'Waiting for the sign-in window…'
           : status.kind === 'error'
