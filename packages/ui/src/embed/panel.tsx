@@ -3,7 +3,7 @@ import { useEffect, useState } from 'preact/hooks'
 import type { SequenceInfo, Variant } from '../engine'
 import { Host } from '../panel/Host'
 import { engine, registry } from '../runtime'
-import { env, environmentRisk, environments, version } from '../store'
+import { env, environmentNote, environmentRisk, environments, version } from '../store'
 import { panelSheets } from './styles'
 
 export interface Target {
@@ -24,6 +24,7 @@ const load = () =>
   (loaded ??= (async () => {
     environments.value = await engine.environments(version.value)
     environmentRisk.value = await engine.environmentRisks(version.value)
+    environmentNote.value = await engine.environmentNotes(version.value)
     env.value = environments.value.includes('mock') ? 'mock' : (environments.value[0] ?? 'mock')
     return { variants: await engine.loadVariants(registry.requests, version.value) }
   })())

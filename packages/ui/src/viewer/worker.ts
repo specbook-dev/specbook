@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import { generateData, type OperationMeta, openSpec } from '@specbook/codegen/browser'
-import { authFromSpec, liveBaseUrl } from '@specbook/core'
+import { authFromSpec, MAX_SERVERS, openApiServers } from '@specbook/core'
 import { bundleJson, type Parts, sortFiles } from './bundles'
 import type { OpenResult, Request, Response, Source } from './protocol'
 
@@ -114,9 +114,8 @@ async function open(id: number, source: Source, signal: AbortSignal): Promise<Op
   )
   const sourceUrl = source.kind === 'url' ? source.url : undefined
   const { auth, secrets, defaultProfile } = authFromSpec(doc, sourceUrl)
-  const baseUrl = liveBaseUrl(doc, sourceUrl ?? name ?? '')
-  const relativeServer =
-    typeof doc.servers?.[0]?.url === 'string' && !/^https?:\/\//i.test(doc.servers[0].url)
+  const { servers, needsBaseUrl, omitted } = openApiServers(doc, sourceUrl ?? name ?? '')
+  const baseUrl = servers.find((s) => s.name === 'live')?.url
   return {
     service,
     title,
@@ -127,8 +126,14 @@ async function open(id: number, source: Source, signal: AbortSignal): Promise<Op
     secrets,
     defaultProfile,
     baseUrl,
-    needsBaseUrl: !baseUrl && relativeServer,
-    warnings,
+    servers,
+    needsBaseUrl,
+    warnings: omitted
+      ? [
+          ...warnings,
+          `This document lists ${servers.length + omitted} servers. The first ${MAX_SERVERS} are offered as environments.`,
+        ]
+      : warnings,
     timings: {
       ...(fetched !== undefined ? { fetch: Math.round(fetched) } : {}),
       parse: Math.round(parse),

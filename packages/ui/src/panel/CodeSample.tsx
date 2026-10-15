@@ -11,7 +11,7 @@ import {
 import type { ComponentChildren } from 'preact'
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks'
 import { engine } from '../runtime'
-import { version } from '../store'
+import { env, version } from '../store'
 import { type Draft, requestParts } from './draft'
 
 const LANG_KEY = 'specbook:code-lang'
@@ -54,14 +54,15 @@ export function CodeSample({ service, profile, secured, make, sent }: Props) {
       if (!live) return
       const svc = c.services?.[service]
       const urls = svc?.baseUrl ?? {}
-      setBase(urls.live ?? Object.values(urls)[0])
+      // the environment being used, so a sample for the sandbox points at the sandbox
+      setBase(urls[env.value] ?? urls.live ?? Object.values(urls)[0])
       const name = profile === 'service' ? svc?.auth : profile
       setApplied(name ? (c.auth?.[name] as AuthProfile | undefined)?.apply : undefined)
     })
     return () => {
       live = false
     }
-  }, [service, profile])
+  }, [service, profile, env.value])
 
   const built = useMemo<{ text?: string; error?: string }>(() => {
     try {

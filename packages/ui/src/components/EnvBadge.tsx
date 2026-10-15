@@ -1,4 +1,4 @@
-import { env, environmentRisk, environments } from '../store'
+import { env, environmentNote, environmentRisk, environments } from '../store'
 
 /**
  * The environment a request will run in, and a way to change it. On a phone the header with the
@@ -37,7 +37,9 @@ export function EnvBadge() {
           onChange={(e) => (env.value = (e.target as HTMLSelectElement).value)}
         >
           {names.map((n) => (
-            <option value={n}>{n}</option>
+            <option value={n} title={environmentNote.value[n]}>
+              {n}
+            </option>
           ))}
         </select>
       )}

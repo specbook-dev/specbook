@@ -146,10 +146,21 @@ own host (open it with `?spec=<url>`).
 
 ### Environments and secrets
 
+A document opened in the viewer, or with `specbook preview`, gets an environment for each entry in its
+`servers` list. The first is `live`; the others are named from their description (`Sandbox` becomes `sandbox`),
+and a server's variables take their defaults. A key typed for one server's host is never sent to another. In a
+project, environments come from the config's `services[].baseUrl`.
+
 Variables and secrets come from the project's config, the environment files in `.specbook/environments/`
 and the process environment. Secret values go in `<env>.secrets.env`, which the folder's own `.gitignore`
 keeps out of the repository. `npx specbook secrets --env <name>` shows where each declared secret resolves from,
 never the values. In the UI you can also type a value for the tab, which wins over files and variables.
+
+**Sign in.** A scheme with an OAuth 2.0 authorization code flow, or an OpenID Connect one, gets a Sign in button
+beside the credentials prompt (PKCE, no client secret; the token stays in the tab). Register the page's address
+as the redirect URI; `specbook dev` and `preview` print it. A scheme has one sign-in provider for all its
+environments. If an environment signs in somewhere else, paste a token there; a separate service and auth
+profile for it also works, but lists the API twice.
 
 ### Documentation beside the code
 

@@ -1,3 +1,4 @@
+import type { ServerEntry } from '@specbook/core'
 import type { AuthProfileLike } from './registry-data'
 
 /** Where a spec comes from. */
@@ -26,6 +27,8 @@ export interface OpenResult {
   defaultProfile?: string
   /** absolute API address, from `servers` (resolved against the spec URL) or `host` */
   baseUrl?: string
+  /** every usable server the document lists, as environments; the first is `live` */
+  servers: ServerEntry[]
   /** a relative `servers` entry the person has to give a base URL for */
   needsBaseUrl: boolean
   warnings: string[]
