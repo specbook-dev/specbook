@@ -80,3 +80,26 @@ describe('assembling the site', () => {
     expect(await assets(none)).toEqual(['main-x.js'])
   })
 })
+
+describe('the landing page references', () => {
+  it('carry a hash of the file, so a changed stylesheet is a new address', async () => {
+    const site = await assemble(await viewer({ 'main-aaa.js': 'a' }))
+    const html = await readFile(join(site, 'index.html'), 'utf8')
+    const { createHash } = await import('node:crypto')
+    for (const file of ['landing.css', 'landing.js', 'screenshot.png', 'badge.svg']) {
+      const hash = createHash('sha256')
+        .update(await readFile(join(site, file)))
+        .digest('hex')
+        .slice(0, 10)
+      expect(html, file).toContain(`./${file}?v=${hash}`)
+    }
+    // the viewer's own hashed files and its directory are left as they are
+    expect(html).not.toMatch(/\.\/v1\/\?v=/)
+  })
+
+  it('leave a reference to a missing file alone', async () => {
+    const site = await assemble(await viewer({ 'main-aaa.js': 'a' }))
+    const html = await readFile(join(site, 'index.html'), 'utf8')
+    expect(html).not.toMatch(/\?v=undefined/)
+  })
+})

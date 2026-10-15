@@ -612,7 +612,10 @@ describe('the icon', () => {
   it('is the page icon on the landing page and in the viewer, and the viewer’s header mark', async () => {
     const landing = await browser.newPage()
     await landing.goto(`${siteUrl}/`)
-    expect(await landing.locator('link[rel="icon"]').getAttribute('href')).toBe('./favicon.svg')
+    // the site build puts a hash of the file after the name, so a changed icon is not served stale
+    expect(await landing.locator('link[rel="icon"]').getAttribute('href')).toMatch(
+      /^\.\/favicon\.svg(\?v=[0-9a-f]{10})?$/,
+    )
     const icon = await landing.request.get(`${siteUrl}/favicon.svg`)
     expect(icon.status()).toBe(200)
     expect(await icon.text()).toContain("aria-label='Specbook'")

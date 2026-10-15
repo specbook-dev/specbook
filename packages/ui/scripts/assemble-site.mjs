@@ -10,6 +10,7 @@
 // have new names each time, so a page loaded from the last build (or one that pinned a file) would 404 on
 // its next request. The last few builds' files are carried into this one, and recorded in
 // `<channel>/asset-manifest.json` so the next deploy can do the same.
+import { createHash } from 'node:crypto'
 import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -54,6 +55,33 @@ await writeFile(
     `    <script type="application/json" id="viewer-assets">${list}</script>\n  </body>`,
   ),
 )
+
+// ---- version the landing page's own files
+// Its stylesheet, script and pictures keep their names from one deploy to the next, and a browser (or the
+// CDN in front of the site) may hold them for hours while the page itself is always fresh. A new page with
+// an old stylesheet shows a broken layout, so each reference carries a hash of its file: a change is a new
+// address, and an unchanged file keeps its cache.
+{
+  const html = await readFile(page, 'utf8')
+  const files = new Set(
+    [...html.matchAll(/\b(?:src|href|srcset)="\.\/([^"?#/]+)"/g)].map((m) => m[1]),
+  )
+  const hashes = new Map()
+  for (const f of files) {
+    try {
+      const body = await readFile(resolve(out, f))
+      hashes.set(f, createHash('sha256').update(body).digest('hex').slice(0, 10))
+    } catch {
+      // a reference to something that is not a file here (a directory, a hash anchor): leave it
+    }
+  }
+  await writeFile(
+    page,
+    html.replace(/\b(src|href|srcset)="\.\/([^"?#/]+)"/g, (whole, attr, f) =>
+      hashes.has(f) ? `${attr}="./${f}?v=${hashes.get(f)}"` : whole,
+    ),
+  )
+}
 
 // ---- carry the last builds' files forward
 const read = async (rel) => {
