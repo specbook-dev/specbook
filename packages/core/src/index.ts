@@ -16,7 +16,15 @@ export type { Sequence, SequenceMeta, StepCtx, StepNode } from './sequence'
 export { sequence } from './sequence'
 export type { SnippetInput, SnippetLang } from './snippets'
 export { snippetLangs, toSnippet } from './snippets'
-export { authFromSpec, type JsonAuthProfile, liveBaseUrl, type SpecAuth } from './spec-config'
+export {
+  authFromSpec,
+  type JsonAuthProfile,
+  liveBaseUrl,
+  MAX_SERVERS,
+  openApiServers,
+  type ServerEntry,
+  type SpecAuth,
+} from './spec-config'
 export {
   collectPlaceholders,
   deepMerge,

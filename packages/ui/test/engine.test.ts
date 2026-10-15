@@ -34,6 +34,28 @@ describe('ui engine', () => {
     expect(await engine.environments(0)).toEqual(['mock', 'live', 'staging'])
   })
 
+  it('lists every server as an environment and reports the descriptions the config gives them', async () => {
+    const many = createEngine({
+      ...reg,
+      loadConfig: async () => ({
+        default: {
+          project: 'p',
+          services: {
+            pets: {
+              spec: 'x',
+              baseUrl: { live: 'https://x', sandbox: 'https://sandbox.x', eu: 'https://eu.x' },
+            },
+          },
+          environments: { sandbox: { description: 'Test data, no real charges' } },
+        },
+      }),
+    })
+    expect(await many.environments(0)).toEqual(['mock', 'live', 'sandbox', 'eu'])
+    expect(await many.environmentNotes(0)).toEqual({ sandbox: 'Test data, no real charges' })
+    // a config with no descriptions has no notes
+    expect(await engine.environmentNotes(0)).toEqual({})
+  })
+
   it('plays a generated operation against its example, with a forced mock status', async () => {
     const def = await engine.operationRequest('pets/GetPet', 0, { path: { petId: '7' } })
     const ok = await engine.run(def, { env: 'mock', version: 0 })

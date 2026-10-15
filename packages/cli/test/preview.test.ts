@@ -89,6 +89,40 @@ describe('preview', () => {
     )
   }, 30_000)
 
+  it('offers every server a document lists as an environment', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const dir = await mkdtemp(join(tmpdir(), 'sb-prev-servers-'))
+    const file = join(dir, 'api.json')
+    await writeFile(
+      file,
+      JSON.stringify({
+        openapi: '3.0.3',
+        info: { title: 'Many', version: '1' },
+        servers: [
+          { url: 'https://api.example.test', description: 'Production' },
+          { url: 'https://sandbox.example.test', description: 'Sandbox' },
+        ],
+        components: { securitySchemes: { key: { type: 'apiKey', in: 'header', name: 'X-Key' } } },
+        security: [{ key: [] }],
+        paths: { '/a': { get: { operationId: 'A', responses: { '200': { description: 'ok' } } } } },
+      }),
+    )
+    const p = await previewCommand(file, { port: 0, open: false })
+    afterAll(() => p.close())
+    const said = log.mock.calls.map((c) => String(c[0])).join('\n')
+    expect(said).toContain(
+      'Environments: live → https://api.example.test, sandbox → https://sandbox.example.test',
+    )
+    const written = await readFile(join(p.root, '.specbook/specbook.config.ts'), 'utf8')
+    expect(written).toContain('"live": "https://api.example.test"')
+    expect(written).toContain('"sandbox": "https://sandbox.example.test"')
+    // the dev server accepts the new environment (its name is a valid file and route segment)
+    const env = (await (await fetch(`${p.url}__specbook/environment?env=sandbox`)).json()) as {
+      env: string
+    }
+    expect(env.env).toBe('sandbox')
+  }, 30_000)
+
   it('turns security schemes into credentials held in server memory', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     const dir = await mkdtemp(join(tmpdir(), 'sb-prev-auth-'))

@@ -13,7 +13,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import type { SequenceInfo, Variant } from './engine'
 import { type Entry, go, pageOf, paletteOpen, parseHash, route, setDefaultService } from './nav'
 import { engine, registry } from './runtime'
-import { env, environmentRisk, environments, locale, seed, version } from './store'
+import { env, environmentNote, environmentRisk, environments, locale, seed, version } from './store'
 
 // the hosted viewer is Specbook itself, so its header carries our mark unless the API brings a logo
 const ownMark = globalThis.__SPECBOOK_VIEWER__?.source ? markUrl : undefined
@@ -91,6 +91,9 @@ export function App() {
     })
     engine.environmentRisks(version.value).then((r) => {
       environmentRisk.value = r
+    })
+    engine.environmentNotes(version.value).then((n) => {
+      environmentNote.value = n
     })
     return () => removeEventListener('hashchange', onHash)
   }, [])
@@ -306,7 +309,9 @@ export function App() {
               onChange={(e) => (env.value = (e.target as HTMLSelectElement).value)}
             >
               {environments.value.map((e) => (
-                <option value={e}>{e}</option>
+                <option value={e} title={environmentNote.value[e]}>
+                  {e}
+                </option>
               ))}
             </select>
           </label>

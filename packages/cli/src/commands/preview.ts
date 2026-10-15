@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, extname, join, resolve } from 'node:path'
 import SwaggerParser from '@apidevtools/swagger-parser'
 import { generateToDisk } from '@specbook/codegen'
-import { liveBaseUrl, type SpecbookConfig } from '@specbook/core'
+import { openApiServers, type SpecbookConfig } from '@specbook/core'
 import type { Project } from '../project'
 import { authFromSpec } from '../security'
 import { devCommand } from './ui'
@@ -68,7 +68,15 @@ export async function previewCommand(
   const api = (await SwaggerParser.parse(spec)) as any
   const title = (api.info?.title as string | undefined) ?? 'API'
   const service = slug(title)
-  const baseUrl = liveBaseUrl(api, source)
+  const { servers } = openApiServers(api, source)
+  const baseUrl = Object.fromEntries(servers.map((s) => [s.name, s.url]))
+  // one server keeps the line it always had; several are listed, so it is clear what the picker offers
+  const where =
+    servers.length === 0
+      ? ''
+      : servers.length === 1 && servers[0]?.name === 'live'
+        ? `, live calls go to ${servers[0].url}`
+        : `\n  Environments: ${servers.map((s) => `${s.name} → ${s.url}`).join(', ')}`
 
   const root = await mkdtemp(join(tmpdir(), 'specbook-preview-'))
   const cleanup = () => rm(root, { recursive: true, force: true }).catch(() => {})
@@ -93,7 +101,7 @@ export async function previewCommand(
     services: {
       [service]: {
         spec: specFile,
-        baseUrl: baseUrl ? { live: baseUrl } : {},
+        baseUrl,
         ...(defaultProfile ? { auth: defaultProfile } : {}),
       },
     },
@@ -106,9 +114,7 @@ export async function previewCommand(
 
   console.log(`Generating "${title}" …`)
   const out = await generateToDisk({ spec: specFile, service, outDir: join(root, '.generated') })
-  console.log(
-    `✓ ${out.operations.length} operations${baseUrl ? `, live calls go to ${baseUrl}` : ''}`,
-  )
+  console.log(`✓ ${out.operations.length} operations${where}`)
 
   const project: Project = { root, configFile, config }
   const server = await devCommand(project, o.port ?? 5173)

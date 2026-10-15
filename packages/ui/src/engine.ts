@@ -122,6 +122,17 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     return out
   }
 
+  /** One line per environment that has a description, for the pickers' tooltips. */
+  async function environmentNotes(version: number): Promise<Record<string, string>> {
+    const c = await config(version)
+    const out: Record<string, string> = {}
+    for (const [name, e] of Object.entries(c.environments ?? {})) {
+      const note = (e as { description?: string } | undefined)?.description
+      if (note) out[name] = note
+    }
+    return out
+  }
+
   async function environments(version: number): Promise<string[]> {
     const c = await config(version)
     const envs = new Set<string>(['mock'])
@@ -528,6 +539,7 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     config,
     environments,
     environmentRisks,
+    environmentNotes,
     managedSecrets,
     oauthEndpoints,
     oauthExchange,

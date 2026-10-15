@@ -1,6 +1,6 @@
 import type { ComponentChildren } from 'preact'
 import { useEffect, useRef } from 'preact/hooks'
-import { env, environments } from '../store'
+import { env, environmentNote, environments } from '../store'
 
 interface Props {
   title: string
@@ -153,7 +153,9 @@ export function Panel({
                 onChange={(e) => (env.value = (e.target as HTMLSelectElement).value)}
               >
                 {environments.value.map((e) => (
-                  <option value={e}>{e}</option>
+                  <option value={e} title={environmentNote.value[e]}>
+                    {e}
+                  </option>
                 ))}
               </select>
             </label>

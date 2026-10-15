@@ -11,6 +11,8 @@ export interface EnvironmentConfig {
    * "prod", amber otherwise (`mock` is always neutral).
    */
   risk?: 'production' | 'sandbox'
+  /** One line on what this environment is; shown as the tooltip of its entry in the pickers. */
+  description?: string
 }
 
 export interface ServiceConfig<E extends string = string> {

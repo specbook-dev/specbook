@@ -43,6 +43,20 @@ const liveSpec = (base: string) => ({
   },
 })
 
+/** Two servers on different origins, as a production and a sandbox host would be. */
+const multiSpec = (base: string) => {
+  const port = new URL(base).port
+  const one = liveSpec(base)
+  return {
+    ...one,
+    info: { ...one.info, title: 'Multi Things' },
+    servers: [
+      { url: `${base}/live-api`, description: 'Production' },
+      { url: `http://127.0.0.1:${port}/sandbox-api`, description: 'Sandbox' },
+    ],
+  }
+}
+
 let site: Server
 let dist: string
 let rules: { match: RegExp; headers: string[][] }[] = []
@@ -50,7 +64,7 @@ let api: Server
 let siteUrl: string
 let apiUrl: string
 let browser: Browser
-const seen: { key?: string; calls: number } = { calls: 0 }
+const seen: { key?: string; calls: number; path?: string } = { calls: 0 }
 
 const listen = (s: Server) =>
   new Promise<string>((r) =>
@@ -102,8 +116,16 @@ beforeAll(async () => {
     res.setHeader('content-type', 'application/json')
     try {
       if (p === '/live/openapi.json') return void res.end(JSON.stringify(liveSpec(apiUrl)))
+      if (p === '/multi/openapi.json') return void res.end(JSON.stringify(multiSpec(apiUrl)))
+      if (p === '/sandbox-api/things') {
+        seen.calls++
+        seen.path = p
+        seen.key = req.headers['x-key'] as string | undefined
+        return void res.end('[{"id":2}]')
+      }
       if (p === '/live-api/things') {
         seen.calls++
+        seen.path = p
         seen.key = req.headers['x-key'] as string | undefined
         return void res.end('[{"id":1}]')
       }
@@ -258,6 +280,42 @@ describe('the hosted viewer opens a spec at run time', () => {
     await page.waitForSelector('.result-chip:has-text("200")', { timeout: 20_000 })
     expect(seen.calls).toBe(1)
     expect(seen.key).toBe('secret-123')
+    await page.close()
+  })
+})
+
+describe('a document that lists several servers', () => {
+  const picker = (page: Page) =>
+    page.locator('.header-controls label.row', { hasText: 'Environment' }).locator('select')
+
+  it('offers each as an environment and sends to the one chosen, asking again for another origin’s key', async () => {
+    const { page, errors } = await open(spec('multi/openapi.json'))
+    await ready(page)
+    await goOp(page, 'multi-things/ListThings')
+    const options = await picker(page).locator('option').allInnerTexts()
+    expect(options).toEqual(['mock', 'live', 'sandbox'])
+    // the description is the entry's tooltip
+    expect(await picker(page).locator('option', { hasText: 'sandbox' }).getAttribute('title')).toBe(
+      'Sandbox',
+    )
+
+    await picker(page).selectOption('sandbox')
+    const key = page.getByLabel(/KEY for multi-things/)
+    await key.fill('sandbox-key')
+    await key.press('Tab')
+    seen.calls = 0
+    await page.getByRole('button', { name: 'Send' }).click()
+    await page.waitForSelector('.result-chip:has-text("200")', { timeout: 20_000 })
+    expect(seen.calls).toBe(1)
+    expect(seen.path).toBe('/sandbox-api/things')
+    expect(seen.key).toBe('sandbox-key')
+
+    // production is another origin: the sandbox key is not carried over, and is asked for again
+    await picker(page).selectOption('live')
+    await page.waitForSelector('input[aria-label^="KEY for multi-things"]')
+    expect(await page.getByLabel(/KEY for multi-things/).inputValue()).toBe('')
+    expect(seen.calls).toBe(1)
+    expect(errors).toEqual([])
     await page.close()
   })
 })

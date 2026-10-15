@@ -134,19 +134,28 @@ export const loadFaker = () =>
     },
   }))
 
-const baseUrl = v.baseUrl ?? open.baseUrl
+// `live` is the document's first server, or the address the person typed for it; the rest keep their own names
+const live = v.baseUrl ?? open.baseUrl
+const baseUrl: Record<string, string> = {
+  ...(live ? { live } : {}),
+  ...Object.fromEntries(open.servers.filter((s) => s.name !== 'live').map((s) => [s.name, s.url])),
+}
+const described = Object.fromEntries(
+  open.servers.filter((s) => s.description).map((s) => [s.name, { description: s.description }]),
+)
 export const loadConfig = () =>
   Promise.resolve({
     default: {
       project: service,
       secrets: open.secrets,
       auth: open.auth,
+      ...(Object.keys(described).length ? { environments: described } : {}),
       // one locale, so the header offers no locale choice
       faker: { default: 'en', locales: { en: ['en', 'base'] } },
       services: {
         [service]: {
           spec: '',
-          baseUrl: baseUrl ? { live: baseUrl } : {},
+          baseUrl,
           ...(open.defaultProfile ? { auth: open.defaultProfile } : {}),
         },
       },
