@@ -822,11 +822,16 @@ describe('a GitHub file page pasted into the landing page', () => {
 })
 
 describe('the example links on the landing page', () => {
-  it.each([390, 375, 360])(
+  // a wide font on purpose: the same row is narrower in Apple's system font than in the one a Linux or
+  // Android device falls back to, and the test must hold for the wider one wherever it runs
+  it.each([390, 375, 360, 320])(
     'sit on one line at %i px, not one word on a line of its own',
     async (width) => {
       const page = await browser.newPage({ viewport: { width, height: 800 } })
       await page.goto(`${siteUrl}/`)
+      await page.addStyleTag({
+        content: 'body { font-family: "DejaVu Sans", Verdana, sans-serif !important; }',
+      })
       const tops = await page
         .locator('.try .link')
         .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)))

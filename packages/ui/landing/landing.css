@@ -138,7 +138,10 @@ button.link,
    being left alone on a second line */
 @media (max-width: 480px) {
   .try {
-    gap: 4px 14px;
+    gap: 4px 10px;
+    /* scales with the screen, so the row fits whatever font the device brings (Linux and Android system
+       fonts are wider than Apple's) */
+    font-size: clamp(13px, 4vw, 16px);
   }
   .try-label {
     flex: 1 1 100%;
