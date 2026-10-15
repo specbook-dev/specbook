@@ -56,6 +56,39 @@ describe('preview', () => {
     expect(written).toContain('"tokenUrl": "https://auth.example.test/token"')
   }, 30_000)
 
+  it('offers sign-in for an OpenID Connect scheme, and does not break when its provider cannot be reached', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const dir = await mkdtemp(join(tmpdir(), 'sb-prev-oidc-'))
+    const file = join(dir, 'api.json')
+    await writeFile(
+      file,
+      JSON.stringify({
+        openapi: '3.0.3',
+        info: { title: 'Sso', version: '1' },
+        servers: [{ url: 'https://api.example.test' }],
+        components: {
+          securitySchemes: {
+            sso: {
+              type: 'openIdConnect',
+              // nothing listens here: discovery fails, the preview must still start
+              openIdConnectUrl: 'http://127.0.0.1:1/.well-known/openid-configuration',
+            },
+          },
+        },
+        security: [{ sso: [] }],
+        paths: { '/a': { get: { operationId: 'A', responses: { '200': { description: 'ok' } } } } },
+      }),
+    )
+    const p = await previewCommand(file, { port: 0, open: false })
+    afterAll(() => p.close())
+    const said = log.mock.calls.map((c) => String(c[0])).join('\n')
+    expect(said).toContain(`OAuth redirect URI to register for sso: ${p.url}`)
+    const written = await readFile(join(p.root, '.specbook/specbook.config.ts'), 'utf8')
+    expect(written).toContain(
+      '"openIdConnectUrl": "http://127.0.0.1:1/.well-known/openid-configuration"',
+    )
+  }, 30_000)
+
   it('turns security schemes into credentials held in server memory', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     const dir = await mkdtemp(join(tmpdir(), 'sb-prev-auth-'))

@@ -5,6 +5,7 @@ import { createRequire } from 'node:module'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import fg from 'fast-glob'
 import type { Plugin, ViteDevServer } from 'vite'
+import { createDiscovery } from './discovery'
 import { scanDocs } from './docs'
 import {
   ensureEnvironmentsDir,
@@ -156,6 +157,8 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
   let notifyRegistryChanged: () => void = () => {}
   /** Credentials entered in the UI: never written to disk, gone when the server stops. */
   const memorySecrets: Record<string, Record<string, string>> = {}
+  // where each OpenID Connect profile's token endpoint is, read once from its discovery document
+  const tokenOriginOf = createDiscovery({ warn: (m) => server?.config.logger.warn(m) })
 
   async function registryCode(): Promise<string> {
     const files = await scanProject(root)
@@ -438,15 +441,21 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
     const cfg = (mod.default ?? {}) as {
       services?: Record<string, { baseUrl?: Record<string, string> }>
       secrets?: Record<string, { env?: string }>
-      auth?: Record<string, { oauth?: { tokenUrl?: string } }>
+      auth?: Record<string, { oauth?: { tokenUrl?: string; openIdConnectUrl?: string } }>
     }
     const tokenOrigins: Record<string, string> = {}
+    const discoveryOrigins: Record<string, string> = {}
     for (const [name, profile] of Object.entries(cfg.auth ?? {})) {
       try {
-        const url = profile.oauth?.tokenUrl
-        if (url) tokenOrigins[name] = new URL(url).origin
+        const { tokenUrl, openIdConnectUrl } = profile.oauth ?? {}
+        if (tokenUrl) tokenOrigins[name] = new URL(tokenUrl).origin
+        else if (openIdConnectUrl) {
+          discoveryOrigins[name] = new URL(openIdConnectUrl).origin
+          const token = await tokenOriginOf(openIdConnectUrl)
+          if (token) tokenOrigins[name] = token
+        }
       } catch {
-        /* an unparsable tokenUrl is left out; a sign-in against it fails with a 404 */
+        /* an unparsable URL is left out; a sign-in against it fails with a 404 */
       }
     }
     return {
@@ -455,6 +464,7 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
       ),
       secretNames: cfg.secrets ?? {},
       tokenOrigins,
+      discoveryOrigins,
     }
   }
 

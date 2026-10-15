@@ -3,10 +3,13 @@ import {
   type AuthProfile,
   createFetchTransport,
   createMockTransport,
+  type DiscoveredEndpoints,
   deepMerge,
   type Example,
   installFaker,
+  isDiscovery,
   type OpMeta,
+  parseDiscovery,
   prepareFaker,
   type RequestDef,
   type RunEvent,
@@ -28,6 +31,10 @@ import { originOf, type SecretStore, secretStore } from './secrets'
  */
 const AUTH_SERVICE_PREFIX = 'auth:'
 const authService = (profile: string) => `${AUTH_SERVICE_PREFIX}${encodeURIComponent(profile)}`
+/** Likewise for an OpenID Connect discovery document, whose host may differ from the token endpoint's. */
+const DISCOVERY_SERVICE_PREFIX = 'discovery:'
+const discoveryService = (profile: string) =>
+  `${DISCOVERY_SERVICE_PREFIX}${encodeURIComponent(profile)}`
 
 export interface ExampleEntry {
   name: string
@@ -208,9 +215,13 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
           return await inner(req, signal)
         } catch (e) {
           // a blocked cross-origin call surfaces as a bare TypeError("Failed to fetch")
-          if (e instanceof TypeError && req.service.startsWith(AUTH_SERVICE_PREFIX))
+          if (
+            e instanceof TypeError &&
+            (req.service.startsWith(AUTH_SERVICE_PREFIX) ||
+              req.service.startsWith(DISCOVERY_SERVICE_PREFIX))
+          )
             throw new Error(
-              `The browser could not reach the sign-in token endpoint (${extra[req.service] ?? 'unknown'}). It probably does not allow calls from this page (CORS). Embedding the viewer on the API's origin does not help when the sign-in server is on another host; the browser extension can make the call. You can still paste an access token.`,
+              `The browser could not reach the sign-in provider (${extra[req.service] ?? 'unknown'}). It probably does not allow calls from this page (CORS). Embedding the viewer on the API's origin does not help when the sign-in server is on another host; the browser extension can make the call. You can still paste an access token.`,
             )
           if (e instanceof TypeError)
             throw new Error(
@@ -237,10 +248,71 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     }
   }
 
+  type SignInEndpoints = DiscoveredEndpoints & { scopes: Record<string, string> }
+  const discovered = new Map<string, Promise<DiscoveredEndpoints>>()
+
+  /**
+   * Where a profile signs in: the endpoints its config writes out, or the ones its OpenID Connect
+   * discovery document names. The document is fetched the way any other call from the page is (through
+   * the dev server's proxy when there is one) and remembered for the life of the page.
+   */
+  async function oauthEndpoints(i: {
+    env: string
+    version: number
+    profile: string
+    proxyBase?: string
+    signal?: AbortSignal
+  }): Promise<SignInEndpoints> {
+    if (i.env === 'mock') throw new Error('Sign in needs a live environment, not mock')
+    const oauth = ((await config(i.version)).auth?.[i.profile] as AuthProfile | undefined)?.oauth
+    if (!oauth) throw new Error(`"${i.profile}" has no sign-in configured`)
+    if (!isDiscovery(oauth))
+      return {
+        authorizationUrl: oauth.authorizationUrl,
+        tokenUrl: oauth.tokenUrl,
+        scopes: oauth.scopes ?? {},
+      }
+
+    const url = new URL(oauth.openIdConnectUrl)
+    let found = discovered.get(url.href)
+    if (!found) {
+      found = (async () => {
+        const service = discoveryService(i.profile)
+        const send = await transportFor(i.env, i.proxyBase ?? '/__specbook/proxy', i.version, {
+          [service]: url.origin,
+        })
+        const res = await send(
+          {
+            service,
+            opId: 'oidc-discovery',
+            method: 'GET',
+            url: url.pathname,
+            query: Object.fromEntries(url.searchParams),
+            headers: { accept: 'application/json' },
+            encoding: 'none',
+          },
+          i.signal,
+        )
+        if (res.status >= 400)
+          throw new Error(`The provider's discovery document answered ${res.status}`)
+        return parseDiscovery(res.body)
+      })()
+      discovered.set(url.href, found)
+      // a failure is not remembered: the next click tries again
+      found.catch(() => discovered.delete(url.href))
+    }
+    const endpoints = await found
+    return {
+      ...endpoints,
+      scopes: oauth.scopes && Object.keys(oauth.scopes).length ? oauth.scopes : endpoints.scopes,
+    }
+  }
+
   /**
    * A sign-in's code exchange, sent the way any other call from this page is: through the dev server's
    * proxy when there is one, else direct or through the extension. The token endpoint comes from the
-   * profile in the config, never from the caller, so the proxy only ever forwards to the project's own.
+   * profile in the config (or its discovery document), never from the caller, so the proxy only ever
+   * forwards to the project's own.
    */
   async function oauthExchange(i: {
     env: string
@@ -250,10 +322,8 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     proxyBase?: string
     signal?: AbortSignal
   }): Promise<unknown> {
-    if (i.env === 'mock') throw new Error('Sign in needs a live environment, not mock')
-    const oauth = ((await config(i.version)).auth?.[i.profile] as AuthProfile | undefined)?.oauth
-    if (!oauth) throw new Error(`"${i.profile}" has no sign-in configured`)
-    const token = new URL(oauth.tokenUrl)
+    const { tokenUrl } = await oauthEndpoints(i)
+    const token = new URL(tokenUrl)
     const service = authService(i.profile)
     const send = await transportFor(i.env, i.proxyBase ?? '/__specbook/proxy', i.version, {
       [service]: token.origin,
@@ -459,6 +529,7 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     environments,
     environmentRisks,
     managedSecrets,
+    oauthEndpoints,
     oauthExchange,
     run,
     operationRequest,

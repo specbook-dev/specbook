@@ -7,6 +7,7 @@ import {
   newState,
   OAuthError,
   parseCallback,
+  parseDiscovery,
   parseTokenResponse,
   tokenRequestBody,
 } from '../src'
@@ -149,8 +150,10 @@ describe('authFromSpec: OAuth schemes', () => {
       },
       'https://api.example.com/spec.json',
     )
-    expect(r.auth.o?.oauth?.authorizationUrl).toBe('https://api.example.com/oauth/authorize')
-    expect(r.auth.o?.oauth?.tokenUrl).toBe('https://api.example.com/oauth/token')
+    expect(r.auth.o?.oauth).toMatchObject({
+      authorizationUrl: 'https://api.example.com/oauth/authorize',
+      tokenUrl: 'https://api.example.com/oauth/token',
+    })
   })
 
   it('leaves implicit, client credentials and password flows as paste-only', () => {
@@ -163,5 +166,65 @@ describe('authFromSpec: OAuth schemes', () => {
       expect(r.auth.petAuth).toBeDefined()
       expect(r.auth.petAuth?.oauth).toBeUndefined()
     }
+  })
+})
+
+describe('OpenID Connect', () => {
+  it('reads the endpoints and scope names from a discovery document, openid first', () => {
+    const found = parseDiscovery({
+      issuer: 'https://accounts.example.com',
+      authorization_endpoint: 'https://accounts.example.com/o/authorize',
+      token_endpoint: 'https://oauth2.example.com/token',
+      scopes_supported: ['email', 'profile', 'openid'],
+    })
+    expect(found.authorizationUrl).toBe('https://accounts.example.com/o/authorize')
+    expect(found.tokenUrl).toBe('https://oauth2.example.com/token')
+    expect(Object.keys(found.scopes)).toEqual(['openid', 'email', 'profile'])
+  })
+
+  it('offers openid even when the document lists no scopes', () => {
+    const found = parseDiscovery({
+      authorization_endpoint: 'https://a.example.com/authorize',
+      token_endpoint: 'https://a.example.com/token',
+    })
+    expect(Object.keys(found.scopes)).toEqual(['openid'])
+  })
+
+  it('refuses a document with no usable endpoints', () => {
+    expect(() => parseDiscovery({})).toThrow(OAuthError)
+    expect(() =>
+      parseDiscovery({
+        authorization_endpoint: 'javascript:alert(1)',
+        token_endpoint: 'https://t/',
+      }),
+    ).toThrow(/no authorization or token endpoint/)
+  })
+
+  it('turns an openIdConnect scheme into a sign-in, resolving a relative discovery URL', () => {
+    const api = (openIdConnectUrl: string) => ({
+      components: { securitySchemes: { sso: { type: 'openIdConnect', openIdConnectUrl } } },
+    })
+    const abs = authFromSpec(api('https://accounts.example.com/.well-known/openid-configuration'))
+    expect(abs.auth.sso?.oauth).toEqual({
+      openIdConnectUrl: 'https://accounts.example.com/.well-known/openid-configuration',
+    })
+    expect(abs.auth.sso?.title).toContain('sign in or paste')
+    expect(abs.auth.sso?.apply).toEqual({
+      headers: { authorization: 'Bearer {{secrets.SSO}}' },
+    })
+
+    const rel = authFromSpec(
+      api('/.well-known/openid-configuration'),
+      'https://api.example.com/spec.json',
+    )
+    expect(rel.auth.sso?.oauth).toEqual({
+      openIdConnectUrl: 'https://api.example.com/.well-known/openid-configuration',
+    })
+  })
+
+  it('stays paste-only when the scheme names no discovery URL', () => {
+    const r = authFromSpec({ components: { securitySchemes: { sso: { type: 'openIdConnect' } } } })
+    expect(r.auth.sso).toBeDefined()
+    expect(r.auth.sso?.oauth).toBeUndefined()
   })
 })

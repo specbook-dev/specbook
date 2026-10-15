@@ -14,6 +14,16 @@ export interface JsonAuthProfile {
   oauth?: OAuthSettings
 }
 
+/** An OpenID Connect scheme: the discovery document says where to sign in. */
+function discovery(s: any, base: string | undefined): OAuthSettings | undefined {
+  if (typeof s.openIdConnectUrl !== 'string' || s.openIdConnectUrl === '') return undefined
+  try {
+    return { openIdConnectUrl: new URL(s.openIdConnectUrl, base).toString() }
+  } catch {
+    return undefined
+  }
+}
+
 /** The authorization code flow of an OAuth scheme (OpenAPI 3 `flows`, or Swagger 2 `accessCode`). */
 function codeFlow(s: any, base: string | undefined): OAuthSettings | undefined {
   const flow = s.flows?.authorizationCode ?? (s.flow === 'accessCode' ? s : undefined)
@@ -78,8 +88,8 @@ export function authFromSpec(api: any, source?: string): SpecAuth {
       title = `${name} (basic auth, paste base64 of user:password)`
     } else if (s.type === 'oauth2' || s.type === 'openIdConnect') {
       apply = { headers: { authorization: `Bearer ${ref}` } }
-      oauth =
-        s.type === 'oauth2' ? codeFlow(s, source && isUrl(source) ? source : undefined) : undefined
+      const base = source && isUrl(source) ? source : undefined
+      oauth = s.type === 'oauth2' ? codeFlow(s, base) : discovery(s, base)
       title = `${name} (OAuth, ${oauth ? 'sign in or ' : ''}paste an access token)`
     }
     if (!apply) continue

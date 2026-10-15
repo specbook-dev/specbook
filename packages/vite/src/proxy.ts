@@ -9,10 +9,17 @@ export interface ProxyConfig {
    * exchanges its code through `<mount>/<env>/auth:<profile>/…`; the page chooses the path, never the host.
    */
   tokenOrigins?: Record<string, string>
+  /**
+   * Origin of each OpenID Connect profile's discovery document, addressed as
+   * `<mount>/<env>/discovery:<profile>/…` (the token endpoint may be on another host).
+   */
+  discoveryOrigins?: Record<string, string>
 }
 
 /** The reserved service name a sign-in's token exchange is addressed to. */
 export const AUTH_SERVICE_PREFIX = 'auth:'
+/** The reserved service name a sign-in's discovery document is fetched through. */
+export const DISCOVERY_SERVICE_PREFIX = 'discovery:'
 
 const decode = (s: string) => {
   try {
@@ -80,6 +87,8 @@ export async function handleProxy(
       upstream: (env, service) => {
         if (service.startsWith(AUTH_SERVICE_PREFIX))
           return config.tokenOrigins?.[decode(service.slice(AUTH_SERVICE_PREFIX.length))]
+        if (service.startsWith(DISCOVERY_SERVICE_PREFIX))
+          return config.discoveryOrigins?.[decode(service.slice(DISCOVERY_SERVICE_PREFIX.length))]
         return config.services[service]?.baseUrl[env]
       },
       // a developer's own machine: their local services are the point
