@@ -821,6 +821,25 @@ describe('a GitHub file page pasted into the landing page', () => {
   })
 })
 
+describe('the example links on the landing page', () => {
+  it.each([390, 375, 360])(
+    'sit on one line at %i px, not one word on a line of its own',
+    async (width) => {
+      const page = await browser.newPage({ viewport: { width, height: 800 } })
+      await page.goto(`${siteUrl}/`)
+      const tops = await page
+        .locator('.try .link')
+        .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)))
+      expect(tops).toHaveLength(5)
+      expect(new Set(tops).size).toBe(1)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      )
+      await page.close()
+    },
+  )
+})
+
 describe('the screenshots on the landing page', () => {
   const shots = async (width: number) => {
     const page = await browser.newPage({ viewport: { width, height: 900 } })

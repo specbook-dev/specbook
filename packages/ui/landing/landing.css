@@ -128,8 +128,21 @@ button.link,
   margin: 20px 0 0;
   color: var(--muted);
 }
-.try button.link {
-  margin-inline: 8px 0;
+.try {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+/* on a phone the label takes a line, so the five links share the next one instead of the last of them
+   being left alone on a second line */
+@media (max-width: 480px) {
+  .try {
+    gap: 4px 14px;
+  }
+  .try-label {
+    flex: 1 1 100%;
+  }
 }
 code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
