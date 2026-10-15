@@ -1,5 +1,6 @@
 import { render } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
+import { handleOAuthCallback } from '../oauth-callback'
 import { applyTheme } from '../theme'
 import { type OpenFailure, SpecWorker } from './client'
 import { mountOpened } from './mount'
@@ -282,4 +283,7 @@ function BasePrompt({
   )
 }
 
-render(<Picker initial={{ kind: 'idle' }} />, root)
+// a sign-in's return leg lands on this page too: hand it to the tab that started it, draw nothing here
+void handleOAuthCallback().then((handled) => {
+  if (!handled) render(<Picker initial={{ kind: 'idle' }} />, root)
+})

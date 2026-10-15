@@ -69,6 +69,9 @@ describe('proxy', () => {
           },
         },
         secretNames: { KEY: {}, FILE_ONLY: {} },
+        tokenOrigins: {
+          'My OAuth': `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`,
+        },
       }),
       readSecrets: async (env) =>
         env === 'staging' ? { FILE_ONLY: 'from-staging-file' } : { FILE_ONLY: 'from-file' },
@@ -99,6 +102,29 @@ describe('proxy', () => {
     expect(upstreamSeen.url).toBe('/v1/pets?k=sk_real_123')
     expect(upstreamSeen.headers?.['x-api-key']).toBe('sk_real_123')
     expect(upstreamSeen.body).toBe('{"f":"from-file"}')
+  })
+  it('forwards a sign-in’s token exchange to the profile’s own token origin, whatever path the page names', async () => {
+    await listening
+    const body = 'grant_type=authorization_code&code=abc&code_verifier=v'
+    const r = await fetch(`${base()}/live/auth:${encodeURIComponent('My OAuth')}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    })
+    expect(r.status).toBe(200)
+    expect(upstreamSeen.url).toBe('/oauth/token')
+    expect(upstreamSeen.headers?.['content-type']).toBe('application/x-www-form-urlencoded')
+    expect(upstreamSeen.body).toBe(body)
+  })
+  it('does not forward an auth service no profile declared', async () => {
+    await listening
+    upstreamSeen = {}
+    const r = await fetch(`${base()}/live/auth:unknown/oauth/token`, {
+      method: 'POST',
+      body: 'x=1',
+    })
+    expect(r.status).toBe(404)
+    expect(upstreamSeen.url).toBeUndefined()
   })
   it('prefers a credential typed into the UI over the environment', async () => {
     await listening

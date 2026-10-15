@@ -4,6 +4,22 @@ import { handleProxy as proxy } from '@specbook/core'
 export interface ProxyConfig {
   services: Record<string, { baseUrl: Record<string, string | undefined> }>
   secretNames: Record<string, { env?: string }>
+  /**
+   * Origin of each OAuth profile's token endpoint, read from the project's own config. A sign-in
+   * exchanges its code through `<mount>/<env>/auth:<profile>/…`; the page chooses the path, never the host.
+   */
+  tokenOrigins?: Record<string, string>
+}
+
+/** The reserved service name a sign-in's token exchange is addressed to. */
+export const AUTH_SERVICE_PREFIX = 'auth:'
+
+const decode = (s: string) => {
+  try {
+    return decodeURIComponent(s)
+  } catch {
+    return s
+  }
 }
 
 export interface ProxyDeps {
@@ -61,7 +77,11 @@ export async function handleProxy(
   const response = await proxy(request, {
     mount: MOUNT,
     policy: {
-      upstream: (env, service) => config.services[service]?.baseUrl[env],
+      upstream: (env, service) => {
+        if (service.startsWith(AUTH_SERVICE_PREFIX))
+          return config.tokenOrigins?.[decode(service.slice(AUTH_SERVICE_PREFIX.length))]
+        return config.services[service]?.baseUrl[env]
+      },
       // a developer's own machine: their local services are the point
       allowPrivateHosts: true,
     },

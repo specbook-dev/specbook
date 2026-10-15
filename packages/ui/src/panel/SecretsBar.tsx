@@ -1,15 +1,24 @@
+import type { AuthProfile, OAuthSettings } from '@specbook/core'
 import { useEffect, useState } from 'preact/hooks'
+import { expiryOf, noteExpiry } from '../oauth'
 import { absoluteBase } from '../routing'
 import { engine } from '../runtime'
 import { originOf, SECRET_PLACEHOLDER, secretStore } from '../secrets'
 import { env, version } from '../store'
+import { OAuthSignIn } from './OAuthSignIn'
 
 interface Need {
   service: string
   origin: string
   title: string
   names: string[]
+  /** the config's name for the profile (the key a sign-in's token exchange is addressed by) */
+  profile: string
+  oauth?: OAuthSettings
 }
+
+const minutesLeft = (at: number | undefined) =>
+  at === undefined ? undefined : Math.max(0, Math.round((at - Date.now()) / 60_000))
 
 const SOURCE: Record<string, string> = {
   session: 'this session',
@@ -67,7 +76,15 @@ export function SecretsBar({
             ),
           ),
         ]
-        if (names.length) out.push({ service, origin, title: profile.title ?? s.auth ?? '', names })
+        if (names.length)
+          out.push({
+            service,
+            origin,
+            title: profile.title ?? s.auth ?? '',
+            names,
+            profile: s.auth as string,
+            oauth: (profile as AuthProfile).oauth,
+          })
       }
       setNeeds(out)
     })
@@ -109,12 +126,18 @@ export function SecretsBar({
                 <code>{name}</code>
                 {has ? (
                   <>
-                    <span class="muted">✓ set</span>
+                    <span class="muted">
+                      ✓ set
+                      {n.oauth && minutesLeft(expiryOf(n.origin, name)) !== undefined
+                        ? ` · expires in ${minutesLeft(expiryOf(n.origin, name))} min`
+                        : ''}
+                    </span>
                     <button
                       type="button"
                       class="link"
                       onClick={() => {
                         secretStore.remove(n.origin, name)
+                        noteExpiry(n.origin, name, undefined)
                         bump((x) => x + 1)
                       }}
                     >
@@ -124,6 +147,16 @@ export function SecretsBar({
                 ) : (
                   <>
                     {from && <span class="muted">from {SOURCE[from] ?? from}</span>}
+                    {n.oauth && (
+                      <OAuthSignIn
+                        service={n.service}
+                        profile={n.profile}
+                        origin={n.origin}
+                        secret={name}
+                        oauth={n.oauth}
+                        onSignedIn={() => bump((x) => x + 1)}
+                      />
+                    )}
                     <input
                       type="password"
                       autocomplete="off"

@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
@@ -17,6 +17,43 @@ describe('preview', () => {
     const registry = await (await fetch(`${p.url}@id/__x00__virtual:specbook/registry`)).text()
     expect(registry).toContain('"service":"swagger-petstore"')
     expect(registry).toContain('https://petstore.swagger.io/v2')
+  }, 30_000)
+
+  it('says which redirect URI to register when the API uses an OAuth sign-in', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const dir = await mkdtemp(join(tmpdir(), 'sb-prev-oauth-'))
+    const file = join(dir, 'api.json')
+    await writeFile(
+      file,
+      JSON.stringify({
+        openapi: '3.0.3',
+        info: { title: 'Shop', version: '1' },
+        servers: [{ url: 'https://api.example.test' }],
+        components: {
+          securitySchemes: {
+            shopAuth: {
+              type: 'oauth2',
+              flows: {
+                authorizationCode: {
+                  authorizationUrl: 'https://auth.example.test/authorize',
+                  tokenUrl: 'https://auth.example.test/token',
+                  scopes: { 'read:orders': 'read orders' },
+                },
+              },
+            },
+          },
+        },
+        security: [{ shopAuth: [] }],
+        paths: { '/a': { get: { operationId: 'A', responses: { '200': { description: 'ok' } } } } },
+      }),
+    )
+    const p = await previewCommand(file, { port: 0, open: false })
+    afterAll(() => p.close())
+    const said = log.mock.calls.map((c) => String(c[0])).join('\n')
+    expect(said).toContain(`OAuth redirect URI to register for shopAuth: ${p.url}`)
+    // the sign-in is declared in the project the preview wrote, for the UI to offer
+    const written = await readFile(join(p.root, '.specbook/specbook.config.ts'), 'utf8')
+    expect(written).toContain('"tokenUrl": "https://auth.example.test/token"')
   }, 30_000)
 
   it('turns security schemes into credentials held in server memory', async () => {
