@@ -17,7 +17,7 @@ let counter = 0
  * over the target (atomic on one file system). A file that already holds this content is left alone,
  * which keeps its timestamp and spares a watching dev server a reload for nothing.
  */
-async function writeAtomically(full: string, content: string): Promise<void> {
+export async function writeAtomically(full: string, content: string): Promise<void> {
   const current = await readFile(full, 'utf8').catch(() => undefined)
   if (current === content) return
   const tmp = `${full}.${process.pid}.${counter++}.tmp`

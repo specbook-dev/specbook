@@ -1,5 +1,6 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { writeAtomically } from '@specbook/codegen'
 import { scanProject } from '@specbook/vite'
 import fg from 'fast-glob'
 import type { Loader } from '../load'
@@ -44,7 +45,9 @@ export async function writeMetadata(root: string, outDir: string, loader: Loader
       /* a broken sequence must not break generate; it shows up when opened */
     }
   }
-  await writeFile(
+  // atomically: the file is large (over 512 KiB on a big project, which Node writes in pieces), and another
+  // process generating into the same folder, or a dev server, must never read half of it
+  await writeAtomically(
     join(outDir, 'specbook.json'),
     `${JSON.stringify({ services, sequences }, null, 2)}\n`,
   )
