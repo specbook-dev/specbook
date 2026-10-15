@@ -1,0 +1,54 @@
+name: OAuth (real provider)
+
+# Signs in against a real Keycloak in Docker, through the real UI in a real browser. Not part of CI: run it by
+# hand (Actions > OAuth (real provider) > Run workflow) when sign-in, the dev proxy or the viewer's hand-off
+# changes. Locally: `packages/ui/test/oauth/keycloak.sh up`, then `pnpm test:oauth`.
+on:
+  workflow_dispatch:
+    inputs:
+      keycloak_image:
+        description: The Keycloak image to test against (a 26.x image)
+        type: string
+        default: quay.io/keycloak/keycloak:26.7.3
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oauth
+  cancel-in-progress: false
+
+jobs:
+  oauth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @specbook/ui exec playwright install --with-deps chromium
+      - name: Start Keycloak
+        run: packages/ui/test/oauth/keycloak.sh up
+        env:
+          KEYCLOAK_IMAGE: ${{ inputs.keycloak_image }}
+      - run: pnpm test:oauth
+      # a failed run leaves what the browser showed and what Keycloak said
+      - name: Keycloak log
+        if: failure()
+        run: packages/ui/test/oauth/keycloak.sh logs > keycloak.log 2>&1 || true
+      - name: Keep the evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oauth-failure
+          path: |
+            keycloak.log
+            packages/ui/.vitest/oauth/
+          if-no-files-found: ignore
+      - name: Stop Keycloak
+        if: always()
+        run: packages/ui/test/oauth/keycloak.sh down || true
