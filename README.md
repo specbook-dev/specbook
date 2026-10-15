@@ -188,7 +188,12 @@ pnpm test            # unit tests
 pnpm test:browser    # the UI in a real browser
 pnpm test:viewer     # the built viewer and landing page
 pnpm test:slow       # a full site build, checking what the bundle contains
+pnpm test:oauth      # sign-in against a real Keycloak (Docker); not part of CI, see below
 ```
+
+`pnpm test:oauth` needs a Keycloak to talk to: `packages/ui/test/oauth/keycloak.sh up` starts one in Docker
+(`down` removes it). The suite creates its own realm, client and user each run. In GitHub it is the manual
+"OAuth (real provider)" workflow.
 
 Try the example project (Petstore, Stripe, GitHub and a GraphQL API):
 
