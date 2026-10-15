@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   authFromSpec,
   authorizeUrl,
@@ -26,6 +26,19 @@ describe('PKCE', () => {
     expect(a.verifier).not.toBe(b.verifier)
     expect(a.challenge).toBe(await challengeFor(a.verifier))
     expect(newState()).not.toBe(newState())
+  })
+})
+
+describe('PKCE on a page that is not secure', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('says the page must be secure, instead of failing on a missing digest', async () => {
+    // an http page, or one framed inside it: random values exist, `subtle` does not
+    vi.stubGlobal('crypto', {
+      getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto),
+    })
+    await expect(createPkce()).rejects.toThrow(/secure page \(https, or localhost\)/)
+    await expect(createPkce()).rejects.toBeInstanceOf(OAuthError)
   })
 })
 

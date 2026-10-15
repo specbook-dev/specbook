@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { extname, join, resolve } from 'node:path'
 import { type Browser, chromium, type Page } from 'playwright'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const assemble = resolve(import.meta.dirname, '../../scripts/assemble-site.mjs')
 const fixtures = resolve(import.meta.dirname, '../../../codegen/test/fixtures')
@@ -57,6 +57,42 @@ const multiSpec = (base: string) => {
   }
 }
 
+/** An API behind an OAuth 2.0 authorization code flow, with a provider (`/oauth/*`) on the same fixture server. */
+const oauthSpec = (base: string) => ({
+  openapi: '3.0.3',
+  info: { title: 'OAuth Gate', version: '1' },
+  servers: [{ url: `${base}/oauth-api` }],
+  security: [{ gate: [] }],
+  components: {
+    securitySchemes: {
+      gate: {
+        type: 'oauth2',
+        flows: {
+          authorizationCode: {
+            authorizationUrl: `${base}/oauth/authorize`,
+            tokenUrl: `${base}/oauth/token`,
+            scopes: { read: 'read' },
+          },
+        },
+      },
+    },
+  },
+  paths: {
+    '/thing': {
+      get: {
+        operationId: 'getThing',
+        summary: 'Get the thing',
+        responses: {
+          '200': {
+            description: 'ok',
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+        },
+      },
+    },
+  },
+})
+
 let site: Server
 let dist: string
 let rules: { match: RegExp; headers: string[][] }[] = []
@@ -64,7 +100,9 @@ let api: Server
 let siteUrl: string
 let apiUrl: string
 let browser: Browser
-const seen: { key?: string; calls: number; path?: string } = { calls: 0 }
+const seen: { key?: string; calls: number; path?: string; auth?: string; redirect?: string } = {
+  calls: 0,
+}
 
 const listen = (s: Server) =>
   new Promise<string>((r) =>
@@ -117,6 +155,32 @@ beforeAll(async () => {
     try {
       if (p === '/live/openapi.json') return void res.end(JSON.stringify(liveSpec(apiUrl)))
       if (p === '/multi/openapi.json') return void res.end(JSON.stringify(multiSpec(apiUrl)))
+      // a stand-in provider: sends the person straight back with a code, and trades it for a token
+      if (p === '/oauth/openapi.json') return void res.end(JSON.stringify(oauthSpec(apiUrl)))
+      if (p === '/oauth/authorize') {
+        const q = new URL(req.url ?? '/', 'http://x').searchParams
+        seen.redirect = q.get('redirect_uri') ?? undefined
+        const back = new URL(q.get('redirect_uri') as string)
+        back.searchParams.set('code', 'fake-code')
+        back.searchParams.set('state', q.get('state') as string)
+        res.statusCode = 302
+        res.setHeader('location', back.toString())
+        return void res.end()
+      }
+      if (p === '/oauth/token')
+        return void res.end(JSON.stringify({ access_token: 'tok-iframe', expires_in: 600 }))
+      if (p === '/oauth-api/thing') {
+        seen.auth = req.headers.authorization as string | undefined
+        return void res.end('{"ok":true}')
+      }
+      // a page on another site that frames the hosted viewer
+      if (p === '/host/iframe.html') {
+        const spec = encodeURIComponent(`${apiUrl}/oauth/openapi.json`)
+        res.setHeader('content-type', 'text/html')
+        return void res.end(
+          `<!doctype html><iframe title="viewer" style="width:1000px;height:760px;border:0" src="${siteUrl}/v1/?spec=${spec}"></iframe>`,
+        )
+      }
       if (p === '/sandbox-api/things') {
         seen.calls++
         seen.path = p
@@ -316,6 +380,108 @@ describe('a document that lists several servers', () => {
     expect(await page.getByLabel(/KEY for multi-things/).inputValue()).toBe('')
     expect(seen.calls).toBe(1)
     expect(errors).toEqual([])
+    await page.close()
+  })
+})
+
+describe('the sign-in callback page', () => {
+  it('is served unversioned, with the site’s policy and no inline script', async () => {
+    const r = await fetch(`${siteUrl}/oauth/callback/`)
+    expect(r.status).toBe(200)
+    expect(r.headers.get('content-type')).toContain('text/html')
+    expect(r.headers.get('content-security-policy')).toContain("script-src 'self'")
+    expect(r.headers.get('referrer-policy')).toBe('no-referrer')
+    expect(r.headers.get('cache-control')).toBe('no-cache')
+    expect(r.headers.get('x-robots-tag')).toBe('noindex')
+    expect(await r.text()).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/)
+    // and the hosted viewer is told to send people there
+    const viewer = await (await fetch(`${siteUrl}/v1/`)).text()
+    expect(viewer).toContain('name="specbook-oauth-callback" content="/oauth/callback/"')
+  })
+
+  it('hands what the provider returned to the tab that is waiting, then closes', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${siteUrl}/`)
+    // a tab on the site standing in for a viewer that started a sign-in
+    await page.evaluate(() => {
+      const w = window as unknown as { __got: unknown[] }
+      w.__got = []
+      const ch = new BroadcastChannel('specbook-oauth')
+      ch.onmessage = (e) => {
+        if (e.data?.type !== 'callback') return
+        w.__got.push(e.data)
+        ch.postMessage({ type: 'ack', state: e.data.state })
+      }
+    })
+    const popup = page.waitForEvent('popup')
+    await page.evaluate(() => window.open('/oauth/callback/?code=c1&state=s1&extra=x', 'cb'))
+    const opened = await popup
+    if (!opened.isClosed()) await opened.waitForEvent('close', { timeout: 15_000 })
+    const got = (await page.evaluate(() => (window as unknown as { __got: unknown[] }).__got)) as {
+      state: string
+      code: string
+    }[]
+    expect(got[0]).toMatchObject({ type: 'callback', state: 's1', code: 'c1' })
+    await page.close()
+  })
+
+  it('says nobody is waiting when opened by itself, and keeps the code out of the address', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${siteUrl}/oauth/callback/?code=stray&state=stray`)
+    await page.getByText('No Specbook window is waiting').waitFor({ timeout: 10_000 })
+    expect(page.url()).toBe(`${siteUrl}/oauth/callback/`)
+    await page.getByRole('link', { name: 'Open the viewer' }).waitFor()
+    await page.close()
+  })
+
+  it('completes a sign-in for a viewer framed on another site, which cannot hear a channel', async () => {
+    const page = await browser.newPage()
+    // `*.localhost` is a secure context, as a real host page over https is: the viewer's PKCE needs
+    // WebCrypto, which a frame inside a plain-http page does not get
+    await page.goto(`http://host.localhost:${new URL(apiUrl).port}/host/iframe.html`)
+    const frame = await vi.waitFor(() => {
+      const f = page.frames().find((x) => x.url().includes('/v1/'))
+      expect(f).toBeTruthy()
+      return f as NonNullable<typeof f>
+    })
+    await frame.waitForSelector('.header .brand', { timeout: 30_000 })
+    await frame.evaluate((k: string) => {
+      location.hash = `#/op/${encodeURIComponent(k)}`
+    }, 'oauth-gate/GetThing')
+    await frame.waitForSelector('.request-panel .rq-bar', { timeout: 30_000 })
+    await frame
+      .locator('.header-controls label.row', { hasText: 'Environment' })
+      .locator('select')
+      .selectOption('live')
+
+    await frame.getByLabel(/Client id for/).fill('docs')
+    await expect
+      .poll(() => frame.getByRole('button', { name: 'Sign in' }).isEnabled(), { timeout: 20_000 })
+      .toBe(true)
+    const popup = page.waitForEvent('popup')
+    await frame.getByRole('button', { name: 'Sign in' }).click()
+    const opened = await popup
+    if (!opened.isClosed()) await opened.waitForEvent('close', { timeout: 30_000 })
+
+    try {
+      await frame.locator('.secrets-chip').waitFor({ state: 'visible', timeout: 15_000 })
+    } catch (e) {
+      // say what the person would have seen, not only that a wait ran out
+      const prompt = await frame
+        .locator('fieldset.needs-vars')
+        .innerText({ timeout: 2_000 })
+        .catch(() => '(no prompt)')
+      throw new Error(
+        `sign-in did not complete. Prompt: ${JSON.stringify(prompt)}. Popup closed: ${opened.isClosed()}, ` +
+          `last at ${opened.url()}. Provider was sent redirect_uri ${seen.redirect}.`,
+        { cause: e },
+      )
+    }
+    await frame.getByRole('button', { name: 'Send' }).click()
+    await frame.waitForSelector('.result-chip:has-text("200")', { timeout: 20_000 })
+    expect(seen.auth).toBe('Bearer tok-iframe')
+    // the provider was sent the stable address, not a path under /v1/
+    expect(seen.redirect).toBe(`${siteUrl}/oauth/callback/`)
     await page.close()
   })
 })

@@ -158,9 +158,11 @@ never the values. In the UI you can also type a value for the tab, which wins ov
 
 **Sign in.** A scheme with an OAuth 2.0 authorization code flow, or an OpenID Connect one, gets a Sign in button
 beside the credentials prompt (PKCE, no client secret; the token stays in the tab). Register the page's address
-as the redirect URI; `specbook dev` and `preview` print it. A scheme has one sign-in provider for all its
-environments. If an environment signs in somewhere else, paste a token there; a separate service and auth
-profile for it also works, but lists the API twice.
+with the provider as a redirect URI: on the hosted viewer that is `https://ui.specbook.dev/oauth/callback/`, a
+page that does not change when the viewer's version does; on a viewer you serve yourself or embed, it is that
+page's own address. `specbook dev` and `preview` print theirs. Sign-in needs a secure page (https, or
+localhost). A scheme has one sign-in provider for all its environments. If an environment signs in somewhere
+else, paste a token there; a separate service and auth profile for it also works, but lists the API twice.
 
 ### Documentation beside the code
 

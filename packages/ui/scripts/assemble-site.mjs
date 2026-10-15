@@ -33,6 +33,19 @@ await mkdir(out, { recursive: true })
 await cp(resolve(root, 'landing'), out, { recursive: true })
 await cp(viewer, resolve(out, channel), { recursive: true })
 
+// The hosted viewer registers one stable callback address with identity providers (the unversioned page in
+// `landing/oauth/callback/`), not its own path, which changes with the channel. The viewer reads this tag;
+// builds that do not have it (a self-hosted copy, an embed) use the page's own address.
+{
+  const index = resolve(out, channel, 'index.html')
+  const html = await readFile(index, 'utf8')
+  const tag = '    <meta name="specbook-oauth-callback" content="/oauth/callback/" />\n'
+  await writeFile(
+    index,
+    html.includes('</head>') ? html.replace('</head>', `${tag}  </head>`) : `${tag}${html}`,
+  )
+}
+
 // What the viewer needs to start, so the landing page can fetch it while the visitor is still typing: the
 // app's modules are preloaded, its styles and worker prefetched. The faker chunk (only used by requests
 // with {{faker.*}}) is left out.
@@ -167,6 +180,11 @@ await writeFile(
   Content-Security-Policy: ${csp}
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
+
+# the sign-in callback page: its script is not hash-versioned, and it is no page to index
+/oauth/callback/*
+  Cache-Control: no-cache
+  X-Robots-Tag: noindex
 
 /${channel}/assets/*
   Cache-Control: public, max-age=31536000, immutable

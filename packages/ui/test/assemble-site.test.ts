@@ -7,10 +7,10 @@ import { describe, expect, it } from 'vitest'
 const script = resolve(__dirname, '../scripts/assemble-site.mjs')
 
 /** A stand-in for `dist-viewer`: an index page and hashed files. */
-async function viewer(files: Record<string, string>) {
+async function viewer(files: Record<string, string>, index = '<div id="app"></div>') {
   const dir = await mkdtemp(join(tmpdir(), 'sb-viewer-'))
   await mkdir(join(dir, 'assets'), { recursive: true })
-  await writeFile(join(dir, 'index.html'), '<div id="app"></div>')
+  await writeFile(join(dir, 'index.html'), index)
   for (const [name, body] of Object.entries(files)) await writeFile(join(dir, 'assets', name), body)
   return dir
 }
@@ -101,5 +101,41 @@ describe('the landing page references', () => {
     const site = await assemble(await viewer({ 'main-aaa.js': 'a' }))
     const html = await readFile(join(site, 'index.html'), 'utf8')
     expect(html).not.toMatch(/\?v=undefined/)
+  })
+
+  it('has the viewer declare the site’s stable sign-in callback, and ships that page with its own headers', async () => {
+    const dist = await viewer(
+      { 'main-aaa.js': 'a' },
+      '<!doctype html><html><head><title>Specbook</title></head><body><div id="app"></div></body></html>',
+    )
+    const site = await assemble(dist)
+    const index = await readFile(join(site, 'v1/index.html'), 'utf8')
+    expect(index).toContain('<meta name="specbook-oauth-callback" content="/oauth/callback/" />')
+    // in the head, before the page's own markup
+    expect(index.indexOf('specbook-oauth-callback')).toBeLessThan(index.indexOf('<body>'))
+
+    // the callback page and its script are at the unversioned address, with no inline script (the site's CSP)
+    const page = await readFile(join(site, 'oauth/callback/index.html'), 'utf8')
+    expect(page).toContain('<script src="./callback.js"></script>')
+    expect(page).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/)
+    expect(
+      (await readFile(join(site, 'oauth/callback/callback.js'), 'utf8')).length,
+    ).toBeGreaterThan(0)
+
+    // not cached, not indexed
+    const headers = await readFile(join(site, '_headers'), 'utf8')
+    expect(headers).toMatch(
+      /\/oauth\/callback\/\*\n\s+Cache-Control: no-cache\n\s+X-Robots-Tag: noindex/,
+    )
+
+    // the build it came from is untouched: a self-hosted copy keeps using its own address
+    expect(await readFile(join(dist, 'index.html'), 'utf8')).not.toContain(
+      'specbook-oauth-callback',
+    )
+  })
+
+  it('still declares it when the viewer’s index has no head to put it in', async () => {
+    const site = await assemble(await viewer({ 'main-aaa.js': 'a' }))
+    expect(await readFile(join(site, 'v1/index.html'), 'utf8')).toContain('specbook-oauth-callback')
   })
 })

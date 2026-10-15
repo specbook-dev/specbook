@@ -1,7 +1,7 @@
 import { challengeFor, type SpecbookConfig } from '@specbook/core'
 import { render } from 'preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { signIn } from '../../src/oauth'
+import { redirectUri, signIn } from '../../src/oauth'
 import { handleOAuthCallback } from '../../src/oauth-callback'
 import { SecretsBar } from '../../src/panel/SecretsBar'
 import { engine } from '../../src/runtime'
@@ -354,5 +354,121 @@ describe('Sign in beside the credentials prompt', () => {
     render(<SecretsBar services={['shop']} supplied={{}} />, host)
     await new Promise((r) => setTimeout(r, 100))
     expect(button('Sign in')).toBeUndefined()
+  })
+})
+
+describe('the address a provider sends the person back to', () => {
+  const tag = () => document.head.querySelector('meta[name="specbook-oauth-callback"]')
+  const declare = (content: string) => {
+    const m = document.createElement('meta')
+    m.name = 'specbook-oauth-callback'
+    m.content = content
+    document.head.append(m)
+  }
+  afterEach(() => {
+    tag()?.remove()
+    vi.restoreAllMocks()
+  })
+
+  it('is the page’s own address unless the page declares a callback page', () => {
+    expect(redirectUri()).toBe(`${location.origin}${location.pathname}`)
+    declare('/oauth/callback/')
+    expect(redirectUri()).toBe(`${location.origin}/oauth/callback/`)
+  })
+
+  it('falls back to the page’s own address when the declaration is not an address', () => {
+    declare('http://[not an address')
+    expect(redirectUri()).toBe(`${location.origin}${location.pathname}`)
+  })
+
+  it('is what both the authorization request and the token exchange send', async () => {
+    declare('/oauth/callback/')
+    const { popup } = fakePopup()
+    const exchange = vi.fn().mockResolvedValue({ access_token: 'tok' })
+    const pending = signIn({ authorizationUrl: AUTHORIZE, clientId: 'cid', scopes: [], exchange })
+    const back = await comeBack(popup, { code: 'c' })
+    await pending
+    back.done()
+    expect(back.sent.searchParams.get('redirect_uri')).toBe(`${location.origin}/oauth/callback/`)
+    expect(exchange.mock.calls[0]?.[0]).toMatchObject({
+      redirect_uri: `${location.origin}/oauth/callback/`,
+    })
+  })
+})
+
+describe('signIn, when the return comes from the popup as its opener', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  /** What a callback page posts to `window.opener`, as the opening window sees it. */
+  const fromOpener = (data: unknown, origin = location.origin) =>
+    dispatchEvent(new MessageEvent('message', { data, origin, source: window }))
+
+  const start = async (exchange = vi.fn().mockResolvedValue({ access_token: 'tok-pm' })) => {
+    const { popup } = fakePopup()
+    const ctl = new AbortController()
+    const pending = signIn({
+      authorizationUrl: AUTHORIZE,
+      clientId: 'cid',
+      scopes: [],
+      exchange,
+      signal: ctl.signal,
+    })
+    const sent = await vi.waitFor(() => {
+      expect(popup.location.href).not.toBe('')
+      return new URL(popup.location.href)
+    })
+    return { pending, ctl, exchange, state: sent.searchParams.get('state') as string }
+  }
+
+  it('accepts a message from its own origin with its own state, and acknowledges it to the sender', async () => {
+    const acks: unknown[] = []
+    const spy = (e: MessageEvent) => e.data?.type === 'ack' && acks.push(e.data)
+    addEventListener('message', spy)
+    try {
+      const { pending, exchange, state } = await start()
+      fromOpener({ type: 'callback', state, code: 'the-code' })
+      await expect(pending).resolves.toMatchObject({ accessToken: 'tok-pm' })
+      expect(exchange.mock.calls[0]?.[0]).toMatchObject({ code: 'the-code' })
+      await vi.waitFor(() => expect(acks).toEqual([{ type: 'ack', state }]))
+    } finally {
+      removeEventListener('message', spy)
+    }
+  })
+
+  it('ignores a message from another origin, and one with another state', async () => {
+    const { pending, ctl, exchange, state } = await start()
+    fromOpener({ type: 'callback', state, code: 'forged' }, 'https://evil.example')
+    fromOpener({ type: 'callback', state: 'not-ours', code: 'forged' })
+    await new Promise((r) => setTimeout(r, 150))
+    expect(exchange).not.toHaveBeenCalled()
+    ctl.abort()
+    await expect(pending).rejects.toThrow(/cancelled/)
+  })
+})
+
+describe('an embedded viewer on someone else’s page', () => {
+  const original = location.pathname + location.search + location.hash
+  afterEach(() => {
+    history.replaceState(null, '', original)
+    vi.restoreAllMocks()
+  })
+
+  it('leaves the address alone when no sign-in claims it: it may be the host application’s own', async () => {
+    history.replaceState(null, '', `${location.pathname}?code=hostapp&state=theirs`)
+    await expect(handleOAuthCallback({ stripWhenUnclaimed: false })).resolves.toBe(false)
+    expect(location.search).toBe('?code=hostapp&state=theirs')
+  })
+
+  it('removes it once a waiting tab takes the result', async () => {
+    history.replaceState(null, '', `${location.pathname}?code=abc&state=s-embed`)
+    const waiting = new BroadcastChannel('specbook-oauth')
+    waiting.onmessage = (e) => {
+      if (e.data?.type === 'callback') waiting.postMessage({ type: 'ack', state: e.data.state })
+    }
+    const closed = vi.spyOn(window, 'close').mockImplementation(() => {})
+    await expect(handleOAuthCallback({ stripWhenUnclaimed: false })).resolves.toBe(true)
+    expect(location.search).toBe('')
+    expect(closed).toHaveBeenCalled()
+    waiting.close()
   })
 })

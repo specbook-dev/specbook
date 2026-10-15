@@ -69,6 +69,12 @@ const random = (bytes: number) => base64url(crypto.getRandomValues(new Uint8Arra
 
 /** `code_challenge` for a verifier: BASE64URL(SHA-256(verifier)). */
 export async function challengeFor(verifier: string): Promise<string> {
+  // WebCrypto's `subtle` exists only on a secure page (https, or localhost); a viewer served over plain
+  // http, or framed inside such a page, has none. Say so, rather than fail on `undefined.digest`.
+  if (!globalThis.crypto?.subtle)
+    throw new OAuthError(
+      'Sign-in needs a secure page (https, or localhost). Open the viewer over https, or paste an access token.',
+    )
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
   return base64url(new Uint8Array(digest))
 }

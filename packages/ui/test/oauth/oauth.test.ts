@@ -112,12 +112,15 @@ async function login(popup: Page) {
 }
 
 /** What the page sent the provider, read from the address of the popup it opened. */
-function expectAuthorizationRequest(popup: Page, page: Page) {
+function expectAuthorizationRequest(popup: Page, page: Page, pass: 'dev' | 'static') {
   const here = new URL(page.url())
   const q = new URL(popup.url()).searchParams
   expect(q.get('response_type')).toBe('code')
   expect(q.get('client_id')).toBe(CLIENT_ID)
-  expect(q.get('redirect_uri')).toBe(`${here.origin}${here.pathname}`)
+  // the hosted site registers one unversioned callback page; the dev server's page is its own address
+  expect(q.get('redirect_uri')).toBe(
+    pass === 'static' ? `${here.origin}/oauth/callback/` : `${here.origin}${here.pathname}`,
+  )
   expect(q.get('scope')?.split(' ')).toContain('openid')
   // PKCE with S256: a challenge is a SHA-256 digest, 43 characters of base64url; a state is not guessable
   expect(q.get('code_challenge_method')).toBe('S256')
@@ -159,7 +162,7 @@ for (const pass of ['dev', 'static'] as const) {
       const { page, errors, visited } = await openOperation(ctx, urlFor('oauth'), OAUTH_KEY)
       const popup = await startSignIn(page, CLIENT_ID)
       await popup.waitForURL(/\/protocol\/openid-connect\/auth/, { timeout: 60_000 })
-      expectAuthorizationRequest(popup, page)
+      expectAuthorizationRequest(popup, page, pass)
       await login(popup)
       await expectSignedIn(page, OAUTH_SECRET, visited)
       await callApi(page)
@@ -223,7 +226,7 @@ describe('the realm the suite signs in to', () => {
   // The sign-in cases above pass because the page sends a challenge. Without this one they would pass
   // just as well if the realm's PKCE setting were silently ignored, and they would prove nothing about it.
   it('refuses an authorization request with no PKCE challenge, or with a plain one', async () => {
-    const redirectUri = `${new URL(site.viewerUrl('oauth')).origin}/v1/`
+    const redirectUri = `${new URL(site.viewerUrl('oauth')).origin}/oauth/callback/`
     const ask = async (extra: Record<string, string>) => {
       const url = new URL(`${kc.url}/realms/${kc.realm}/protocol/openid-connect/auth`)
       const params = {

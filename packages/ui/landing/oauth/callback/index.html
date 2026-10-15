@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Signing in · Specbook</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        --bg: #ffffff;
+        --text: #1b1f27;
+        --muted: #5b6270;
+        --link: #6d28d9;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14161b;
+          --text: #e8eaf0;
+          --muted: #a0a7b6;
+          --link: #a78bfa;
+        }
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        box-sizing: border-box;
+        background: var(--bg);
+        color: var(--text);
+        font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+      }
+      main {
+        max-width: 28rem;
+        text-align: center;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 1.25rem;
+      }
+      p {
+        margin: 0 0 8px;
+        color: var(--muted);
+      }
+      a {
+        color: var(--link);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Specbook</h1>
+      <p id="message" role="status">Finishing sign-in…</p>
+      <p id="more" hidden><a href="/v1/">Open the viewer</a></p>
+    </main>
+    <script src="./callback.js"></script>
+  </body>
+</html>
