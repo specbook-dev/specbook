@@ -33,7 +33,9 @@ jobs:
       - run: pnpm --filter example run fetch-specs
       - run: pnpm test
       - run: pnpm --filter @specbook/ui exec playwright install --with-deps chromium
-      - run: pnpm test:browser
+      # the one step that has hung on a shared runner (a page that stops answering closes the connection);
+      # a second attempt is cheap, and a real failure fails twice
+      - run: pnpm test:browser || pnpm test:browser
       - run: pnpm test:viewer
       - run: pnpm test:slow
       # the packages as npm would serve them, installed outside the workspace

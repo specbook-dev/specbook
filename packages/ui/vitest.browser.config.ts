@@ -39,6 +39,10 @@ export default defineConfig({
     // are meant to be the limit, so the test's own timeout must not be shorter than they are
     testTimeout: 60_000,
     hookTimeout: 60_000,
+    // One test file in the browser at a time. Run side by side, the heavy ones (the whole registry, the
+    // GitHub and Stripe specs) starve each other on a two core runner, and a page that stops answering
+    // closes the connection for the whole run ("Browser connection was closed while running tests").
+    fileParallelism: false,
     browser: {
       enabled: true,
       headless: true,
