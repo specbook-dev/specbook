@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact'
-import { useEffect, useRef } from 'preact/hooks'
+import { useEffect, useLayoutEffect, useRef } from 'preact/hooks'
 import { env, environmentNote, environments } from '../store'
 
 interface Props {
@@ -99,7 +99,9 @@ export function Panel({
     }
   }, [])
 
-  useEffect(() => {
+  // A layout effect, so the keys work from the moment the panel is on screen: an effect waits for the next
+  // frame, and a key pressed (or sent by a test, or a host page) before it was ignored
+  useLayoutEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
       if (e.key !== 'Tab' || !modal || !aside.current) return

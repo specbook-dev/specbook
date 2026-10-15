@@ -864,6 +864,22 @@ describe('docs and play panel', () => {
     expect($('.catalog')).not.toBeNull()
   })
 
+  it('closes the panel with Escape pressed the instant the panel appears', async () => {
+    await mount()
+    // in the same tick the DOM is inserted: before a frame is drawn, so before anything that waits for paint
+    await new Promise<void>((resolve) => {
+      const seen = new MutationObserver(() => {
+        if (!$('.panel')) return
+        seen.disconnect()
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+        resolve()
+      })
+      seen.observe(root, { childList: true, subtree: true })
+      go({ kind: 'op', key: 'petstore/GetPetById', play: '' })
+    })
+    await waitFor(() => expect($('.panel')).toBeNull())
+  })
+
   it('edits a GraphQL body as a query and variables, and sends both', async () => {
     await mount()
     await play('countries/Query', 'country')
