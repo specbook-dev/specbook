@@ -189,6 +189,12 @@ describe('Sign in beside the credentials prompt', () => {
     host = document.body.appendChild(document.createElement('div'))
     env.value = 'live'
     vi.spyOn(engine, 'config').mockResolvedValue(config)
+    // the endpoints the page would resolve from the config above
+    vi.spyOn(engine, 'oauthEndpoints').mockResolvedValue({
+      authorizationUrl: AUTHORIZE,
+      tokenUrl: TOKEN,
+      scopes: { 'read:orders': 'read orders' },
+    })
     localStorage.clear()
   })
   afterEach(() => {
@@ -259,6 +265,77 @@ describe('Sign in beside the credentials prompt', () => {
     expect(secretStore.get(API, 'SHOPAUTH')).toBeUndefined()
     expect(button('Sign in')).toBeDefined()
     expect(host.querySelector('input[type="password"]')).not.toBeNull()
+  })
+
+  describe('with an OpenID Connect provider', () => {
+    const oidcConfig = {
+      ...config,
+      auth: {
+        shopAuth: {
+          ...config.auth?.shopAuth,
+          oauth: { openIdConnectUrl: 'https://sso.example.com/.well-known/openid-configuration' },
+        },
+      },
+    } as unknown as SpecbookConfig
+
+    it('waits for the provider’s endpoints, asks for openid alone, and signs in at the discovered address', async () => {
+      vi.spyOn(engine, 'config').mockResolvedValue(oidcConfig)
+      let found!: (v: unknown) => void
+      vi.spyOn(engine, 'oauthEndpoints').mockReturnValue(
+        new Promise((r) => {
+          found = r
+        }) as never,
+      )
+      vi.spyOn(engine, 'oauthExchange').mockResolvedValue({ access_token: 'oidc-tok' })
+      const { popup } = fakePopup()
+      render(<SecretsBar services={['shop']} supplied={{}} />, host)
+      await vi.waitFor(() => expect(button('Sign in')).toBeDefined())
+      // not clickable until the provider has said where it is
+      expect(button('Sign in')?.disabled).toBe(true)
+      expect(host.textContent).toContain('Looking up the provider')
+
+      found({
+        authorizationUrl: 'https://sso.example.com/o/authorize',
+        tokenUrl: 'https://tokens.example.com/token',
+        scopes: { openid: '', email: '', profile: '' },
+      })
+      await vi.waitFor(() => expect(button('Sign in')?.disabled).toBe(false))
+      expect(host.textContent).toContain('Scopes (1 of 3)')
+
+      const id = host.querySelector<HTMLInputElement>(
+        'input[aria-label^="Client id"]',
+      ) as HTMLInputElement
+      id.value = 'oidc-client'
+      id.dispatchEvent(new Event('input', { bubbles: true }))
+      await new Promise((r) => setTimeout(r, 0))
+      button('Sign in')?.click()
+
+      const back = await comeBack(popup, { code: 'c-9' })
+      expect(back.sent.origin + back.sent.pathname).toBe('https://sso.example.com/o/authorize')
+      expect(back.sent.searchParams.get('scope')).toBe('openid')
+      await vi.waitFor(() => expect(secretStore.get(API, 'SHOPAUTH')).toBe('oidc-tok'))
+      back.done()
+    })
+
+    it('says what went wrong when the provider cannot be found, and lets you try again', async () => {
+      vi.spyOn(engine, 'config').mockResolvedValue(oidcConfig)
+      const lookup = vi
+        .spyOn(engine, 'oauthEndpoints')
+        .mockRejectedValueOnce(new Error("The provider's discovery document answered 503"))
+        .mockResolvedValue({
+          authorizationUrl: 'https://sso.example.com/o/authorize',
+          tokenUrl: 'https://tokens.example.com/token',
+          scopes: { openid: '' },
+        })
+      render(<SecretsBar services={['shop']} supplied={{}} />, host)
+      await vi.waitFor(() => expect(host.textContent).toContain('answered 503'))
+      // the paste field is still there
+      expect(host.querySelector('input[type="password"]')).not.toBeNull()
+      button('Try again')?.click()
+      await vi.waitFor(() => expect(button('Sign in')?.disabled).toBe(false))
+      expect(lookup).toHaveBeenCalledTimes(2)
+      expect(host.textContent).not.toContain('answered 503')
+    })
   })
 
   it('offers no sign-in for a profile without one, and none in the mock environment', async () => {

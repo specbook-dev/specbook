@@ -10,14 +10,53 @@ export class OAuthError extends Error {
   }
 }
 
-/** What a spec or a config profile declares for an interactive sign-in. */
-export interface OAuthSettings {
+/** The endpoints are written out: an OAuth 2.0 authorization code flow. */
+export interface OAuthEndpoints {
   authorizationUrl: string
   tokenUrl: string
   /** scope name -> description */
   scopes?: Record<string, string>
   /** a public identifier; pre-fills the sign-in prompt */
   clientId?: string
+}
+
+/** The endpoints are found in an OpenID Connect discovery document. */
+export interface OAuthDiscovery {
+  openIdConnectUrl: string
+  scopes?: Record<string, string>
+  clientId?: string
+}
+
+/** What a spec or a config profile declares for an interactive sign-in. */
+export type OAuthSettings = OAuthEndpoints | OAuthDiscovery
+
+export const isDiscovery = (o: OAuthSettings): o is OAuthDiscovery => 'openIdConnectUrl' in o
+
+/** Endpoints read from a discovery document. */
+export interface DiscoveredEndpoints {
+  authorizationUrl: string
+  tokenUrl: string
+  /** scope name -> '' (a discovery document lists names only) */
+  scopes: Record<string, string>
+}
+
+/**
+ * The two endpoints a sign-in needs, from `/.well-known/openid-configuration`. Only the access token is
+ * used, so nothing else in the document (ID-token signing keys, `nonce` support) matters here.
+ */
+export function parseDiscovery(json: unknown): DiscoveredEndpoints {
+  const d = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>
+  const url = (v: unknown) => (typeof v === 'string' && /^https?:\/\//i.test(v) ? v : undefined)
+  const authorizationUrl = url(d.authorization_endpoint)
+  const tokenUrl = url(d.token_endpoint)
+  if (!authorizationUrl || !tokenUrl)
+    throw new OAuthError('The provider’s discovery document has no authorization or token endpoint')
+  const supported = Array.isArray(d.scopes_supported)
+    ? d.scopes_supported.filter((x): x is string => typeof x === 'string')
+    : []
+  // `openid` is what makes it an OpenID Connect request; list it first even when the document omits it
+  const names = ['openid', ...supported.filter((x) => x !== 'openid')]
+  return { authorizationUrl, tokenUrl, scopes: Object.fromEntries(names.map((n) => [n, ''])) }
 }
 
 const base64url = (bytes: Uint8Array): string => {

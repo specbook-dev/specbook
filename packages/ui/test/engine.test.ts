@@ -167,4 +167,65 @@ describe('a sign-in’s token exchange', () => {
       e.oauthExchange({ env: 'live', version: 0, profile: 'nope', fields }),
     ).rejects.toThrow(/no sign-in/)
   })
+
+  describe('with an OpenID Connect provider', () => {
+    const oidcReg = (mode?: 'dev' | 'static') => ({
+      ...oauthReg(mode),
+      loadConfig: async () => ({
+        default: {
+          project: 'p',
+          services: { pets: { spec: 'x', baseUrl: { live: 'https://api.example.com/v1' } } },
+          auth: {
+            'My SSO': {
+              apply: { headers: { authorization: 'Bearer {{secrets.TOKEN}}' } },
+              oauth: {
+                openIdConnectUrl: 'https://accounts.example.com/.well-known/openid-configuration',
+              },
+            },
+          },
+        },
+      }),
+    })
+    const document = {
+      authorization_endpoint: 'https://accounts.example.com/o/authorize',
+      token_endpoint: 'https://oauth2.example.com/token',
+      scopes_supported: ['email', 'openid'],
+    }
+
+    it('reads the discovery document through the proxy, then sends the code to the token endpoint it named', async () => {
+      const f = vi.fn(async (url: string) =>
+        url.includes('/discovery:')
+          ? new Response(JSON.stringify(document), { status: 200 })
+          : new Response(JSON.stringify({ access_token: 'tok' }), { status: 200 }),
+      )
+      vi.stubGlobal('fetch', f)
+      const e = createEngine(oidcReg('dev'))
+      const found = await e.oauthEndpoints({ env: 'live', version: 0, profile: 'My SSO' })
+      expect(found.authorizationUrl).toBe('https://accounts.example.com/o/authorize')
+      expect(Object.keys(found.scopes)).toEqual(['openid', 'email'])
+      expect(f.mock.calls[0]?.[0]).toBe(
+        '/__specbook/proxy/live/discovery:My%20SSO/.well-known/openid-configuration',
+      )
+
+      await e.oauthExchange({ env: 'live', version: 0, profile: 'My SSO', fields })
+      // the document is read once; the exchange goes to the token path, addressed as the profile's own
+      expect(f).toHaveBeenCalledTimes(2)
+      expect(f.mock.calls[1]?.[0]).toBe('/__specbook/proxy/live/auth:My%20SSO/token')
+    })
+
+    it('on a static page asks the provider directly, and tries again after a failure', async () => {
+      const f = vi
+        .fn()
+        .mockResolvedValueOnce(new Response('down', { status: 503 }))
+        .mockResolvedValue(new Response(JSON.stringify(document), { status: 200 }))
+      vi.stubGlobal('fetch', f)
+      const e = createEngine(oidcReg('static'))
+      const ask = () => e.oauthEndpoints({ env: 'live', version: 0, profile: 'My SSO' })
+      await expect(ask()).rejects.toThrow(/answered 503/)
+      await expect(ask()).resolves.toMatchObject({ tokenUrl: 'https://oauth2.example.com/token' })
+      expect(f.mock.calls[0]?.[0]).toBe(
+        'https://accounts.example.com/.well-known/openid-configuration',
+      )
+    })
+  })
 })

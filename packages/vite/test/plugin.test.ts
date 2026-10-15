@@ -72,6 +72,9 @@ describe('proxy', () => {
         tokenOrigins: {
           'My OAuth': `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`,
         },
+        discoveryOrigins: {
+          'My SSO': `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`,
+        },
       }),
       readSecrets: async (env) =>
         env === 'staging' ? { FILE_ONLY: 'from-staging-file' } : { FILE_ONLY: 'from-file' },
@@ -115,6 +118,21 @@ describe('proxy', () => {
     expect(upstreamSeen.url).toBe('/oauth/token')
     expect(upstreamSeen.headers?.['content-type']).toBe('application/x-www-form-urlencoded')
     expect(upstreamSeen.body).toBe(body)
+  })
+  it('fetches a profile’s discovery document from its own origin, and only for a profile that has one', async () => {
+    await listening
+    const r = await fetch(
+      `${base()}/live/discovery:${encodeURIComponent('My SSO')}/.well-known/openid-configuration`,
+    )
+    expect(r.status).toBe(200)
+    expect(upstreamSeen.url).toBe('/.well-known/openid-configuration')
+    // a profile with only a token origin has no discovery document to fetch
+    upstreamSeen = {}
+    const none = await fetch(
+      `${base()}/live/discovery:${encodeURIComponent('My OAuth')}/.well-known/openid-configuration`,
+    )
+    expect(none.status).toBe(404)
+    expect(upstreamSeen.url).toBeUndefined()
   })
   it('does not forward an auth service no profile declared', async () => {
     await listening

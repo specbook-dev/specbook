@@ -1,5 +1,5 @@
-import type { OAuthSettings } from '@specbook/core'
-import { useRef, useState } from 'preact/hooks'
+import { isDiscovery, type OAuthSettings } from '@specbook/core'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import { noteExpiry, recallClientId, redirectUri, rememberClientId, signIn } from '../oauth'
 import { engine } from '../runtime'
 import { secretStore } from '../secrets'
@@ -7,10 +7,16 @@ import { env, version } from '../store'
 
 type Status = { kind: 'idle' } | { kind: 'busy' } | { kind: 'error'; message: string }
 
+interface Endpoints {
+  authorizationUrl: string
+  scopes: Record<string, string>
+}
+
 /**
- * "Sign in" for a scheme with an authorization code flow. The token lands in the same tab-scoped store,
- * bound to the API's origin, that a pasted value would, so everything downstream is unchanged. A failure
- * or a cancel only reports itself: the paste field next to this stays usable.
+ * "Sign in" for a scheme with an authorization code flow, or an OpenID Connect provider. The token lands
+ * in the same tab-scoped store, bound to the API's origin, that a pasted value would, so everything
+ * downstream is unchanged. A failure or a cancel only reports itself: the paste field next to this stays
+ * usable.
  */
 export function OAuthSignIn({
   service,
@@ -28,26 +34,55 @@ export function OAuthSignIn({
   oauth: OAuthSettings
   onSignedIn(): void
 }) {
+  // one provider, one remembered client id: keyed by the address that identifies the provider
+  const providerKey = isDiscovery(oauth) ? oauth.openIdConnectUrl : oauth.authorizationUrl
   const [clientId, setClientId] = useState(
-    () => oauth.clientId ?? recallClientId(oauth.authorizationUrl) ?? '',
+    () => oauth.clientId ?? recallClientId(providerKey) ?? '',
   )
-  const scopeNames = Object.keys(oauth.scopes ?? {})
-  const [picked, setPicked] = useState<string[]>(scopeNames)
+  const [endpoints, setEndpoints] = useState<Endpoints | undefined>(undefined)
+  const [picked, setPicked] = useState<string[]>([])
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const abort = useRef<AbortController | undefined>(undefined)
   const busy = status.kind === 'busy'
+  const [attempt, setAttempt] = useState(0)
+
+  // The provider's endpoints are settled before a click: the popup has to open from the click itself,
+  // and an OpenID Connect provider has to be asked where it is first.
+  useEffect(() => {
+    let on = true
+    setEndpoints(undefined)
+    setStatus((s) => (s.kind === 'busy' ? s : { kind: 'idle' }))
+    engine
+      .oauthEndpoints({ env: env.value, version: version.value, profile })
+      .then((found) => {
+        if (!on) return
+        setEndpoints(found)
+        // OpenID Connect asks for `openid` alone until more is ticked; a plain OAuth scheme lists what
+        // its operations need, so those are all ticked
+        setPicked(isDiscovery(oauth) ? ['openid'] : Object.keys(found.scopes))
+      })
+      .catch((e: unknown) => {
+        if (on) setStatus({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
+      })
+    return () => {
+      on = false
+    }
+  }, [profile, env.value, version.value, attempt])
+
+  const scopeNames = Object.keys(endpoints?.scopes ?? {})
 
   // called from the click itself: the popup must open before anything is awaited
   const start = () => {
+    if (!endpoints) return setAttempt((n) => n + 1)
     const id = clientId.trim()
     if (!id)
       return setStatus({ kind: 'error', message: 'Enter the client id registered for this page.' })
     const ctl = new AbortController()
     abort.current = ctl
     setStatus({ kind: 'busy' })
-    rememberClientId(oauth.authorizationUrl, id)
+    rememberClientId(providerKey, id)
     signIn({
-      authorizationUrl: oauth.authorizationUrl,
+      authorizationUrl: endpoints.authorizationUrl,
       clientId: id,
       scopes: picked,
       signal: ctl.signal,
@@ -65,6 +100,7 @@ export function OAuthSignIn({
       )
   }
 
+  const failedLookup = !endpoints && status.kind === 'error'
   return (
     <span class="needs-var oauth-signin">
       <input
@@ -81,8 +117,8 @@ export function OAuthSignIn({
           Cancel
         </button>
       ) : (
-        <button type="button" class="btn" onClick={start}>
-          Sign in
+        <button type="button" class="btn" disabled={!endpoints && !failedLookup} onClick={start}>
+          {failedLookup ? 'Try again' : 'Sign in'}
         </button>
       )}
       {scopeNames.length > 0 && (
@@ -91,7 +127,7 @@ export function OAuthSignIn({
             Scopes ({picked.length} of {scopeNames.length})
           </summary>
           {scopeNames.map((s) => (
-            <label class="small" title={oauth.scopes?.[s]}>
+            <label class="small" title={endpoints?.scopes[s] || undefined}>
               <input
                 type="checkbox"
                 checked={picked.includes(s)}
@@ -112,7 +148,9 @@ export function OAuthSignIn({
           ? 'Waiting for the sign-in window…'
           : status.kind === 'error'
             ? status.message
-            : `Register this redirect URI with the provider: ${redirectUri()}`}
+            : !endpoints
+              ? 'Looking up the provider…'
+              : `Register this redirect URI with the provider: ${redirectUri()}`}
       </span>
     </span>
   )
