@@ -34,8 +34,12 @@ jobs:
       - run: pnpm test
       - run: pnpm --filter @specbook/ui exec playwright install --with-deps chromium
       # the one step that has hung on a shared runner (a page that stops answering closes the connection);
-      # a second attempt is cheap, and a real failure fails twice
-      - run: pnpm test:browser || pnpm test:browser
+      # a second attempt is cheap, and a real failure fails twice. `||` only retries a failure, never a hang,
+      # so each attempt has its own limit (the suite takes about 25 s): a stall becomes a failure the second
+      # attempt can replace, instead of a run that sits until the job's timeout. The step's own limit is the
+      # backstop if `timeout` cannot stop what it started.
+      - run: timeout --kill-after=15 300 pnpm test:browser || timeout --kill-after=15 300 pnpm test:browser
+        timeout-minutes: 12
       - run: pnpm test:viewer
       - run: pnpm test:slow
       # the packages as npm would serve them, installed outside the workspace

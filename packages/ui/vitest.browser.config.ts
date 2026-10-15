@@ -39,6 +39,9 @@ export default defineConfig({
     // are meant to be the limit, so the test's own timeout must not be shorter than they are
     testTimeout: 60_000,
     hookTimeout: 60_000,
+    // On a runner, name each test as it finishes: a run that stalls then ends its log on the last test that
+    // completed, and the one after it is the one that hung. (The annotations reporter is kept.)
+    reporters: process.env.GITHUB_ACTIONS ? ['verbose', 'github-actions'] : ['default'],
     // One test file in the browser at a time. Run side by side, the heavy ones (the whole registry, the
     // GitHub and Stripe specs) starve each other on a two core runner, and a page that stops answering
     // closes the connection for the whole run ("Browser connection was closed while running tests").
