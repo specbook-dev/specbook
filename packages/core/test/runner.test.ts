@@ -496,3 +496,93 @@ describe('a read-only run', () => {
     expect(open.calls).toHaveLength(1)
   })
 })
+
+describe('tags on requests', () => {
+  it('are carried by the request, merged by .with(), and reported on its result', async () => {
+    const base = GetOrder.request({ tags: ['smoke'], path: { id: '1' } })
+    const more = base.with({ tags: ['monitor', 'smoke'] })
+    expect(more.input.tags).toEqual(['smoke', 'monitor'])
+    const { transport } = fakeTransport(() => ({ status: 200, body: {} }))
+    const r = await runRequest(more, { env: 'mock', transport })
+    expect(r.tags).toEqual(['smoke', 'monitor'])
+    // a request with no tags reports none
+    expect(
+      (await runRequest(GetOrder.request({ path: { id: '1' } }), { env: 'mock', transport })).tags,
+    ).toEqual([])
+  })
+})
+
+describe('the implicit status check', () => {
+  const smoke = GetOrder.request({ path: { id: '1' } })
+  const run = (def: Parameters<typeof runRequest>[0], status: number, implicit = true) => {
+    const { transport } = fakeTransport(() => ({ status, body: {} }))
+    return runRequest(def, { env: 'live', transport, implicitStatusCheck: implicit })
+  }
+
+  it('passes a 2xx and records it as an assertion', async () => {
+    const r = await run(smoke, 200)
+    expect(r.status).toBe('pass')
+    expect(r.steps[0]?.assertions).toEqual([
+      { label: 'status is 2xx', operator: 'status', pass: true, actual: 200, expected: '2xx' },
+    ])
+    expect(r.totals.assertions).toEqual({ passed: 1, failed: 0 })
+  })
+
+  it('fails a 404 and a 500 that carry no assert of their own', async () => {
+    for (const status of [404, 500, 301]) {
+      const r = await run(smoke, status)
+      expect(r.status).toBe('fail')
+      expect(r.steps[0]?.assertions[0]).toMatchObject({
+        pass: false,
+        actual: status,
+        expected: '2xx',
+      })
+    }
+  })
+
+  it('leaves a request with its own assert to that assert, so a 404 can be expected', async () => {
+    const expects404 = GetOrder.request({
+      path: { id: '1' },
+      assert: (res, { assert }) => assert.is(res.status, 404, 'not found'),
+    })
+    const r = await run(expects404, 404)
+    expect(r.status).toBe('pass')
+    expect(r.steps[0]?.assertions.map((a) => a.label)).toEqual(['not found'])
+  })
+
+  it('is off unless asked for, and does not judge an auth login', async () => {
+    expect((await run(smoke, 500, false)).status).toBe('pass')
+    const Login = defineOperation<{
+      params: {}
+      body: { username: string }
+      responses: { 200: { access_token: string } }
+    }>({ service: 'auth', id: 'Login', method: 'POST', path: '/login', security: false })
+    const { transport } = fakeTransport((req) =>
+      req.url === '/login' ? { body: { access_token: 'tok_aaaa' } } : { status: 200, body: {} },
+    )
+    const r = await runRequest(smoke, {
+      env: 'live',
+      transport,
+      implicitStatusCheck: true,
+      auth: {
+        user: {
+          login: async () => Login.request({ data: { username: 'qa' } }),
+          token: (res) => ({ accessToken: res.data.access_token }),
+          apply: { headers: { authorization: 'Bearer {{session.accessToken}}' } },
+        },
+      },
+      serviceAuth: { order: 'user' },
+    })
+    expect(r.steps.map((s) => [s.kind, s.assertions.length])).toEqual([
+      ['auth', 0],
+      ['request', 1],
+    ])
+  })
+
+  it('judges each request step of a flow that has no assert', async () => {
+    const s = sequence({ id: 's', title: 'S' }).step('read', smoke)
+    const { transport } = fakeTransport(() => ({ status: 503, body: {} }))
+    const r = await runSequence(s, { env: 'live', transport, implicitStatusCheck: true })
+    expect(r.status).toBe('fail')
+  })
+})

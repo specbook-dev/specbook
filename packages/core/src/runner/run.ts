@@ -78,6 +78,11 @@ export interface RunOptions {
    * not marked `safe`). Auth logins are exempt. For runs against real environments that must not write.
    */
   readOnly?: boolean
+  /**
+   * A request with no `assert` of its own passes only on a 2xx response (recorded as the assertion `status is 2xx`);
+   * one with an `assert` is judged by that alone. Off, a request with no `assert` passes whatever the status.
+   */
+  implicitStatusCheck?: boolean
   /** Leave `{{secrets.*}}` placeholders in the wire request (a trusted server substitutes them). */
   deferSecrets?: boolean
   auth?: Record<string, AuthProfile>
@@ -485,6 +490,17 @@ async function execute(
       for (const r of a.results) {
         emit(rt, { type: r.pass ? 'assert:pass' : 'assert:fail', name, assertion: r })
       }
+    } else if (rt.o.implicitStatusCheck && kind === 'request') {
+      const pass = response.status >= 200 && response.status < 300
+      const implicit: AssertionResult = {
+        label: 'status is 2xx',
+        operator: 'status',
+        pass,
+        actual: response.status,
+        expected: '2xx',
+      }
+      result.assertions = [implicit]
+      emit(rt, { type: pass ? 'assert:pass' : 'assert:fail', name, assertion: implicit })
     }
     if (result.status === 'pass' && result.assertions.some((r) => !r.pass)) result.status = 'fail'
   } catch (e: any) {
@@ -628,7 +644,13 @@ export async function runRequest(
   emit(rt, { type: 'run:start', id: def.op.id })
   const name = def.input.name ?? def.op.id
   const { result, authResults } = await execute(rt, def, name, NO_FLOW)
-  return finish(rt, 'request', { id: def.op.id, title: name }, [...authResults, result], t0)
+  return finish(
+    rt,
+    'request',
+    { id: def.op.id, title: name, tags: def.input.tags },
+    [...authResults, result],
+    t0,
+  )
 }
 
 export async function runSequence(seq: Sequence<any, any>, o: RunOptions): Promise<RunResult> {
