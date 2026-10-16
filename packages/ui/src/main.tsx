@@ -1,4 +1,6 @@
 import { render } from 'preact'
+// first: a built project's manifests are filled in before the app module reads them
+import 'virtual:specbook/manifests'
 import { App } from './app'
 import { handleOAuthCallback } from './oauth-callback'
 import { applyTheme } from './theme'

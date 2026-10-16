@@ -1,0 +1,1 @@
+import{t as e}from"./ops-petstore-pet-0-C8ABaH0K.js";var t=e.request({name:`Get a pet`,tags:[`smoke`,`monitor`],path:{petId:`{{petId}}`},init:{petId:1},assert:(e,{assert:t,vars:n})=>{t.is(e.status,200,`found`),e.status===200&&t.is(e.data.id,Number(n.petId),`the pet that was asked for`)}});export{t as default};
