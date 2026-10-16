@@ -126,6 +126,22 @@ describe('captures are variables', () => {
     expect(calls[0]?.url).toBe('/orders/fallback')
   })
 
+  it('a flow input with a generated default feeds a request, a fresh value each run', async () => {
+    const { transport, calls } = api()
+    const named = Create.request({ init: { n: 'init' }, data: { name: '{{n}}', qty: 1 } })
+    let i = 0
+    const seq = sequence({
+      id: 'g',
+      title: 'G',
+      inputs: { n: c.text({ default: () => `generated-${++i}` }) },
+    }).step('named', named)
+    await runSequence(seq, { env: 'mock', transport })
+    await runSequence(seq, { env: 'mock', transport })
+    await runSequence(seq, { env: 'mock', transport, inputs: { n: 'typed' } })
+    const sent = calls.slice(-3).map((c) => (c.body as { name: string }).name)
+    expect(sent).toEqual(['generated-1', 'generated-2', 'typed'])
+  })
+
   it('.with({ vars }) beats a capture, and flow inputs beat init', async () => {
     const { transport, calls } = api()
     const pinned = get.with({ vars: { orderId: 'pinned' } })

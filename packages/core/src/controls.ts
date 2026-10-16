@@ -26,24 +26,44 @@ interface SelectOpts<O, V> {
   default?: number | V | ((options: readonly O[]) => V)
 }
 
+/** A starting value, or a function that makes one each time it is needed (a faker value, today's date). */
+export type Default<T> = T | (() => T)
+
+/** Whether a control's starting value is made fresh each time, so a UI can offer to make another. */
+export const isGenerated = (ctl: Control): boolean => typeof ctl.opts.default === 'function'
+
+function startingValue<T>(d: Default<T> | undefined): T | undefined {
+  return typeof d === 'function' ? (d as () => T)() : d
+}
+
 export const c = {
-  text: (o: { default?: string; label?: string; description?: string } = {}): Control<string> => ({
+  text: (
+    o: { default?: Default<string>; label?: string; description?: string } = {},
+  ): Control<string> => ({
     kind: 'text',
     opts: o,
   }),
   number: (
-    o: { default?: number; min?: number; max?: number; label?: string; description?: string } = {},
+    o: {
+      default?: Default<number>
+      min?: number
+      max?: number
+      label?: string
+      description?: string
+    } = {},
   ): Control<number> => ({
     kind: 'number',
     opts: o,
   }),
   boolean: (
-    o: { default?: boolean; label?: string; description?: string } = {},
+    o: { default?: Default<boolean>; label?: string; description?: string } = {},
   ): Control<boolean> => ({
     kind: 'boolean',
     opts: o,
   }),
-  date: (o: { default?: string; label?: string; description?: string } = {}): Control<string> => ({
+  date: (
+    o: { default?: Default<string>; label?: string; description?: string } = {},
+  ): Control<string> => ({
     kind: 'date',
     opts: o,
   }),
@@ -132,11 +152,11 @@ export function resolveControl(name: string, ctl: Control, given: unknown): unkn
       return v.map((item) => resolveControl(name, ctl.opts.item, item))
     }
     case 'boolean':
-      return given ?? ctl.opts.default ?? false
+      return given ?? startingValue(ctl.opts.default) ?? false
     case 'number':
-      return given ?? ctl.opts.default ?? 0
+      return given ?? startingValue(ctl.opts.default) ?? 0
     default:
-      return given ?? ctl.opts.default ?? ''
+      return given ?? startingValue(ctl.opts.default) ?? ''
   }
 }
 
@@ -161,7 +181,10 @@ export function describeControls(controls: Controls) {
         }))
         return [k, { kind: ctl.kind, options }]
       }
-      return [k, { kind: ctl.kind, default: ctl.opts.default }]
+      return [
+        k,
+        { kind: ctl.kind, default: startingValue(ctl.opts.default), generated: isGenerated(ctl) },
+      ]
     }),
   )
 }
