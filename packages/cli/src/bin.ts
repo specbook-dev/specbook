@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util'
 import { addCommand } from './commands/add'
+import { bundleCommand } from './commands/bundle'
 import { checkCommand } from './commands/check'
 import { ensureGenerated } from './commands/ensure'
 import { generateCommand } from './commands/generate'
@@ -27,6 +28,9 @@ const HELP = `specbook <command>
       --port <n> --no-open     port / do not launch the browser
   test [glob...]               run requests and flows against an environment
 ${TEST_HELP}
+  bundle [--out <file>]        compile the tests into one .mjs that runs with just node: for CI or ops, no install
+      --tag <t>                only the requests and flows with this tag (repeatable)
+      --external <pkg>         leave a package as an import (it must be installed where the file runs; repeatable)
   check                        validate specs, generated code drift, imported operations, placeholders and environment files
   secrets [--env <name>]       show where each declared secret resolves from (never values)
       --secrets-file <path>    include a dotenv file, as test would
@@ -42,6 +46,7 @@ async function main(): Promise<number> {
       'base-url': { type: 'string' },
       spec: { type: 'string' },
       out: { type: 'string' },
+      external: { type: 'string', multiple: true },
       'no-open': { type: 'boolean' },
       viewer: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
@@ -68,7 +73,7 @@ async function main(): Promise<number> {
     await initCommand(cwd)
     return 0
   }
-  if (!['generate', 'test', 'dev', 'build', 'add', 'check', 'secrets'].includes(cmd)) {
+  if (!['generate', 'test', 'bundle', 'dev', 'build', 'add', 'check', 'secrets'].includes(cmd)) {
     console.error(`Unknown command "${cmd}"\n\n${HELP}`)
     return 3
   }
@@ -89,7 +94,13 @@ async function main(): Promise<number> {
     }
     if (cmd === 'check') return await checkCommand(project, loader)
     // these need the generated code; bring missing or stale services up to date
-    if (['dev', 'build', 'test'].includes(cmd)) await ensureGenerated(project, loader)
+    if (['dev', 'build', 'test', 'bundle'].includes(cmd)) await ensureGenerated(project, loader)
+    if (cmd === 'bundle')
+      return await bundleCommand(project, loader, {
+        out: values.out ?? 'specbook-tests.mjs',
+        tags: values.tag ?? [],
+        external: values.external,
+      })
     if (cmd === 'secrets')
       return await secretsCommand(project, values.env as string, values['secrets-file'])
     if (cmd === 'dev') {
