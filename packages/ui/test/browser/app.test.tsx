@@ -76,7 +76,7 @@ describe('docs and play panel', () => {
 
   it('is a list of APIs and flows, and ⌘K jumps straight into the panel', async () => {
     await mount()
-    expect(root.querySelectorAll('.flow-row').length).toBe(4)
+    expect(root.querySelectorAll('.flow-row').length).toBe(5)
     // flows are one section with a single FLOW badge; ungrouped ones are under Default (no sub-heading)
     expect($('.flows .flows-title .method.flow')?.textContent).toBe('FLOW')
     expect(root.querySelectorAll('.flows .method.flow').length).toBe(1)
