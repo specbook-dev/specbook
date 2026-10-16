@@ -66,7 +66,9 @@ export function stepLine(f: StepFacts, c: Colors, indent = '  '): string {
   ]
     .filter(Boolean)
     .join('  ')
-  return `${indent}${paint(f.status, c, MARKS[f.status])} ${f.flow} › ${f.step}${detail ? `  ${c.dim(detail)}` : ''}`
+  // a request that is its own flow is named once
+  const name = f.flow === f.step ? f.step : `${f.flow} › ${f.step}`
+  return `${indent}${paint(f.status, c, MARKS[f.status])} ${name}${detail ? `  ${c.dim(detail)}` : ''}`
 }
 
 function diffText(lines: DiffLine[], c: Colors, indent: string): string[] {
@@ -138,7 +140,7 @@ export function formatFailures(results: RunResult[], o: ListOptions = {}): strin
       const where = r.file ? `${r.file} › ` : ''
       out.push(
         '',
-        `${c.bold(c.red(' FAIL '))} ${where}${r.title} › ${s.name}  ${c.dim(`[${r.env}] ${formatDuration(s.durationMs)}`)}`,
+        `${c.bold(c.red(' FAIL '))} ${where}${r.title === s.name ? r.title : `${r.title} › ${s.name}`}  ${c.dim(`[${r.env}] ${formatDuration(s.durationMs)}`)}`,
       )
       if (s.status === 'error') out.push(`    ${c.yellow('!')} ${s.error ?? 'error'}`)
       for (const a of s.assertions) if (!a.pass) out.push(...assertionBlock(a, o, c))

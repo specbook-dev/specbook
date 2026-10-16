@@ -450,7 +450,7 @@ describe('a read-only run', () => {
     expect(calls).toHaveLength(0)
     expect(r.status).toBe('error')
     expect(r.steps[0]?.error).toBe(
-      'Refusing POST /orders in "prod": this is a read-only run. Pass --allow-write to send it.',
+      'Refusing POST /orders in "prod": this is a --safe run, which only reads.',
     )
     // the refused request is still recorded, so the report shows what would have been sent
     expect(r.steps[0]?.request?.method).toBe('POST')

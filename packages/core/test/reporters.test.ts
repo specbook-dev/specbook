@@ -221,7 +221,7 @@ describe('the list report', () => {
     })
     expect(formatFailures([r])).toBe('')
     const all = formatList([r])
-    expect(all).toContain('✓ Ok › Ok')
+    expect(all).toContain('✓ Ok')
     expect(formatList([r], { quiet: true })).not.toContain('✓ Ok')
     expect(formatList([r], { quiet: true })).toContain('Flows')
   })

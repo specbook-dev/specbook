@@ -23,6 +23,13 @@ export function findConfigFile(cwd: string): string | undefined {
   }
 }
 
+/** The project's folder: the one that holds `.specbook/`, or the config's own. */
+export function rootOf(configFile: string): string {
+  return configFile.endsWith(`${join('.specbook', 'specbook.config.ts')}`)
+    ? dirname(dirname(configFile))
+    : dirname(configFile)
+}
+
 export interface Project {
   root: string
   configFile: string
@@ -34,10 +41,7 @@ export async function loadProject(cwd: string, loader: Loader): Promise<Project>
   if (!configFile)
     throw new Error('No specbook config found (looked for .specbook/specbook.config.ts)')
   const mod = await loader.import<{ default: SpecbookConfig }>(configFile)
-  const root = configFile.endsWith(`${join('.specbook', 'specbook.config.ts')}`)
-    ? dirname(dirname(configFile))
-    : dirname(configFile)
-  return { root, configFile, config: mod.default }
+  return { root: rootOf(configFile), configFile, config: mod.default }
 }
 
 export async function readDotenv(path: string): Promise<Record<string, string>> {

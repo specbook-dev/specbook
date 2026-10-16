@@ -448,7 +448,7 @@ async function execute(
     emit(rt, { type: 'request', name, request: result.request })
     if (rt.o.readOnly && kind !== 'auth' && !isReadOnly(def, prepared))
       throw new StepError(
-        `Refusing ${prepared.method} ${def.op.path} in "${rt.o.env}": this is a read-only run. Pass --allow-write to send it.`,
+        `Refusing ${prepared.method} ${def.op.path} in "${rt.o.env}": this is a --safe run, which only reads.`,
       )
 
     const send = async () => {

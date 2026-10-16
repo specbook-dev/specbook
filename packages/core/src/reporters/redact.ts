@@ -1,6 +1,7 @@
 // What a report may show of a run. Resolved secret values are already masked by the runner; this removes what is secret
 // without being one of ours: credentials in headers, and tokens and passwords that an API returns or a request captures.
 
+import type { RunEvent } from '../runner/run'
 import type { AssertionResult, RunResult, StepResult } from '../types'
 
 export const REDACTED = '***'
@@ -90,4 +91,23 @@ function redactStep(s: StepResult): StepResult {
 /** A copy of the results that is safe to print, attach to a build or send to a monitoring service. */
 export function redactResults(results: RunResult[]): RunResult[] {
   return results.map((r) => ({ ...r, steps: r.steps.map(redactStep) }))
+}
+
+/** The same for one event of a run, before it is written to a log or a stream. */
+export function redactEvent(e: RunEvent): RunEvent {
+  if (e.type === 'request')
+    return {
+      ...e,
+      request: {
+        ...e.request,
+        headers: redactHeaders(e.request.headers),
+        body: redactValue(e.request.body),
+      },
+    }
+  if (e.type === 'capture')
+    return { ...e, captured: redactValue(e.captured) as Record<string, unknown> }
+  if (e.type === 'assert:pass' || e.type === 'assert:fail')
+    return { ...e, assertion: redactAssertion(e.assertion) }
+  if (e.type === 'done') return { ...e, result: redactResults([e.result])[0] as RunResult }
+  return e
 }

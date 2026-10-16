@@ -8,8 +8,8 @@
   },
   "scripts": {
     "generate": "specbook generate",
-    "run:mock": "specbook run 'sequences/*.seq.ts' --env mock",
-    "test": "specbook generate && specbook run 'sequences/*.seq.ts' 'requests/**/*.req.ts' --env mock",
+    "run:mock": "specbook test --env mock",
+    "test": "specbook generate && specbook test --env mock",
     "fetch-specs": "node scripts/fetch-specs.mjs",
     "build:docs": "specbook generate && specbook build --out dist-docs",
     "deploy": "pnpm run fetch-specs && pnpm run build:docs && npx --yes wrangler@4 pages deploy dist-docs --project-name specbook-demo --branch main"

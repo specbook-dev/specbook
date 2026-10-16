@@ -138,7 +138,7 @@ npx specbook add petstore --spec ./openapi/petstore.json
 npx specbook generate            # types, operations, examples and metadata from the specs
 npx specbook dev                 # the UI: docs, a play panel and a credential proxy
 npx specbook build               # a static docs site, and specbook.js to embed it
-npx specbook run 'sequences/*.seq.ts' --env mock
+npx specbook test --env mock
 npx specbook check               # validate specs, generated code drift, environment files and addresses
 npx specbook preview <url|file>  # open any document in the UI, with no project
 ```

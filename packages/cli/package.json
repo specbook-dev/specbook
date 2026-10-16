@@ -1,7 +1,7 @@
 {
   "name": "@specbook/cli",
   "version": "0.2.0",
-  "description": "Specbook command line: init, add, generate, dev, build, run, check, secrets and preview.",
+  "description": "Specbook command line: init, add, generate, dev, build, test, check, secrets and preview.",
   "keywords": [
     "specbook",
     "openapi",
