@@ -88,13 +88,15 @@ export interface Entry {
   /** the spec requires credentials */
   secured?: boolean
   /** sequences */
+  /** flows and requests */
   tags?: string[]
   /** the flow group heading */
   flowGroup?: string
   description?: string
   /** extra text matched by search, never shown */
   hay: string
-  kind: 'seq' | 'op'
+  /** `req`: a saved request, which opens its operation on that request */
+  kind: 'seq' | 'op' | 'req'
 }
 
 export function search(entries: Entry[], query: string, limit = 40): Entry[] {
@@ -109,6 +111,7 @@ export function search(entries: Entry[], query: string, limit = 40): Entry[] {
     let score = 0
     for (const t of terms) score += title.startsWith(t) ? 3 : title.includes(t) ? 2 : 1
     if (e.kind === 'seq') score += 0.5
+    if (e.kind === 'req') score += 0.4
     scored.push([score, e])
   }
   return scored

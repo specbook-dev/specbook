@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { type Entry, go, paletteOpen, search } from '../nav'
+import { isMinimal } from '../runtime'
 
 export function Palette({ entries }: { entries: Entry[] }) {
   const [q, setQ] = useState('')
@@ -47,7 +48,9 @@ export function Palette({ entries }: { entries: Entry[] }) {
         <input
           ref={input}
           type="text"
-          placeholder="Jump to a sequence or operation…"
+          placeholder={
+            isMinimal ? 'Jump to a flow or request…' : 'Jump to a sequence, request or operation…'
+          }
           value={q}
           onInput={(e) => {
             setQ((e.target as HTMLInputElement).value)
@@ -73,7 +76,9 @@ export function Palette({ entries }: { entries: Entry[] }) {
                 onClick={() => choose(e)}
               >
                 <span class="p-title">{e.title}</span>
-                <span class="muted">{e.kind === 'seq' ? 'Sequence' : e.group}</span>
+                <span class="muted">
+                  {e.kind === 'seq' ? 'Sequence' : e.kind === 'req' ? 'Request' : e.group}
+                </span>
               </button>
             </li>
           ))}

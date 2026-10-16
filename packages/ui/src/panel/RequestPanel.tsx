@@ -79,6 +79,9 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
   const examples = engine.examplesOf(key)
   const [notice, setNotice] = useState<SavedExample | undefined>(() => takeSaved(key))
   const [sel, setSel] = useState(() => {
+    // a link to a saved request ("saved:<file>") opens on it
+    if (initial?.startsWith('saved:') && variants.some((v) => `saved:${v.file}` === initial))
+      return initial
     const named = examples.find((e) => e.name === (notice?.name ?? initial))
     return named
       ? `ex:${named.name}`
@@ -565,6 +568,7 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
                     title="Query"
                     rows={draft.query}
                     documented={sections.query}
+                    readOnly={!!saved}
                     onChange={(query) => edit({ ...draft, query })}
                   />
                 )}
@@ -574,6 +578,7 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
                     rows={draft.path}
                     documented={sections.path}
                     fixed
+                    readOnly={!!saved}
                     onChange={(path) => edit({ ...draft, path })}
                   />
                 )}
@@ -584,6 +589,7 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
                     title="Headers"
                     rows={draft.headers}
                     documented={sections.headers}
+                    readOnly={!!saved}
                     onChange={(headers) => edit({ ...draft, headers })}
                   />
                 )}
@@ -598,6 +604,7 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
                     defs={defs}
                     files={meta?.files}
                     notes={opNotes.notes}
+                    readOnly={!!saved}
                   />
                 )}
               </div>

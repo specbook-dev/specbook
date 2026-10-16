@@ -2,6 +2,7 @@ import { GetOrderById } from '#api/petstore'
 
 export default GetOrderById.request({
   name: 'Get an order',
+  tags: ['smoke'],
   path: { orderId: '{{orderId}}' },
   init: { orderId: 5001, petId: 1001 },
   assert: (res, { assert, vars }) => {

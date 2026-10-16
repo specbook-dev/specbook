@@ -13,7 +13,7 @@ import { ShareMenu } from './components/ShareMenu'
 import { ThemeToggle } from './components/ThemeToggle'
 import type { SequenceInfo, Variant } from './engine'
 import { type Entry, go, pageOf, paletteOpen, parseHash, route, setDefaultService } from './nav'
-import { engine, registry } from './runtime'
+import { engine, isMinimal, registry } from './runtime'
 import {
   env,
   environmentNote,
@@ -147,6 +147,20 @@ export function App() {
     for (const m of Object.values(registry.manifests)) {
       for (const o of m.operations) {
         const key = `${m.service}/${o.id}`
+        // each saved request is listed on its own too, and opens its operation on that request
+        for (const v of variants[key] ?? [])
+          out.push({
+            kind: 'req',
+            route: { kind: 'op', key, play: `saved:${v.file}` },
+            title: v.name,
+            group: 'request',
+            service: m.service,
+            tag: o.tags[0] ?? 'default',
+            method: o.method,
+            path: o.path,
+            tags: v.def.input.tags,
+            hay: `${o.id} ${o.method} ${o.path} ${(v.def.input.tags ?? []).join(' ')} ${v.file}`,
+          })
         const saved = (variants[key] ?? []).map((v) => v.name).join(' ')
         out.push({
           kind: 'op',
@@ -199,14 +213,14 @@ export function App() {
     if (r.kind !== 'op' && r.kind !== 'seq') return {}
     const active = entries.find(
       (e) =>
-        (e.route.kind === 'op' && r.kind === 'op' && e.route.key === r.key) ||
-        (e.route.kind === 'seq' && r.kind === 'seq' && e.route.id === r.id),
+        (e.kind === 'op' && r.kind === 'op' && e.route.kind === 'op' && e.route.key === r.key) ||
+        (e.kind === 'seq' && r.kind === 'seq' && e.route.kind === 'seq' && e.route.id === r.id),
     )
     if (!active) return {}
     const sibs = entries.filter((e) =>
       active.kind === 'seq'
         ? e.kind === 'seq'
-        : e.service === active.service && e.tag === active.tag,
+        : e.kind === 'op' && e.service === active.service && e.tag === active.tag,
     )
     const at = sibs.indexOf(active)
     const to = (e?: Entry) => (e ? () => go({ ...e.route, play: '' } as typeof r) : undefined)
@@ -248,7 +262,7 @@ export function App() {
           <span class="brand-name">{brand.value.name ?? 'Specbook'}</span>
         </button>
         <button type="button" class="palette-btn" onClick={() => (paletteOpen.value = true)}>
-          <span>Jump to an operation or flow…</span>
+          <span>{isMinimal ? 'Jump to a request or flow…' : 'Jump to an operation or flow…'}</span>
           <kbd>⌘K</kbd>
         </button>
         <span class="spacer" />
@@ -349,7 +363,15 @@ export function App() {
         </nav>
         <ListResizer />
         <main class="stage">
-          {(r.kind === 'home' || r.kind === 'browse') && <Overview services={services} />}
+          {(r.kind === 'home' || r.kind === 'browse') && (
+            <Overview
+              services={services}
+              counts={{
+                flows: entries.filter((e) => e.kind === 'seq').length,
+                requests: entries.filter((e) => e.kind === 'req').length,
+              }}
+            />
+          )}
         </main>
       </div>
       <Palette entries={entries} />
