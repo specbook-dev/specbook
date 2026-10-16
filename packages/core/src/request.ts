@@ -32,6 +32,7 @@ function make<T extends OpTypes, I extends Init, C>(
       if (o.mock) next.mock = { ...(input.mock ?? {}), ...o.mock } as any
       if (o.auth !== undefined) next.auth = o.auth
       if (o.assertMode) next.assertMode = o.assertMode
+      if (o.tags) next.tags = [...new Set([...(input.tags ?? []), ...o.tags])]
       const patches = o.data !== undefined ? [...dataPatches, o.data] : dataPatches
       const overrides = o.vars ? { ...varOverrides, ...o.vars } : varOverrides
       return make(op, next, patches, overrides) as RequestDef<T, I, C & C2>

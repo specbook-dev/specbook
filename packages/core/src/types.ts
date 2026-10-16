@@ -111,6 +111,8 @@ export interface RequestInput<T extends OpTypes, I extends Init = Init, C = {}> 
   timeoutMs?: number
   /** A request that only reads (a POST search, a GraphQL query): allowed in a read-only run. */
   safe?: boolean
+  /** Labels to select this request by (`specbook test --tag monitor`) and to group it by in the UI. */
+  tags?: string[]
   capture?: { [K in keyof C]: (res: ResponseOf<T>, vars: ResolvedInit<I>) => C[K] }
   assert?: (
     res: ResponseOf<T>,
@@ -155,6 +157,8 @@ export interface MockInput<T extends OpTypes, I> {
 }
 
 export interface RequestOverrides<T extends OpTypes, I, C2> {
+  /** Added to the request's own tags. */
+  tags?: string[]
   vars?: Partial<ResolvedInit<I>> & Record<string, unknown>
   path?: Partial<Templated<T['params']['path']>>
   query?: Partial<Templated<T['params']['query']>>
