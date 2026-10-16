@@ -247,14 +247,14 @@ export function CatalogList({ entries, services }: { entries: Entry[]; services:
       {shownReqs.length > 0 && (
         <section class="flows requests" aria-label="Requests">
           <div class="flows-title">
-            <span class="method flow req">REQ</span>
+            <span class="method req">REQ</span>
             <span class="muted small">Saved requests you can run and check</span>
             <span class="count">{shownReqs.length}</span>
           </div>
           {shownReqs.map((e) => (
             <button
               type="button"
-              class={`op-row flow-row req-row ${isActive(e) ? 'active' : ''}`}
+              class={`op-row req-row ${isActive(e) ? 'active' : ''}`}
               onClick={() => go(e.route)}
               title={`${e.method} ${e.path}`}
             >

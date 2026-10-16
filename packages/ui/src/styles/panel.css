@@ -396,7 +396,7 @@
     border-left-color: var(--sb-text-muted);
     background: var(--sb-surface-raised);
   }
-  .method.flow.req {
+  .method.req {
     color: var(--sb-text-muted);
   }
   .req-tag {
@@ -982,6 +982,99 @@
     margin: 0;
     padding: 0;
     border: 0;
+  }
+
+  /* ---- a failed check: what was expected, what came back, as a colored diff */
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .checks .bad {
+    margin-top: var(--sb-space-2);
+    color: inherit;
+  }
+  .check-fail {
+    display: grid;
+    gap: var(--sb-space-2);
+    margin: 0;
+    min-width: 0;
+    padding: var(--sb-space-3);
+    border: 1px solid color-mix(in srgb, var(--sb-danger) 35%, var(--sb-border));
+    border-left: 3px solid var(--sb-danger);
+    border-radius: var(--sb-radius-control);
+    background: color-mix(in srgb, var(--sb-danger) 5%, var(--sb-surface));
+  }
+  .check-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sb-space-2);
+    color: var(--sb-danger);
+  }
+  .check-head strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .diff-legend {
+    display: flex;
+    gap: var(--sb-space-3);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .diff-key.diff-expected,
+  .diff-line.diff-expected {
+    color: var(--sb-success);
+  }
+  .diff-key.diff-received,
+  .diff-line.diff-received {
+    color: var(--sb-danger);
+  }
+  .diff {
+    margin: 0;
+    padding: var(--sb-space-2) 0;
+    white-space: pre;
+    max-height: 18em;
+    overflow: auto;
+    border-radius: var(--sb-radius-control);
+    background: var(--sb-surface);
+    border: 1px solid var(--sb-border);
+    font: 12.5px / 1.5 var(--sb-font-mono);
+  }
+  .diff-line {
+    display: flex;
+    min-width: max-content;
+    padding: 0 var(--sb-space-3) 0 0;
+  }
+  .diff-line.diff-expected {
+    background: var(--sb-success-subtle);
+  }
+  .diff-line.diff-received {
+    background: var(--sb-danger-subtle);
+  }
+  .diff-line.diff-same {
+    color: var(--sb-text-muted);
+  }
+  .diff-line.diff-skip {
+    color: var(--sb-text-muted);
+    font-style: italic;
+  }
+  .diff-gutter {
+    flex: none;
+    width: 2em;
+    text-align: center;
+    user-select: none;
+  }
+  .diff-text {
+    white-space: pre;
+  }
+  .check-where {
+    font: 12px var(--sb-font-mono);
+    color: var(--sb-text-muted);
+    overflow-wrap: anywhere;
   }
 
   /* ---- shared small controls */

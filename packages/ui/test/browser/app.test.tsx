@@ -106,19 +106,23 @@ describe('docs and play panel', () => {
       p.textContent?.startsWith('petstore'),
     )
     pill?.click()
-    await waitFor(() => expect(root.querySelectorAll('.op-row:not(.flow-row)').length).toBe(19))
-    expect($('.op-row:not(.flow-row) .method')?.textContent).toMatch(/GET|POST|PUT|DELETE|PATCH/)
-
-    const row = [...root.querySelectorAll<HTMLButtonElement>('.op-row:not(.flow-row)')].find((r) =>
-      r.textContent?.includes('Find pet by ID'),
+    await waitFor(() =>
+      expect(root.querySelectorAll('.op-row:not(.flow-row):not(.req-row)').length).toBe(19),
     )
+    expect($('.op-row:not(.flow-row):not(.req-row) .method')?.textContent).toMatch(
+      /GET|POST|PUT|DELETE|PATCH/,
+    )
+
+    const row = [
+      ...root.querySelectorAll<HTMLButtonElement>('.op-row:not(.flow-row):not(.req-row)'),
+    ].find((r) => r.textContent?.includes('Find pet by ID'))
     row?.click()
     await vi.waitFor(() => expect($('.panel-head h2')?.textContent).toBe('Find pet by ID'), {
       timeout: 30_000,
     })
     // docked: the page is not dimmed and the list is still there to pick another operation
     expect($('.panel-backdrop')).toBeNull()
-    expect(root.querySelectorAll('.op-row:not(.flow-row)').length).toBe(19)
+    expect(root.querySelectorAll('.op-row:not(.flow-row):not(.req-row)').length).toBe(19)
     expect($('.op-row.active')?.textContent).toContain('Find pet by ID')
   })
 
@@ -961,7 +965,7 @@ describe('docs and play panel', () => {
     await waitFor(() => expect(head().getAttribute('aria-expanded')).toBe('false'))
     head().click()
     await waitFor(() => expect(head().getAttribute('aria-expanded')).toBe('true'))
-    ;($('.op-row:not(.flow-row)') as HTMLButtonElement).click()
+    ;($('.op-row:not(.flow-row):not(.req-row)') as HTMLButtonElement).click()
     await vi.waitFor(() => expect($('.panel-head h2')).not.toBeNull(), { timeout: 30_000 })
     expect(head().getAttribute('aria-expanded')).toBe('true')
   })
