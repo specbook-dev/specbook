@@ -370,3 +370,129 @@ describe('mock env secrets', () => {
     expect(calls[0]?.headers['x-api-key']).toBe('{{secrets.NOPE}}')
   })
 })
+
+describe('masking every form of a secret, in events as well as results', () => {
+  const echo = CreateOrder.request({
+    headers: { 'x-api-key': '{{secrets.ORDER_KEY}}' },
+    data: { itemCode: 'A', quantity: 1 },
+    capture: { echoed: (res) => (res.data as any).leak },
+    assert: (res, { assert }) => assert.is((res.data as any).leak, 'nope', 'echo'),
+  })
+  const secret = 'sk live/abc+123'
+
+  it('masks the secret in streamed events, including captures and failed assertions', async () => {
+    const { transport } = fakeTransport((req) => ({
+      status: 201,
+      body: { leak: req.headers['x-api-key'] },
+    }))
+    const events: unknown[] = []
+    await runRequest(echo, {
+      env: 'live',
+      transport,
+      secrets: { ORDER_KEY: secret },
+      onEvent: (e) => events.push(e),
+    })
+    const seen = JSON.stringify(events)
+    expect(seen).not.toContain(secret)
+    expect(seen).toContain('***')
+    // the capture and the failing assertion were among the events
+    expect(events.some((e: any) => e.type === 'capture')).toBe(true)
+    expect(events.some((e: any) => e.type === 'assert:fail')).toBe(true)
+  })
+
+  it('masks the URL-encoded, JSON-escaped and base64 forms', async () => {
+    const forms = [
+      encodeURIComponent(secret),
+      JSON.stringify(secret).slice(1, -1),
+      btoa(secret),
+      `https://x.test/?k=${encodeURIComponent(secret)}`,
+    ]
+    const { transport } = fakeTransport(() => ({ status: 201, body: { leak: forms } }))
+    const r = await runRequest(echo, { env: 'live', transport, secrets: { ORDER_KEY: secret } })
+    const out = JSON.stringify(r)
+    for (const f of forms) expect(out).not.toContain(f)
+  })
+
+  it('masks a short secret of three characters but leaves two alone', async () => {
+    const { transport } = fakeTransport(() => ({ status: 201, body: { leak: 'abc and xy' } }))
+    const r = await runRequest(echo, { env: 'live', transport, secrets: { ORDER_KEY: 'abc' } })
+    expect(JSON.stringify(r)).not.toContain('abc')
+    const r2 = await runRequest(echo, { env: 'live', transport, secrets: { ORDER_KEY: 'xy' } })
+    expect(JSON.stringify(r2)).toContain('xy')
+  })
+})
+
+describe('a read-only run', () => {
+  const Search = defineOperation<{
+    params: {}
+    body: { q: string }
+    responses: { 200: unknown }
+  }>({ service: 'order', id: 'Search', method: 'POST', path: '/search' })
+  const Gql = defineOperation<{
+    params: {}
+    body: { query: string }
+    responses: { 200: unknown }
+  }>({ service: 'order', id: 'Gql', method: 'POST', path: '/graphql', encoding: 'graphql' })
+
+  const run = (def: Parameters<typeof runRequest>[0]) => {
+    const { transport, calls } = fakeTransport(() => ({ status: 200, body: {} }))
+    return runRequest(def, { env: 'prod', transport, readOnly: true }).then((r) => ({ r, calls }))
+  }
+
+  it('sends reads', async () => {
+    const { r, calls } = await run(GetOrder.request({ path: { id: '1' } }))
+    expect(calls).toHaveLength(1)
+    expect(r.steps[0]?.status).toBe('pass')
+  })
+
+  it('refuses a POST before sending it, and says how to allow it', async () => {
+    const { r, calls } = await run(CreateOrder.request({ data: { itemCode: 'A', quantity: 1 } }))
+    expect(calls).toHaveLength(0)
+    expect(r.status).toBe('error')
+    expect(r.steps[0]?.error).toBe(
+      'Refusing POST /orders in "prod": this is a read-only run. Pass --allow-write to send it.',
+    )
+    // the refused request is still recorded, so the report shows what would have been sent
+    expect(r.steps[0]?.request?.method).toBe('POST')
+  })
+
+  it('allows a POST marked safe, and a GraphQL query, but not a mutation', async () => {
+    expect((await run(Search.request({ safe: true, data: { q: 'x' } }))).calls).toHaveLength(1)
+    expect((await run(Gql.request({ data: { query: '{ pets { id } }' } }))).calls).toHaveLength(1)
+    const m = await run(Gql.request({ data: { query: 'mutation Add { addPet { id } }' } }))
+    expect(m.calls).toHaveLength(0)
+    expect(m.r.status).toBe('error')
+  })
+
+  it('still lets an auth profile log in, and is off unless asked for', async () => {
+    const Login = defineOperation<{
+      params: {}
+      body: { username: string }
+      responses: { 200: { access_token: string } }
+    }>({ service: 'auth', id: 'Login', method: 'POST', path: '/login', security: false })
+    const profile: AuthProfile = {
+      login: async () => Login.request({ data: { username: 'qa' } }),
+      token: (res) => ({ accessToken: res.data.access_token }),
+      apply: { headers: { authorization: 'Bearer {{session.accessToken}}' } },
+    }
+    const { transport, calls } = fakeTransport((req) =>
+      req.url === '/login' ? { body: { access_token: 'tok_aaaa' } } : { status: 200, body: {} },
+    )
+    const r = await runRequest(GetOrder.request({ path: { id: '1' } }), {
+      env: 'prod',
+      transport,
+      readOnly: true,
+      auth: { user: profile },
+      serviceAuth: { order: 'user' },
+    })
+    expect(calls.map((c) => c.url)).toEqual(['/login', '/orders/1'])
+    expect(r.status).toBe('pass')
+    // without the flag a write goes through
+    const open = fakeTransport(() => ({ status: 201, body: {} }))
+    await runRequest(CreateOrder.request({ data: { itemCode: 'A', quantity: 1 } }), {
+      env: 'prod',
+      transport: open.transport,
+    })
+    expect(open.calls).toHaveLength(1)
+  })
+})
