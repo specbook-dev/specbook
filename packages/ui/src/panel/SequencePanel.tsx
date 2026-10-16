@@ -5,6 +5,7 @@ import { defaultFor, type FieldSpec, specFromControl } from '../components/Field
 import type { SequenceInfo } from '../engine'
 import { engine } from '../runtime'
 import { env, locale, seed, version } from '../store'
+import { Failure } from './Checks'
 import { ControlsGrid } from './ControlsGrid'
 import { SecretsBar } from './SecretsBar'
 import { StepExchange } from './StepExchange'
@@ -114,6 +115,11 @@ export function SequencePanel({ info }: { info: SequenceInfo }) {
           }),
       })
       setResult(r)
+      // a run that did not pass shows its first failing step, not its first step
+      const bad = r.steps
+        .filter((s) => s.kind !== 'auth')
+        .findIndex((s) => s.status === 'fail' || s.status === 'error')
+      if (bad >= 0) setPicked(bad)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -193,7 +199,7 @@ export function SequencePanel({ info }: { info: SequenceInfo }) {
                     ))}
                   {step?.error && <div class="error-text">{step.error}</div>}
                   {failed.map((a) => (
-                    <div class="error-text">✗ {a.label}</div>
+                    <Failure a={a} />
                   ))}
                   {status === 'skipped' && (
                     <div class="muted">Skipped: an earlier step did not pass.</div>

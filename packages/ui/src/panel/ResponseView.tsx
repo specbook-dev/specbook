@@ -1,9 +1,10 @@
 import type { StepResult } from '@specbook/core'
-import { useMemo, useState } from 'preact/hooks'
+import { useEffect, useMemo, useState } from 'preact/hooks'
 import { fieldDoc } from '../fielddoc'
 import { type Defs, type JsonSchema, linePaths, validate } from '../schema'
 import { statusClass, statusName } from '../status'
 import { BodyEditor } from './BodyEditor'
+import { Checks } from './Checks'
 import { FieldDoc } from './FieldDoc'
 import { PaperPlane } from './icons'
 import { queryString } from './RequestView'
@@ -42,6 +43,10 @@ export function ResponseView({ step, error, schemas, defs, hideRequest }: Props)
   }, [paths, line, schema, defs])
   const checks = step?.assertions ?? []
   const failed = checks.filter((a) => !a.pass).length
+  // a run that failed a check opens on it: that is what the person came to see
+  useEffect(() => {
+    if (step && failed > 0) setTab('checks')
+  }, [step])
   const headers = Object.entries(response?.headers ?? {})
   const empty = !response && !error && !step?.error
 
@@ -112,7 +117,14 @@ export function ResponseView({ step, error, schemas, defs, hideRequest }: Props)
               >
                 {label}
                 {n > 0 && (
-                  <span class={`count ${id === 'checks' && failed ? 'bad' : ''}`}>{n}</span>
+                  <span
+                    class={`count ${id === 'checks' && failed ? 'bad' : ''}`}
+                    title={
+                      id === 'checks' && failed ? `${failed} of ${n} checks failed` : undefined
+                    }
+                  >
+                    {id === 'checks' && failed ? failed : n}
+                  </span>
                 )}
               </button>
             ))}
@@ -165,13 +177,7 @@ export function ResponseView({ step, error, schemas, defs, hideRequest }: Props)
               {checks.length === 0 ? (
                 <p class="muted">This request has no checks.</p>
               ) : (
-                <ul class="checks">
-                  {checks.map((a) => (
-                    <li class={a.pass ? 'ok' : 'bad'}>
-                      {a.pass ? '✓' : '✗'} {a.label}
-                    </li>
-                  ))}
-                </ul>
+                <Checks assertions={checks} />
               )}
             </div>
           </div>
