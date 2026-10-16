@@ -134,7 +134,7 @@ no project, `npx @specbook/cli preview <url|file>` works without installing anyt
 
 ```sh
 npx specbook init                # scaffold config, the #api/* import and an environments folder
-npx specbook add petstore --spec ./openapi/petstore.json
+npx specbook add petstore --spec ./openapi/petstore.json   # or a URL: it is downloaded and recorded
 npx specbook generate            # types, operations, examples and metadata from the specs
 npx specbook dev                 # the UI: docs, a play panel and a credential proxy
 npx specbook build               # a static docs site, and specbook.js to embed it

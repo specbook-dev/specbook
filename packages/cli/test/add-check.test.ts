@@ -19,9 +19,10 @@ async function tempProject() {
       !src.includes('.generated') &&
       !src.endsWith('tsconfig.json') &&
       !/openapi\/(stripe|github|countries)\.json$/.test(src) &&
+      !src.endsWith('openapi/sources.json') &&
       !/(requests\/(stripe|github|countries)|sequences\/(stripe|github)[^/]*)/.test(src),
   })
-  // Only Petstore: the large Stripe/GitHub specs are fetched separately and not needed here.
+  // Only Petstore: the large Stripe and GitHub specs are not needed here.
   await writeFile(
     join(dir, '.specbook/specbook.config.ts'),
     `import { defineConfig } from '@specbook/core'
