@@ -1,14 +1,21 @@
 // Run orchestration for the UI. Pure TS (no DOM) so it can be unit-tested with a fake registry.
 import {
+  AddressError,
   type AuthProfile,
+  addressUses,
+  baseUrlFor,
   createFetchTransport,
   createMockTransport,
   type DiscoveredEndpoints,
   deepMerge,
   type Example,
+  environmentNames,
+  environmentScope,
   installFaker,
   isDiscovery,
+  type OAuthSettings,
   type OpMeta,
+  oauthFor,
   parseDiscovery,
   prepareFaker,
   type RequestDef,
@@ -21,6 +28,7 @@ import {
   type Transport,
   usesFaker,
 } from '@specbook/core'
+import type { EnvironmentStore } from './custom-environments'
 import { type ExtensionBridge, extensionTransport } from './extension'
 import { absoluteBase, routingTransport, withPageSecrets } from './routing'
 import { originOf, type SecretStore, secretStore } from './secrets'
@@ -87,12 +95,45 @@ export interface RunInput {
   fileDir?: string
 }
 
+/** One variable of an environment as the settings show it. */
+export interface VariableRow {
+  name: string
+  value: string
+  /** where the value comes from: the config's defaults or the environment's section, a file, this browser */
+  source: 'default' | 'config' | 'file' | 'browser'
+  /** what the variable falls back to when its own value is removed; undefined when it has no other */
+  fallback?: string
+  /** whether the value can be edited here */
+  editable: boolean
+}
+
+export interface EnvironmentView {
+  rows: VariableRow[]
+  /** where each service's calls go in this environment, or why they cannot */
+  addresses: { service: string; url?: string; error?: string }[]
+  /** which services' addresses and profiles' sign-in fields read each variable */
+  uses: ReturnType<typeof addressUses>
+  /** a browser-made environment: it can be deleted */
+  removable: boolean
+}
+
 export interface EngineOptions {
   /** The bridge to the browser extension when it is installed and enabled for this page. */
   extension?: () => Promise<ExtensionBridge | undefined>
   /** Where the person's typed secrets are kept (the page's store by default). */
   secrets?: SecretStore
+  /** Environments made in this browser (a static page has no files to write them to). */
+  environmentStore?: EnvironmentStore
 }
+
+const ENV_NAME = /^[A-Za-z0-9_-]+$/
+const VAR_NAME = /^[A-Za-z_][\w.-]*$/
+const hasTemplate = (v: unknown): boolean =>
+  typeof v === 'string'
+    ? /\{\{/.test(v)
+    : v !== null && typeof v === 'object' && Object.values(v).some(hasTemplate)
+const text = (v: unknown) =>
+  v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')
 
 export function createEngine(reg: Registry, opts: EngineOptions = {}) {
   const mockLoader = {
@@ -109,6 +150,11 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     return (await reg.loadConfig(version)).default as SpecbookConfig
   }
 
+  const isStaticPage = () => reg.mode !== 'dev'
+  const browserEnvs = () => (isStaticPage() ? (opts.environmentStore?.all() ?? {}) : {})
+  // dev: environments created this session, until the registry reloads with their files
+  const createdHere = new Set<string>()
+
   /** Environments the config marks `production` or `sandbox`; the rest are judged by their name. */
   async function environmentRisks(
     version: number,
@@ -119,6 +165,9 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
       const risk = (e as { risk?: string } | undefined)?.risk
       if (risk === 'production' || risk === 'sandbox') out[name] = risk
     }
+    // a copy is as careful as what it was copied from
+    for (const [name, b] of Object.entries(browserEnvs()))
+      if (b.from && out[b.from] && !out[name]) out[name] = out[b.from] as 'production' | 'sandbox'
     return out
   }
 
@@ -130,20 +179,24 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
       const note = (e as { description?: string } | undefined)?.description
       if (note) out[name] = note
     }
+    for (const [name, b] of Object.entries(browserEnvs()))
+      if (b.from) out[name] = `copy of ${b.from}, kept in this browser`
     return out
   }
 
   async function environments(version: number): Promise<string[]> {
     const c = await config(version)
-    const envs = new Set<string>(['mock'])
-    for (const s of Object.values(c.services ?? {}))
-      for (const e of Object.keys(s.baseUrl ?? {})) envs.add(e)
-    for (const e of Object.keys(reg.environmentVars ?? {})) envs.add(e)
-    for (const e of Object.keys(c.environments ?? {})) envs.add(e)
-    return [...envs]
+    return environmentNames(
+      { services: c.services ?? {}, environments: c.environments },
+      [...Object.keys(reg.environmentVars ?? {}), ...createdHere],
+      Object.keys(browserEnvs()),
+    )
   }
 
-  /** The environment's own variables: read live from the dev server, baked in for static builds. */
+  /**
+   * The environment's own variables: read live from the dev server; baked in for a static build, with
+   * the ones this browser holds over them.
+   */
   async function environmentVars(env: string): Promise<Record<string, string>> {
     if (reg.mode === 'dev') {
       try {
@@ -153,7 +206,166 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
         /* fall back to what was baked in */
       }
     }
-    return reg.environmentVars?.[env] ?? {}
+    return { ...reg.environmentVars?.[env], ...browserEnvs()[env]?.vars }
+  }
+
+  /** What an address is rendered with: defaults, the environment's own settings, its file or browser copy. */
+  async function scopeOf(env: string, version: number): Promise<Record<string, unknown>> {
+    return environmentScope(await config(version), env, await environmentVars(env))
+  }
+
+  /** Where `service`'s calls go in `env`; undefined when it has no address there. Throws an AddressError. */
+  async function baseUrlOf(service: string, env: string, version: number) {
+    return baseUrlFor(await config(version), service, env, await scopeOf(env, version))
+  }
+
+  /** A profile's sign-in settings with its address fields rendered for `env`. */
+  async function oauthOf(
+    profile: string,
+    env: string,
+    version: number,
+  ): Promise<OAuthSettings | undefined> {
+    const oauth = ((await config(version)).auth?.[profile] as AuthProfile | undefined)?.oauth
+    // nothing to render, so nothing to ask the dev server for
+    if (!oauth || !hasTemplate(oauth)) return oauth
+    return oauthFor(oauth, await scopeOf(env, version), profile)
+  }
+
+  /**
+   * Addresses for a config the caller already holds (a page reading `engine.config` once for several
+   * services): the same rendering as `baseUrlOf` / `oauthOf`, with an address that cannot be worked out
+   * left undefined. The environment's variables are fetched only when something is written as a template.
+   */
+  async function addressesIn(cfg: SpecbookConfig, env: string) {
+    const templated =
+      Object.values(cfg.services ?? {}).some((s) => hasTemplate(s.baseUrl)) ||
+      Object.values(cfg.auth ?? {}).some((p) => hasTemplate((p as AuthProfile).oauth))
+    const scope = environmentScope(cfg, env, templated ? await environmentVars(env) : {})
+    return {
+      baseUrl(service: string): string | undefined {
+        try {
+          return baseUrlFor(cfg, service, env, scope)
+        } catch {
+          return undefined
+        }
+      },
+      oauth(profile: string): OAuthSettings | undefined {
+        const oauth = (cfg.auth?.[profile] as AuthProfile | undefined)?.oauth
+        try {
+          return oauth ? oauthFor(oauth, scope, profile) : undefined
+        } catch {
+          return undefined
+        }
+      },
+    }
+  }
+
+  /** The environment's variables as the settings show them, and where each service's calls go. */
+  async function environmentView(env: string, version: number): Promise<EnvironmentView> {
+    const c = await config(version)
+    const defaults = c.vars ?? {}
+    const section =
+      (c.environments?.[env] as { vars?: Record<string, unknown> } | undefined)?.vars ?? {}
+    const stored = browserEnvs()[env]
+    const baked = isStaticPage() ? (reg.environmentVars?.[env] ?? {}) : await environmentVars(env)
+    const browser = stored?.vars ?? {}
+    const names = [
+      ...new Set([
+        ...Object.keys(defaults),
+        ...Object.keys(section),
+        ...Object.keys(baked),
+        ...Object.keys(browser),
+      ]),
+    ]
+    const editable = reg.mode === 'dev' || !!opts.environmentStore
+    const rows: VariableRow[] = names.map((name) => {
+      const inherited = name in section ? section[name] : defaults[name]
+      const own = name in browser ? 'browser' : name in baked ? 'file' : undefined
+      const value = name in browser ? browser[name] : name in baked ? baked[name] : inherited
+      const fallbackSource = name in browser && name in baked ? baked[name] : inherited
+      return {
+        name,
+        value: text(value),
+        source: own ?? (name in section ? 'config' : 'default'),
+        fallback: own && fallbackSource !== undefined ? text(fallbackSource) : undefined,
+        editable,
+      }
+    })
+    const scope = environmentScope(c, env, { ...baked, ...browser })
+    const addresses: EnvironmentView['addresses'] = []
+    if (env !== 'mock')
+      for (const service of Object.keys(c.services ?? {})) {
+        try {
+          const url = baseUrlFor(c, service, env, scope)
+          addresses.push({ service, ...(url ? { url } : {}) })
+        } catch (e) {
+          if (!(e instanceof AddressError)) throw e
+          addresses.push({ service, error: e.message })
+        }
+      }
+    return { rows, addresses, uses: addressUses(c), removable: !!stored?.from }
+  }
+
+  /** Whether a person can make environments here: the dev server writes a file, a static page keeps it. */
+  const canCreateEnvironment = () => reg.mode === 'dev' || !!opts.environmentStore
+
+  /** A new environment holding a copy of `from`'s own variables (never its secrets). */
+  async function createEnvironment(name: string, from: string, version: number): Promise<void> {
+    if (!ENV_NAME.test(name))
+      throw new Error('Use letters, digits, "-" and "_" in an environment name')
+    if (name === 'mock' || (await environments(version)).includes(name))
+      throw new Error(`"${name}" already exists`)
+    if (reg.mode === 'dev') {
+      const r = await fetch('/__specbook/environment', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, from }),
+      })
+      if (!r.ok)
+        throw new Error(((await r.json()) as { error?: string }).error ?? 'could not create')
+      createdHere.add(name)
+      return
+    }
+    if (!opts.environmentStore) throw new Error('This page has nowhere to keep a new environment')
+    const c = await config(version)
+    const section =
+      (c.environments?.[from] as { vars?: Record<string, unknown> } | undefined)?.vars ?? {}
+    const own = { ...section, ...(await environmentVars(from)) }
+    opts.environmentStore.save(name, {
+      from,
+      vars: Object.fromEntries(
+        Object.entries(own)
+          .filter(([, v]) => v !== null && typeof v !== 'object')
+          .map(([k, v]) => [k, String(v)]),
+      ),
+    })
+  }
+
+  /** Sets (or, with `null`, removes) one of an environment's own variables. */
+  async function setVariable(env: string, name: string, value: string | null): Promise<void> {
+    if (!VAR_NAME.test(name)) throw new Error(`"${name}" is not a variable name`)
+    if (reg.mode === 'dev') {
+      const r = await fetch('/__specbook/var', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ env, name, value }),
+      })
+      if (!r.ok) throw new Error(((await r.json()) as { error?: string }).error ?? 'save failed')
+      return
+    }
+    const store = opts.environmentStore
+    if (!store) throw new Error('This page has nowhere to keep a variable')
+    const current = store.all()[env] ?? { vars: {} }
+    const vars = { ...current.vars }
+    if (value === null) delete vars[name]
+    else vars[name] = value
+    if (!current.from && Object.keys(vars).length === 0) store.remove(env)
+    else store.save(env, { ...current, vars })
+  }
+
+  /** Forgets an environment made in this browser. */
+  function deleteEnvironment(env: string): void {
+    opts.environmentStore?.remove(env)
   }
 
   /** Names of the variables the project already supplies in `env`: config, per-environment and env files. */
@@ -181,12 +393,21 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
   ): Promise<Transport> {
     if (env === 'mock') return createMockTransport({ loader: mockLoader })
     const cfg = await config(version)
+    // the environment's variables are only fetched when an address is written as a template
+    const templated = Object.values(cfg.services ?? {}).some((s) => hasTemplate(s.baseUrl))
+    const scope = templated ? await scopeOf(env, version) : {}
     const pageHref = globalThis.location?.href
     const pageOrigin = globalThis.location?.origin
     const baseOf = (service: string) => {
       if (extra[service]) return extra[service]
-      const url = cfg.services?.[service]?.baseUrl?.[env]
-      if (!url) throw new Error(`No base URL for ${service} in the "${env}" environment`)
+      let url: string | undefined
+      try {
+        url = baseUrlFor(cfg, service, env, scope)
+      } catch (e) {
+        if (e instanceof AddressError) throw new Error(e.message)
+        throw e
+      }
+      if (!url) throw new Error(`No base URL for ${service} in ${env}`)
       return absoluteBase(url, pageHref)
     }
     const hasProxy = reg.mode !== 'static'
@@ -275,7 +496,13 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     signal?: AbortSignal
   }): Promise<SignInEndpoints> {
     if (i.env === 'mock') throw new Error('Sign in needs a live environment, not mock')
-    const oauth = ((await config(i.version)).auth?.[i.profile] as AuthProfile | undefined)?.oauth
+    let oauth: OAuthSettings | undefined
+    try {
+      oauth = await oauthOf(i.profile, i.env, i.version)
+    } catch (e) {
+      if (e instanceof AddressError) throw new Error(e.message)
+      throw e
+    }
     if (!oauth) throw new Error(`"${i.profile}" has no sign-in configured`)
     if (!isDiscovery(oauth))
       return {
@@ -394,11 +621,7 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     )
     return {
       env: i.env,
-      vars: {
-        ...(c.vars ?? {}),
-        ...(c.environments?.[i.env]?.vars ?? {}),
-        ...(await environmentVars(i.env)),
-      },
+      vars: await scopeOf(i.env, i.version),
       overrides: i.vars,
       params: i.params,
       transport: await transportFor(i.env, i.proxyBase ?? '/__specbook/proxy', i.version),
@@ -540,6 +763,15 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     environments,
     environmentRisks,
     environmentNotes,
+    environmentVars,
+    environmentView,
+    canCreateEnvironment,
+    createEnvironment,
+    deleteEnvironment,
+    setVariable,
+    baseUrlOf,
+    oauthOf,
+    addressesIn,
     managedSecrets,
     oauthEndpoints,
     oauthExchange,

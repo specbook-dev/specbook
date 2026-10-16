@@ -25,6 +25,12 @@ export interface OpenResult {
   auth: Record<string, AuthProfileLike>
   secrets: Record<string, Record<string, never>>
   defaultProfile?: string
+  /**
+   * Sign-in addresses the document gives relative to its servers, as variables: the values for `live`,
+   * and per other environment. The profiles in `auth` read them as `{{name}}`.
+   */
+  authVars: Record<string, string>
+  authEnvironmentVars: Record<string, Record<string, string>>
   /** absolute API address, from `servers` (resolved against the spec URL) or `host` */
   baseUrl?: string
   /** every usable server the document lists, as environments; the first is `live` */

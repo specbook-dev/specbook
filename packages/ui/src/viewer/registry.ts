@@ -3,7 +3,7 @@
  * the document in a worker and puts the result on `globalThis.__SPECBOOK_VIEWER__` before the app is
  * imported; this module turns that into the same named exports the dev server and the static build give.
  */
-import { defineOperation, type OpMeta } from '@specbook/core'
+import { defineOperation, environmentsFromServers, type OpMeta } from '@specbook/core'
 import type { OpenResult } from './protocol'
 
 export interface ViewerGlobal {
@@ -134,28 +134,61 @@ export const loadFaker = () =>
     },
   }))
 
-// `live` is the document's first server, or the address the person typed for it; the rest keep their own names
+// `live` is the document's first server, or the address the person typed for it; the rest keep their own
+// names. Each address is the variable `baseUrl` in its environment, so a copy of one can point elsewhere.
 const live = v.baseUrl ?? open.baseUrl
-const baseUrl: Record<string, string> = {
-  ...(live ? { live } : {}),
-  ...Object.fromEntries(open.servers.filter((s) => s.name !== 'live').map((s) => [s.name, s.url])),
-}
-const described = Object.fromEntries(
-  open.servers.filter((s) => s.description).map((s) => [s.name, { description: s.description }]),
+const liveServer = open.servers.find((s) => s.name === 'live')
+const addresses = environmentsFromServers(
+  [
+    ...(live ? [{ name: 'live', url: live, description: liveServer?.description }] : []),
+    ...open.servers.filter((s) => s.name !== 'live'),
+  ],
+  'baseUrl',
 )
+// a sign-in address the document gave relative to its server needs the address the person typed
+const absolute = (value: string) => {
+  if (/^https?:\/\//i.test(value) || !v.baseUrl) return value
+  try {
+    return new URL(value, `${v.baseUrl.replace(/\/+$/, '')}/`).toString()
+  } catch {
+    return value
+  }
+}
+const vars = {
+  ...addresses.vars,
+  ...Object.fromEntries(Object.entries(open.authVars).map(([k, x]) => [k, absolute(x)])),
+}
+const environmentSettings: Record<string, { description?: string; vars?: Record<string, string> }> =
+  {
+    ...addresses.environments,
+  }
+for (const [name, evars] of Object.entries(open.authEnvironmentVars))
+  environmentSettings[name] = {
+    ...environmentSettings[name],
+    vars: { ...environmentSettings[name]?.vars, ...evars },
+  }
+/** Where environments made in this browser are kept: per spec address, or for the tab for an upload. */
+export const environmentStore: { scope: string; session: boolean } | null = v.source
+  ? {
+      scope: v.source.kind === 'url' ? v.source.url : `upload:${service}`,
+      session: v.source.kind !== 'url',
+    }
+  : null
 export const loadConfig = () =>
   Promise.resolve({
     default: {
       project: service,
       secrets: open.secrets,
       auth: open.auth,
-      ...(Object.keys(described).length ? { environments: described } : {}),
+      ...(Object.keys(vars).length ? { vars } : {}),
+      ...(Object.keys(environmentSettings).length ? { environments: environmentSettings } : {}),
       // one locale, so the header offers no locale choice
       faker: { default: 'en', locales: { en: ['en', 'base'] } },
       services: {
         [service]: {
           spec: '',
-          baseUrl,
+          // a document that gives no address at all has no live environment either
+          baseUrl: live || open.servers.length ? addresses.baseUrl : {},
           ...(open.defaultProfile ? { auth: open.defaultProfile } : {}),
         },
       },

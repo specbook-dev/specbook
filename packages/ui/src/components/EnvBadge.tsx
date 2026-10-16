@@ -1,4 +1,7 @@
-import { env, environmentNote, environmentRisk, environments } from '../store'
+import { engine } from '../runtime'
+import { env, environmentNote, environmentRisk, environments, newEnvironmentOpen } from '../store'
+
+const NEW_ENVIRONMENT = '\u0000new-environment'
 
 /**
  * The environment a request will run in, and a way to change it. On a phone the header with the
@@ -19,7 +22,8 @@ export function EnvBadge() {
       : risk === 'production' || (risk !== 'sandbox' && /prod/i.test(name))
         ? 'prod'
         : 'live'
-  const switchable = names.length > 1
+  const canCreate = engine.canCreateEnvironment()
+  const switchable = names.length > 1 || canCreate
   return (
     <span
       class={`env-badge ${kind} ${switchable ? 'switch' : ''}`}
@@ -34,13 +38,20 @@ export function EnvBadge() {
         <select
           aria-label="Environment"
           value={name}
-          onChange={(e) => (env.value = (e.target as HTMLSelectElement).value)}
+          onChange={(e) => {
+            const picked = (e.target as HTMLSelectElement).value
+            if (picked === NEW_ENVIRONMENT) {
+              ;(e.target as HTMLSelectElement).value = env.value
+              newEnvironmentOpen.value = true
+            } else env.value = picked
+          }}
         >
           {names.map((n) => (
             <option value={n} title={environmentNote.value[n]}>
               {n}
             </option>
           ))}
+          {canCreate && <option value={NEW_ENVIRONMENT}>New environment…</option>}
         </select>
       )}
     </span>

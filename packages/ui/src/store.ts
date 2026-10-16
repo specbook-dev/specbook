@@ -10,3 +10,9 @@ export const environmentRisk = signal<Record<string, 'production' | 'sandbox'>>(
 export const environmentNote = signal<Record<string, string>>({})
 export const locale = signal<string | undefined>(undefined)
 export const seed = signal<number | undefined>(undefined)
+/** Bumped when an environment's variables change, so what is derived from them (addresses, origins) is redone. */
+export const envVarsVersion = signal(0)
+/** Whether Environment settings is open; set from elsewhere to point a person at it. */
+export const envSettingsOpen = signal(false)
+/** The New environment dialog. */
+export const newEnvironmentOpen = signal(false)

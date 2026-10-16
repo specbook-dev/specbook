@@ -5,7 +5,7 @@ import { App } from '../../src/app'
 import { brand } from '../../src/branding'
 import { listWidth } from '../../src/components/ListResizer'
 import { catalogFilter, catalogService, go, paletteOpen } from '../../src/nav'
-import { env, environmentRisk, seed } from '../../src/store'
+import { env, environmentRisk, envSettingsOpen, seed } from '../../src/store'
 import { theme } from '../../src/theme'
 import 'prism-code-editor/autocomplete-icons.css'
 import 'prism-code-editor/autocomplete.css'
@@ -33,6 +33,8 @@ describe('docs and play panel', () => {
     render(null, root)
     document.body.innerHTML = ''
     paletteOpen.value = false
+    // the settings popover is open state that outlives a render now, so one test cannot leave it open for the next
+    envSettingsOpen.value = false
   })
 
   const mount = async () => {

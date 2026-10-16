@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { noteExpiry, recallClientId, redirectUri, rememberClientId, signIn } from '../oauth'
 import { engine } from '../runtime'
 import { secretStore } from '../secrets'
-import { env, version } from '../store'
+import { env, envVarsVersion, version } from '../store'
 
 type Status = { kind: 'idle' } | { kind: 'busy' } | { kind: 'error'; message: string }
 
@@ -39,6 +39,10 @@ export function OAuthSignIn({
   const [clientId, setClientId] = useState(
     () => oauth.clientId ?? recallClientId(providerKey) ?? '',
   )
+  // another environment may sign in somewhere else, with its own client
+  useEffect(() => {
+    setClientId(oauth.clientId ?? recallClientId(providerKey) ?? '')
+  }, [providerKey, oauth.clientId])
   const [endpoints, setEndpoints] = useState<Endpoints | undefined>(undefined)
   const [picked, setPicked] = useState<string[]>([])
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
@@ -67,7 +71,7 @@ export function OAuthSignIn({
     return () => {
       on = false
     }
-  }, [profile, env.value, version.value, attempt])
+  }, [profile, env.value, version.value, attempt, envVarsVersion.value])
 
   const scopeNames = Object.keys(endpoints?.scopes ?? {})
 

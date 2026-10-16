@@ -1,10 +1,10 @@
-import type { AuthProfile, OAuthSettings } from '@specbook/core'
+import type { OAuthSettings } from '@specbook/core'
 import { useEffect, useState } from 'preact/hooks'
 import { expiryOf, noteExpiry } from '../oauth'
 import { absoluteBase } from '../routing'
 import { engine } from '../runtime'
 import { originOf, SECRET_PLACEHOLDER, secretStore } from '../secrets'
-import { env, version } from '../store'
+import { env, envVarsVersion, version } from '../store'
 import { OAuthSignIn } from './OAuthSignIn'
 
 interface Need {
@@ -60,15 +60,17 @@ export function SecretsBar({
     }
     let on = true
     if (!supplied) engine.managedSecrets(env.value).then((m) => on && setManaged(m))
-    engine.config(version.value).then((cfg) => {
-      if (!on) return
+    engine.config(version.value).then(async (cfg) => {
       const out: Need[] = []
+      const where = await engine.addressesIn(cfg, env.value)
       for (const [service, s] of Object.entries(cfg.services ?? {})) {
         if (services && !services.includes(service)) continue
         const profile = s.auth ? cfg.auth?.[s.auth] : undefined
-        const base = s.baseUrl?.[env.value]
+        // the address this environment's variables give; one that cannot be worked out has no origin
+        const base = where.baseUrl(service)
         const origin = originOf(base ? absoluteBase(base, globalThis.location?.href) : undefined)
         if (!profile || !origin) continue
+        const oauth = s.auth ? where.oauth(s.auth) : undefined
         const names = [
           ...new Set(
             [...JSON.stringify(profile.apply).matchAll(SECRET_PLACEHOLDER)].map(
@@ -83,15 +85,15 @@ export function SecretsBar({
             title: profile.title ?? s.auth ?? '',
             names,
             profile: s.auth as string,
-            oauth: (profile as AuthProfile).oauth,
+            oauth,
           })
       }
-      setNeeds(out)
+      if (on) setNeeds(out)
     })
     return () => {
       on = false
     }
-  }, [live, env.value, wanted, version.value])
+  }, [live, env.value, wanted, version.value, envVarsVersion.value])
 
   if (!live || needs.length === 0) return null
   const have = (n: Need, name: string) =>

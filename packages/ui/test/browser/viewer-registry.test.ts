@@ -9,6 +9,8 @@ const opened = (servers: { name: string; url: string; description?: string }[]) 
   exampleNames: {},
   auth: {},
   secrets: {},
+  authVars: {},
+  authEnvironmentVars: {},
   baseUrl: servers.find((s) => s.name === 'live')?.url,
   servers,
   needsBaseUrl: false,
@@ -46,17 +48,15 @@ describe('the hosted viewer’s registry offers every server as an environment',
     { name: 'eu', url: 'https://eu.example.com/v1' },
   ]
 
-  it('puts each server under its own name, with the descriptions as environment notes', async () => {
+  it('makes the first server the default address and each other server an environment of its own', async () => {
     const reg = await registryFor(opened(servers))
     const cfg = (await reg.loadConfig()).default as any
-    expect(cfg.services.shop.baseUrl).toEqual({
-      live: 'https://api.example.com/v1',
-      sandbox: 'https://sandbox.example.com/v1',
-      eu: 'https://eu.example.com/v1',
-    })
+    expect(cfg.services.shop.baseUrl).toBe('{{baseUrl}}')
+    expect(cfg.vars).toEqual({ baseUrl: 'https://api.example.com/v1' })
     expect(cfg.environments).toEqual({
       live: { description: 'Production' },
-      sandbox: { description: 'Test data' },
+      sandbox: { description: 'Test data', vars: { baseUrl: 'https://sandbox.example.com/v1' } },
+      eu: { vars: { baseUrl: 'https://eu.example.com/v1' } },
     })
 
     const engine = createEngine(reg as never)
@@ -65,28 +65,53 @@ describe('the hosted viewer’s registry offers every server as an environment',
       live: 'Production',
       sandbox: 'Test data',
     })
+    expect(await engine.baseUrlOf('shop', 'live', 0)).toBe('https://api.example.com/v1')
+    expect(await engine.baseUrlOf('shop', 'eu', 0)).toBe('https://eu.example.com/v1')
   })
 
   it('lets the address a person typed replace `live` and nothing else', async () => {
     const reg = await registryFor(opened(servers), 'https://mine.example.com')
-    const cfg = (await reg.loadConfig()).default as any
-    expect(cfg.services.shop.baseUrl.live).toBe('https://mine.example.com')
-    expect(cfg.services.shop.baseUrl.sandbox).toBe('https://sandbox.example.com/v1')
+    const engine = createEngine(reg as never)
+    expect(await engine.baseUrlOf('shop', 'live', 0)).toBe('https://mine.example.com')
+    expect(await engine.baseUrlOf('shop', 'sandbox', 0)).toBe('https://sandbox.example.com/v1')
   })
 
-  it('keeps a single-server document exactly as it was: mock and live', async () => {
+  it('keeps a single-server document as it was: mock and live', async () => {
     const reg = await registryFor(opened([{ name: 'live', url: 'https://api.example.com' }]))
     const cfg = (await reg.loadConfig()).default as any
     expect(cfg.environments).toBeUndefined()
     expect(await createEngine(reg as never).environments(0)).toEqual(['mock', 'live'])
   })
 
-  it('has no live environment until the person gives an address, but still offers the other servers', async () => {
+  it('has no address for live until the person gives one, but still offers the other servers', async () => {
     const reg = await registryFor({
       ...opened([{ name: 'sandbox', url: 'https://sandbox.example.com' }]),
       needsBaseUrl: true,
     })
-    const cfg = (await reg.loadConfig()).default as any
-    expect(Object.keys(cfg.services.shop.baseUrl)).toEqual(['sandbox'])
+    const engine = createEngine(reg as never)
+    await expect(engine.baseUrlOf('shop', 'live', 0)).rejects.toThrow(/set baseUrl/)
+    expect(await engine.baseUrlOf('shop', 'sandbox', 0)).toBe('https://sandbox.example.com')
+  })
+
+  it('signs in at each server’s own provider when the document gave the address relative to it', async () => {
+    const reg = await registryFor({
+      ...opened(servers),
+      auth: {
+        sso: {
+          title: 'sso',
+          apply: {},
+          oauth: { tokenUrl: '{{ssoTokenUrl}}', authorizationUrl: 'https://id.example.com/a' },
+        },
+      },
+      authVars: { ssoTokenUrl: 'https://api.example.com/oauth/token' },
+      authEnvironmentVars: { sandbox: { ssoTokenUrl: 'https://sandbox.example.com/oauth/token' } },
+    })
+    const engine = createEngine(reg as never)
+    expect(await engine.oauthOf('sso', 'live', 0)).toMatchObject({
+      tokenUrl: 'https://api.example.com/oauth/token',
+    })
+    expect(await engine.oauthOf('sso', 'sandbox', 0)).toMatchObject({
+      tokenUrl: 'https://sandbox.example.com/oauth/token',
+    })
   })
 })

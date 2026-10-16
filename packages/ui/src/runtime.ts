@@ -1,4 +1,5 @@
 import * as reg from 'virtual:specbook/registry'
+import { createEnvironmentStore } from './custom-environments'
 import { createEngine, pickRunnable } from './engine'
 import { detectExtension, type ExtensionBridge } from './extension'
 import { version } from './store'
@@ -14,7 +15,21 @@ const extension = async () => {
   return bridge
 }
 
-export const engine = createEngine(reg as never, { extension })
+/**
+ * A page with no project files keeps the environments a person makes in the browser: per spec in the
+ * hosted viewer (its registry says where), per page for a built site. An embed has none.
+ */
+const storeAt = (reg as { environmentStore?: { scope: string; session: boolean } | null })
+  .environmentStore
+const environmentStore =
+  reg.mode === 'static' && storeAt !== null
+    ? createEnvironmentStore(
+        storeAt?.scope ?? `${globalThis.location?.origin}${globalThis.location?.pathname}`,
+        storeAt?.session ? 'session' : 'local',
+      )
+    : undefined
+
+export const engine = createEngine(reg as never, { extension, environmentStore })
 
 export const isStatic = reg.mode === 'static'
 

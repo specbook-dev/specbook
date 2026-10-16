@@ -7,13 +7,26 @@ import { EnvBadge } from './components/EnvBadge'
 import { EnvironmentMenu } from './components/EnvironmentMenu'
 import { GitHubStar } from './components/GitHubStar'
 import { ListResizer, listWidth } from './components/ListResizer'
+import { NewEnvironmentDialog } from './components/NewEnvironmentDialog'
 import { Palette } from './components/Palette'
 import { ShareMenu } from './components/ShareMenu'
 import { ThemeToggle } from './components/ThemeToggle'
 import type { SequenceInfo, Variant } from './engine'
 import { type Entry, go, pageOf, paletteOpen, parseHash, route, setDefaultService } from './nav'
 import { engine, registry } from './runtime'
-import { env, environmentNote, environmentRisk, environments, locale, seed, version } from './store'
+import {
+  env,
+  environmentNote,
+  environmentRisk,
+  environments,
+  locale,
+  newEnvironmentOpen,
+  seed,
+  version,
+} from './store'
+
+/** The picker's last entry: not an environment, a way to make one. */
+const NEW_ENVIRONMENT = '\u0000new-environment'
 
 // the hosted viewer is Specbook itself, so its header carries our mark unless the API brings a logo
 const ownMark = globalThis.__SPECBOOK_VIEWER__?.source ? markUrl : undefined
@@ -306,13 +319,23 @@ export function App() {
             Environment
             <select
               value={env.value}
-              onChange={(e) => (env.value = (e.target as HTMLSelectElement).value)}
+              onChange={(e) => {
+                const picked = (e.target as HTMLSelectElement).value
+                if (picked === NEW_ENVIRONMENT) {
+                  // not an environment: open the dialog and leave the selection alone
+                  ;(e.target as HTMLSelectElement).value = env.value
+                  newEnvironmentOpen.value = true
+                } else env.value = picked
+              }}
             >
               {environments.value.map((e) => (
                 <option value={e} title={environmentNote.value[e]}>
                   {e}
                 </option>
               ))}
+              {engine.canCreateEnvironment() && (
+                <option value={NEW_ENVIRONMENT}>New environment…</option>
+              )}
             </select>
           </label>
           <GitHubStar />
@@ -330,6 +353,7 @@ export function App() {
         </main>
       </div>
       <Palette entries={entries} />
+      <NewEnvironmentDialog />
       {panel && r.kind === 'op' && opInfo && (
         <panel.Host
           kind="op"

@@ -6,7 +6,7 @@ import { fieldDoc, withNote } from '../fielddoc'
 import { engine, isStatic, registry, saveFile } from '../runtime'
 import { type Defs, type JsonSchema, propsOf, unwrap } from '../schema'
 import { statusClass, statusName } from '../status'
-import { env, locale, seed, version } from '../store'
+import { env, envSettingsOpen, envVarsVersion, locale, seed, version } from '../store'
 import { Body } from './Body'
 import { DraftCodeSample } from './CodeSample'
 import { type Draft, draftFrom, forStorage, previewUrl, requestParts } from './draft'
@@ -110,11 +110,27 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
   const [baseUrl, setBaseUrl] = useState('')
   const [known, setKnown] = useState<string[]>()
 
+  const [addressError, setAddressError] = useState<string>()
   useEffect(() => {
+    let on = true
+    setAddressError(undefined)
+    // mock has no address; elsewhere it is whatever this environment's variables make it
+    if (env.value === 'mock') {
+      setBaseUrl('')
+      return
+    }
     engine
-      .config(version.value)
-      .then((c) => setBaseUrl(c.services?.[service]?.baseUrl?.[env.value] ?? ''))
-  }, [service, env.value])
+      .baseUrlOf(service, env.value, version.value)
+      .then((url) => on && setBaseUrl(url ?? ''))
+      .catch((e: unknown) => {
+        if (!on) return
+        setBaseUrl('')
+        setAddressError(e instanceof Error ? e.message : String(e))
+      })
+    return () => {
+      on = false
+    }
+  }, [service, env.value, version.value, envVarsVersion.value])
 
   useEffect(() => {
     let live = true
@@ -340,6 +356,15 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
             {running ? '…' : <PaperPlane />}
           </button>
         </div>
+
+        {addressError && (
+          <p class="envmenu-warn" role="alert">
+            {addressError}.{' '}
+            <button type="button" class="link" onClick={() => (envSettingsOpen.value = true)}>
+              Open Environment settings
+            </button>
+          </p>
+        )}
 
         {requestNote && (
           <details class="step-about" key={saved?.file}>

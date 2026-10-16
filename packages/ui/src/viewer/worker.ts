@@ -113,8 +113,14 @@ async function open(id: number, source: Source, signal: AbortSignal): Promise<Op
     ]),
   )
   const sourceUrl = source.kind === 'url' ? source.url : undefined
-  const { auth, secrets, defaultProfile } = authFromSpec(doc, sourceUrl)
   const { servers, needsBaseUrl, omitted } = openApiServers(doc, sourceUrl ?? name ?? '')
+  const {
+    auth,
+    secrets,
+    defaultProfile,
+    vars: authVars,
+    environmentVars: authEnvironmentVars,
+  } = authFromSpec(doc, sourceUrl, servers)
   const baseUrl = servers.find((s) => s.name === 'live')?.url
   return {
     service,
@@ -125,6 +131,8 @@ async function open(id: number, source: Source, signal: AbortSignal): Promise<Op
     auth,
     secrets,
     defaultProfile,
+    authVars,
+    authEnvironmentVars,
     baseUrl,
     servers,
     needsBaseUrl,

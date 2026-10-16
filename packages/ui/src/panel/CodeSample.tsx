@@ -11,7 +11,7 @@ import {
 import type { ComponentChildren } from 'preact'
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks'
 import { engine } from '../runtime'
-import { env, version } from '../store'
+import { env, envVarsVersion, version } from '../store'
 import { type Draft, requestParts } from './draft'
 
 const LANG_KEY = 'specbook:code-lang'
@@ -50,19 +50,25 @@ export function CodeSample({ service, profile, secured, make, sent }: Props) {
 
   useEffect(() => {
     let live = true
-    engine.config(version.value).then((c) => {
-      if (!live) return
+    engine.config(version.value).then(async (c) => {
       const svc = c.services?.[service]
-      const urls = svc?.baseUrl ?? {}
-      // the environment being used, so a sample for the sandbox points at the sandbox
-      setBase(urls[env.value] ?? urls.live ?? Object.values(urls)[0])
+      const addressIn = (e: string) =>
+        engine.baseUrlOf(service, e, version.value).catch(() => undefined)
+      // the environment being used, so a sample for the sandbox points at the sandbox; mock, or an
+      // environment with no address, uses `live`, else the first address the service lists
+      let address = env.value === 'mock' ? undefined : await addressIn(env.value)
+      address ??= await addressIn('live')
+      if (!address && svc && typeof svc.baseUrl === 'object')
+        address = Object.values(svc.baseUrl)[0]
+      if (!live) return
+      setBase(address)
       const name = profile === 'service' ? svc?.auth : profile
       setApplied(name ? (c.auth?.[name] as AuthProfile | undefined)?.apply : undefined)
     })
     return () => {
       live = false
     }
-  }, [service, profile, env.value])
+  }, [service, profile, env.value, envVarsVersion.value])
 
   const built = useMemo<{ text?: string; error?: string }>(() => {
     try {

@@ -367,7 +367,8 @@ describe('a document that lists several servers', () => {
     await ready(page)
     await goOp(page, 'multi-things/ListThings')
     const options = await picker(page).locator('option').allInnerTexts()
-    expect(options).toEqual(['mock', 'live', 'sandbox'])
+    // the last entry is the way to make another one
+    expect(options).toEqual(['mock', 'live', 'sandbox', 'New environment…'])
     // the description is the entry's tooltip
     expect(await picker(page).locator('option', { hasText: 'sandbox' }).getAttribute('title')).toBe(
       'Sandbox',
@@ -389,6 +390,51 @@ describe('a document that lists several servers', () => {
     await page.waitForSelector('input[aria-label^="KEY for multi-things"]')
     expect(await page.getByLabel(/KEY for multi-things/).inputValue()).toBe('')
     expect(seen.calls).toBe(1)
+    expect(errors).toEqual([])
+    await page.close()
+  })
+})
+
+describe('an environment made in the viewer', () => {
+  const picker = (page: Page) =>
+    page.locator('.header-controls label.row', { hasText: 'Environment' }).locator('select')
+
+  it('is a copy whose address can be changed, calls there, and is still there after a reload', async () => {
+    const { page, errors } = await open(spec('multi/openapi.json'))
+    await ready(page)
+    await goOp(page, 'multi-things/ListThings')
+    await picker(page).selectOption('New environment…')
+    await page.getByLabel('Environment name').fill('mine')
+    await page.getByLabel('Duplicate of').selectOption('sandbox')
+    await page.getByRole('button', { name: 'Create' }).click()
+    // it is selected, and its settings are open with the address it copied
+    await page.waitForSelector('.envmenu-pop')
+    const address = page.getByLabel('Value of baseUrl')
+    expect(await address.inputValue()).toMatch(/\/sandbox-api$/)
+    // point it at the production server instead
+    const live = (await address.inputValue()).replace('/sandbox-api', '/live-api')
+    await address.fill(live)
+    await address.press('Enter')
+    await page.waitForFunction(
+      (v) =>
+        (document.querySelector('.envmenu-pop')?.textContent ?? '').includes(`calls go to ${v}`),
+      live,
+    )
+    expect(await picker(page).inputValue()).toBe('mine')
+
+    // it is kept in this browser, per document
+    await page.reload()
+    await ready(page)
+    await goOp(page, 'multi-things/ListThings')
+    expect(await picker(page).locator('option').allInnerTexts()).toContain('mine')
+    await picker(page).selectOption('mine')
+    const key = page.getByLabel(/KEY for multi-things/)
+    await key.fill('k')
+    await key.press('Tab')
+    seen.calls = 0
+    await page.getByRole('button', { name: 'Send' }).click()
+    await page.waitForSelector('.result-chip:has-text("200")', { timeout: 20_000 })
+    expect(seen.path).toBe('/live-api/things')
     expect(errors).toEqual([])
     await page.close()
   })

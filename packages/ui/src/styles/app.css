@@ -287,6 +287,32 @@
     font-size: 15px;
     outline: none;
   }
+  /* New environment: a small form in the palette's frame, above a docked panel and the settings popover */
+  .newenv-backdrop {
+    z-index: 60;
+  }
+  .newenv form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sb-space-2);
+    padding: var(--sb-space-4);
+  }
+  .newenv h2 {
+    margin: 0;
+    font-size: 15px;
+  }
+  .newenv label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .newenv input,
+  .newenv select {
+    border: 1px solid var(--sb-border);
+    border-radius: var(--sb-radius-control);
+    padding: 8px 10px;
+    font-size: 14px;
+  }
   .palette ul {
     list-style: none;
     margin: 0;
