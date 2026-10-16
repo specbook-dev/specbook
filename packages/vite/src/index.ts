@@ -7,6 +7,7 @@ import { environmentNames } from '@specbook/core'
 import fg from 'fast-glob'
 import type { Plugin, ViteDevServer } from 'vite'
 import { type AddressConfig, addressesFor, NO_ADDRESSES } from './addresses'
+import { definitionRefs, pruneDefinitions } from './definitions'
 import { createDiscovery } from './discovery'
 import { scanDocs } from './docs'
 import {
@@ -36,6 +37,12 @@ export interface SpecbookPluginOptions {
   projectRoot: string
   /** Generated code directory relative to the project root. Default `.generated`. */
   outDir?: string
+  /**
+   * Publish only these operations (`service/OperationId`): the ones a project's requests and flows use. The catalog,
+   * schemas, examples, docs and definitions of every other operation are left out, so the build neither carries nor
+   * reveals the rest of the API.
+   */
+  operations?: Set<string>
 }
 
 const VIRTUAL = 'virtual:specbook/registry'
@@ -135,6 +142,11 @@ async function collectTypes(root: string, outDir: string) {
 export function specbook(options: SpecbookPluginOptions): Plugin {
   const root = resolve(options.projectRoot)
   const outDir = options.outDir ?? '.generated'
+  const only = options.operations
+  /** Whether an operation is part of this build. */
+  const keep = (service: string, op: string) => !only || only.has(`${service}/${op}`)
+  /** per service, the shared definitions its kept schemas refer to (a minimal build trims the rest) */
+  const neededDefs = new Map<string, Set<string>>()
   let server: ViteDevServer | undefined
   let isBuild = false
   let docHtml: string[] = []
@@ -170,10 +182,24 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
       const parsed = JSON.parse(await readFile(m, 'utf8'))
       manifests[parsed.service] = parsed
     }
+    if (only) {
+      for (const [svc, m] of Object.entries(manifests)) {
+        const mm = m as { operations: { id: string; tags?: string[] }[]; tags?: string[] }
+        mm.operations = mm.operations.filter((o) => keep(svc, o.id))
+        if (mm.operations.length === 0) delete manifests[svc]
+        else mm.tags = [...new Set(mm.operations.flatMap((o) => o.tags ?? []))]
+      }
+    }
+    const inScope = (svc: string, op: string) => svc in manifests && keep(svc, op)
     // response examples: <svc>/examples/<Op>/<status|default>.response.json, keyed `svc/Op.<status|default>`
-    const examples = await fg('*/examples/*/*.response.json', {
-      cwd: join(root, outDir),
-      absolute: true,
+    const examples = (
+      await fg('*/examples/*/*.response.json', {
+        cwd: join(root, outDir),
+        absolute: true,
+      })
+    ).filter((abs) => {
+      const rel = relative(join(root, outDir), abs).split(sep)
+      return inScope(rel[0] as string, rel[2] as string)
     })
     // dev: cache-busted /@fs imports (files on disk are the source of truth); build: statically analysable
     const imp = (abs: string) => {
@@ -204,29 +230,32 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
           `  ${JSON.stringify(`${mm.service}/${o.id}`)}: ${imp(join(root, outDir, mm.service, 'operations', `${o.id}.ts`))}`,
       )
     })
-    const schemaFiles = await fg('*/schemas/*.request.schema.json', {
-      cwd: join(root, outDir),
-      absolute: true,
-    })
-    const responseFiles = await fg('*/schemas/*.responses.schema.json', {
-      cwd: join(root, outDir),
-      absolute: true,
-    })
+    const opOf = (abs: string, suffix: RegExp) => {
+      const rel = relative(join(root, outDir), abs).split(sep)
+      return [rel[0] as string, (rel[2] as string).replace(suffix, '')] as const
+    }
+    const schemaFiles = (
+      await fg('*/schemas/*.request.schema.json', { cwd: join(root, outDir), absolute: true })
+    ).filter((abs) => inScope(...opOf(abs, /\.request\.schema\.json$/)))
+    const responseFiles = (
+      await fg('*/schemas/*.responses.schema.json', { cwd: join(root, outDir), absolute: true })
+    ).filter((abs) => inScope(...opOf(abs, /\.responses\.schema\.json$/)))
     const responseEntries = responseFiles.map((abs) => {
       const rel = relative(join(root, outDir), abs).split(sep)
       const op = (rel[2] as string).replace(/\.responses\.schema\.json$/, '')
       return `  ${JSON.stringify(`${rel[0]}/${op}`)}: ${imp(abs)}`
     })
-    const defFiles = await fg('*/schemas/definitions.schema.json', {
-      cwd: join(root, outDir),
-      absolute: true,
-    })
+    const defFiles = (
+      await fg('*/schemas/definitions.schema.json', { cwd: join(root, outDir), absolute: true })
+    ).filter((abs) => (relative(join(root, outDir), abs).split(sep)[0] as string) in manifests)
     const schemaEntries = schemaFiles.map((abs) => {
       const rel = relative(join(root, outDir), abs).split(sep)
       const op = (rel[2] as string).replace(/\.request\.schema\.json$/, '')
       return `  ${JSON.stringify(`${rel[0]}/${op}`)}: ${imp(abs)}`
     })
-    const docFiles = await fg('*/docs/*.json', { cwd: join(root, outDir), absolute: true })
+    const docFiles = (
+      await fg('*/docs/*.json', { cwd: join(root, outDir), absolute: true })
+    ).filter((abs) => inScope(...opOf(abs, /\.json$/)))
     const operationDocEntries = docFiles.map((abs) => {
       const rel = relative(join(root, outDir), abs).split(sep)
       return `  ${JSON.stringify(`${rel[0]}/${(rel[2] as string).replace(/\.json$/, '')}`)}: ${imp(abs)}`
@@ -248,6 +277,9 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
       seqHeaders.set(join(root, f), JSON.stringify(parseSequenceMeta(src)))
     }
     const scanned = await scanExamples(root, outDir, known)
+    const keepExampleKey = (key: string) => !only || only.has(key)
+    for (const key of Object.keys(scanned.examples))
+      if (!keepExampleKey(key)) delete scanned.examples[key]
     const url = (abs: string) =>
       isBuild
         ? `() => import(${JSON.stringify(`${abs}?url`)}).then((m) => m.default)`
@@ -276,7 +308,10 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
     const assetEntries = Object.entries(scanned.assets).map(
       ([key, abs]) => `  ${JSON.stringify(key)}: ${url(abs)}`,
     )
-    const pages = await scanDocs(root)
+    // a minimal build keeps the notes on its requests and flows, and drops the pages of operations it does not publish
+    const pages = (await scanDocs(root)).filter(
+      (p) => !only || !p.operation || only.has(p.operation),
+    )
     docHtml = pages.map((p) => p.html)
     const docEntries = pages.map(
       (p, i) =>
@@ -353,6 +388,7 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
       const services = Object.keys(manifests)
       return `import manifests from ${JSON.stringify(VIRTUAL_MANIFESTS)}
 export const mode = "static"
+export const minimal = ${JSON.stringify(!!only)}
 export const project = ${JSON.stringify({ root, outDir, requestsDir })}
 // where the data files are: dist/data, whether this chunk is in dist/ or dist/assets/
 const dataBase = import.meta.url.replace(/(assets\\/)?[^/]*$/, '') + 'data/'
@@ -415,6 +451,7 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
 `
     }
     return `export const mode = ${JSON.stringify(isBuild ? 'static' : 'dev')}
+export const minimal = ${JSON.stringify(!!only)}
 export const project = ${JSON.stringify({ root, outDir, requestsDir })}
 export const manifests = ${JSON.stringify(slim(manifests))}
 export const requests = [${files.requests.map(entry).join(',\n')}]
@@ -490,6 +527,13 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
             await Promise.all(statuses.map(async (n) => [n, await read(p.mock[n] as string)])),
           )
         }
+        if (only) {
+          const svc = key.slice(0, key.indexOf('/'))
+          const set = neededDefs.get(svc) ?? new Set<string>()
+          for (const name of definitionRefs(JSON.stringify([out.schema, out.responses])))
+            set.add(name)
+          neededDefs.set(svc, set)
+        }
         this.emitFile({
           type: 'asset',
           fileName: `data/${key}.json`,
@@ -500,7 +544,11 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
         this.emitFile({
           type: 'asset',
           fileName: `data/${svc}/_definitions.json`,
-          source: await readFile(abs),
+          source: only
+            ? JSON.stringify(
+                pruneDefinitions(JSON.parse(await readFile(abs, 'utf8')), neededDefs.get(svc)),
+              )
+            : await readFile(abs),
         })
     },
     config(_, env) {

@@ -6,6 +6,8 @@ declare module 'virtual:specbook/registry' {
     source?: () => Promise<string>
   }
   export const mode: 'dev' | 'static'
+  /** A build that publishes only the operations the project's requests and flows use. */
+  export const minimal: boolean | undefined
   export const project: { root: string; outDir: string; requestsDir: string }
   export const manifests: Record<
     string,
