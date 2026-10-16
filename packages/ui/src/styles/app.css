@@ -753,7 +753,8 @@
     }
     /* in the menu there is room for the words, and each link is a full row */
     .header-controls .gh-label,
-    .header-controls .share-label {
+    .header-controls .share-label,
+    .header-controls .envmenu-label {
       display: inline;
     }
     .header-controls .gh-star,
@@ -855,10 +856,11 @@
     min-width: 120px;
     max-width: 360px;
   }
-  /* GitHub and Share keep their icons and lose their words where the header is tight */
+  /* GitHub, Share and Environment settings keep their icons and lose their words where the header is tight */
   @media (max-width: 1360px) {
     .gh-label,
-    .share-label {
+    .share-label,
+    .envmenu-label {
       display: none;
     }
   }

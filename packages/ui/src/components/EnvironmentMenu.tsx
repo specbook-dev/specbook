@@ -162,9 +162,12 @@ export function EnvironmentMenu() {
         class="btn envmenu-btn"
         aria-expanded={open}
         title={`Variables and credentials for ${name}`}
+        aria-label={
+          missing > 0 ? `Environment settings, ${missing} missing` : 'Environment settings'
+        }
         onClick={() => setOpen(!open)}
       >
-        <span aria-hidden="true">⚙︎</span> Environment settings
+        <span aria-hidden="true">⚙︎</span> <span class="envmenu-label">Environment settings</span>
         {missing > 0 && <span class="badge-missing">{missing}</span>}
       </button>
 

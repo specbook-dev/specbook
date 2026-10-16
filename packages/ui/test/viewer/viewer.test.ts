@@ -974,10 +974,14 @@ describe('the icon', () => {
 describe('the header', () => {
   const widths = [1500, 1280, 1100, 960]
 
+  // our own font, then a wider one: a machine without ours falls back to whatever it has, and the header must still fit
+  const fonts = [undefined, 'Verdana, "DejaVu Sans", sans-serif']
+
   it('keeps every control on one line on a desktop, with no stray menu button', async () => {
     const { page } = await open(spec('petstore3.json'))
     await ready(page)
-    for (const w of widths) {
+    for (const [w, font] of widths.flatMap((w) => fonts.map((f) => [w, f] as const))) {
+      if (font) await page.addStyleTag({ content: `:root { --sb-font-sans: ${font} !important }` })
       await page.setViewportSize({ width: w, height: 600 })
       const rows = await page.evaluate(() => {
         const ys = ['.gh-star', '.share', '.theme-toggle', '.palette-btn'].map((s) => {
@@ -990,9 +994,10 @@ describe('the header', () => {
         return { ys, shown, last, win: innerWidth }
       })
       // one row: every control's centre is within the header's height, and inside the window
-      expect(Math.max(...rows.ys) - Math.min(...rows.ys), `at ${w}px`).toBeLessThan(30)
-      expect(rows.last, `at ${w}px`).toBeLessThanOrEqual(rows.win)
-      expect(rows.shown, `menu button at ${w}px`).toBe(false)
+      const at = `at ${w}px${font ? ' in a wide font' : ''}`
+      expect(Math.max(...rows.ys) - Math.min(...rows.ys), at).toBeLessThan(30)
+      expect(rows.last, at).toBeLessThanOrEqual(rows.win)
+      expect(rows.shown, `menu button ${at}`).toBe(false)
     }
     await page.close()
   })
