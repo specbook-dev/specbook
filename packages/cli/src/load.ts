@@ -1,4 +1,4 @@
-import { createServer } from 'vite'
+import { createServer, type Plugin } from 'vite'
 import { ViteNodeRunner } from 'vite-node/client'
 import { ViteNodeServer } from 'vite-node/server'
 import { installSourcemapsSupport } from 'vite-node/source-map'
@@ -9,12 +9,16 @@ export interface Loader {
 }
 
 /** Loads TS/JSON project files through Vite, so resolution matches the UI (subpath imports, JSON, etc.). */
-export async function createLoader(root: string): Promise<Loader> {
+export async function createLoader(
+  root: string,
+  options: { plugins?: Plugin[] } = {},
+): Promise<Loader> {
   const server = await createServer({
     root,
     logLevel: 'silent',
     configFile: false,
     appType: 'custom',
+    plugins: options.plugins,
     server: { middlewareMode: true, hmr: false, watch: null },
     optimizeDeps: { noDiscovery: true, include: [] },
   })

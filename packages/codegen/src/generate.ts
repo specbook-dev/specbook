@@ -5,6 +5,7 @@ import {
   type GenerateOptions,
   generateFromDoc,
   type ManifestOperation,
+  type OperationMeta,
 } from './build'
 
 export * from './build'
@@ -21,7 +22,9 @@ async function loadOpenApi3(spec: string | object): Promise<any> {
 export async function generate(opts: GenerateOptions): Promise<{
   files: GeneratedFile[]
   operations: ManifestOperation[]
+  /** what a request needs of each operation at run time, by operation id */
+  metas: Record<string, OperationMeta>
 }> {
-  const { files, operations } = generateFromDoc(await loadOpenApi3(opts.spec), opts)
-  return { files, operations }
+  const { files, operations, metas } = generateFromDoc(await loadOpenApi3(opts.spec), opts)
+  return { files, operations, metas }
 }

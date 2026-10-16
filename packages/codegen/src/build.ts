@@ -596,6 +596,8 @@ ${jsdoc({ description: [...new Set([op.summary, op.description].filter(Boolean))
       content: `${exportsFor(ids).replace(/'\.\/operations/g, "'../operations")}\n`,
     })
   }
+  // what a run needs of each operation (method, path, encoding…): the committed operations file is built from it
+  if (ts) files.push({ path: 'opmeta.json', content: `${JSON.stringify(metas, null, 2)}\n` })
   files.push({
     path: 'manifest.json',
     content: `${JSON.stringify(
