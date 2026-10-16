@@ -19,7 +19,8 @@
     "deploy:site": "pnpm --filter @specbook/ui run deploy:site",
     "version:check": "node scripts/version.mjs",
     "test:pack": "node scripts/smoke-pack.mjs",
-    "deploy:demo": "pnpm --filter example run deploy"
+    "deploy:demo": "pnpm --filter example run deploy",
+    "test:embed": "turbo run test:embed"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

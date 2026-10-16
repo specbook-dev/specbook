@@ -26,6 +26,10 @@
     "test:oauth": {
       "dependsOn": ["^build"],
       "cache": false
+    },
+    "test:embed": {
+      "dependsOn": ["^build"],
+      "cache": false
     }
   }
 }
