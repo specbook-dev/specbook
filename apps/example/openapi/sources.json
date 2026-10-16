@@ -1,0 +1,12 @@
+{
+  "github.json": {
+    "url": "https://raw.githubusercontent.com/github/rest-api-description/ed53824e1c478442f3aec593ccdb4d86d085cacb/descriptions/api.github.com/api.github.com.json",
+    "sha256": "27b25eb987833f3fe1198cf84d357f8bda94d516e584665e5013dac7bad0d9a0",
+    "bytes": 13487966
+  },
+  "stripe.json": {
+    "url": "https://raw.githubusercontent.com/stripe/openapi/e73367dba9e88388c9244de65874fd3a07cb1b4d/openapi/spec3.json",
+    "sha256": "7cff4cc46d0654101a36a3302f7544640f5f73e4f3cad6f264f0e23c19fa1776",
+    "bytes": 8317513
+  }
+}

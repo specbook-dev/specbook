@@ -10,9 +10,8 @@
     "generate": "specbook generate",
     "run:mock": "specbook test --env mock",
     "test": "specbook generate && specbook test --env mock",
-    "fetch-specs": "node scripts/fetch-specs.mjs",
     "build:docs": "specbook generate && specbook build --out dist-docs",
-    "deploy": "pnpm run fetch-specs && pnpm run build:docs && npx --yes wrangler@4 pages deploy dist-docs --project-name specbook-demo --branch main"
+    "deploy": "pnpm run build:docs && npx --yes wrangler@4 pages deploy dist-docs --project-name specbook-demo --branch main"
   },
   "dependencies": {
     "@specbook/core": "workspace:*",

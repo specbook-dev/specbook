@@ -29,8 +29,6 @@ jobs:
       - run: pnpm version:check
       - run: pnpm typecheck
       - run: pnpm build
-      # the example's large public specs are not in the repository
-      - run: pnpm --filter example run fetch-specs
       - run: pnpm test
       - run: pnpm --filter @specbook/ui exec playwright install --with-deps chromium
       # Diagnostic, remove once the browser stalls are understood: start Vite's dependency optimiser on its own,
