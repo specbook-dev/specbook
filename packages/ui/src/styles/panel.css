@@ -1569,6 +1569,66 @@
       width: 60%;
     }
   }
+  .controls-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sb-space-2);
+  }
+  .controls-head .gen-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+  /* a value with a generator: the cell and the button that makes another, never wider than the column */
+  .cell-gen {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  .cell-gen > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .cell-gen .cell {
+    width: 100%;
+    min-width: 0;
+  }
+  .gen {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin-right: 4px;
+    padding: 0;
+    color: var(--sb-text-muted);
+    background: transparent;
+    border: 1px solid var(--sb-border);
+    border-radius: var(--sb-radius-control);
+    cursor: pointer;
+  }
+  .gen:hover,
+  .gen:focus-visible {
+    color: var(--sb-accent);
+    border-color: var(--sb-accent);
+  }
+  /* a finger, not a pointer: the button is a comfortable target */
+  @media (pointer: coarse) {
+    .gen {
+      width: 44px;
+      height: 44px;
+    }
+    .controls-head .gen-all {
+      min-height: 44px;
+    }
+  }
   .multi-cell {
     display: flex;
     flex-wrap: wrap;

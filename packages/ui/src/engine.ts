@@ -656,17 +656,25 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     return usesFaker([base, data, target.dataPatches, path, query, headers, i.vars])
   }
 
+  /**
+   * Makes faker ready for `locale` (a bundled module offers each locale as its own chunk, so only the ones it falls back
+   * through are fetched). Generated values need it before a run: a form that offers one asks for it when it opens.
+   */
+  async function fakerReady(version: number, locale?: string, seed?: number): Promise<boolean> {
+    if (!reg.loadFaker) return false
+    const [mod, cfg] = await Promise.all([reg.loadFaker(version), config(version)])
+    const ready = await prepareFaker(mod, cfg.faker, locale)
+    installFaker(ready as never, cfg.faker, { locale, seed })
+    return true
+  }
+
   async function run(
     target: RequestDef<any, any, any> | Sequence<any, any>,
     i: RunInput,
   ): Promise<RunResult> {
     // `init` generators call faker, so it must be ready before any run unless we can see it isn't used.
-    if (reg.loadFaker && (await mayUseFaker(target, i))) {
-      const [mod, cfg] = await Promise.all([reg.loadFaker(i.version), config(i.version)])
-      // a bundled module offers each locale as its own chunk; fetch only the ones this run falls back through
-      const ready = await prepareFaker(mod, cfg.faker, i.locale)
-      installFaker(ready as never, cfg.faker, { locale: i.locale, seed: i.seed })
-    }
+    if (reg.loadFaker && (await mayUseFaker(target, i)))
+      await fakerReady(i.version, i.locale, i.seed)
     const o = await baseOptions(i)
     if (target.kind === 'sequence') return runSequence(target, o)
     const def =
@@ -776,6 +784,7 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     oauthEndpoints,
     oauthExchange,
     run,
+    fakerReady,
     operationRequest,
     operationMeta,
     examplesOf,

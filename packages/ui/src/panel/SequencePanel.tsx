@@ -68,11 +68,28 @@ export function SequencePanel({ info }: { info: SequenceInfo }) {
   const [sheet, setSheet] = useState(false)
   const [error, setError] = useState<string>()
 
+  const hasGenerated = Object.values(specs).some((s) => s.generate)
+  // a flow with inputs can run on their defaults alone, as `specbook test` does
+  const hasInputs = Object.keys(specs).length > 0 || seq.nodes.some((n) => n.kind === 'input')
+
+  /** Every input at its default; a generated one needs faker, which is made ready first. */
+  const freshInputs = async () => {
+    if (hasGenerated)
+      await engine.fakerReady(version.value, locale.value, seed.value).catch(() => {})
+    return Object.fromEntries(Object.entries(specs).map(([k, v]) => [k, defaultFor(v)]))
+  }
+
   useEffect(() => {
+    let current = true
     setInputs(Object.fromEntries(Object.entries(specs).map(([k, v]) => [k, defaultFor(v)])))
+    // generated values need faker: fill them in as soon as it is ready
+    if (hasGenerated) void freshInputs().then((v) => current && setInputs(v))
     setResult(undefined)
     setLive({})
     setPause(undefined)
+    return () => {
+      current = false
+    }
   }, [info.file])
 
   const planned = seq.nodes.map((n) => n.name)
@@ -81,7 +98,7 @@ export function SequencePanel({ info }: { info: SequenceInfo }) {
     : planned.map((n) => ({ name: n }))
   const current = rows[picked]?.step
 
-  const run = async () => {
+  const run = async (options: { inputs?: Record<string, unknown>; headless?: boolean } = {}) => {
     setRunning(true)
     setResult(undefined)
     setError(undefined)
@@ -92,27 +109,29 @@ export function SequencePanel({ info }: { info: SequenceInfo }) {
       const r = await engine.run(seq, {
         env: env.value,
         version: version.value,
-        inputs,
+        inputs: options.inputs ?? inputs,
         locale: locale.value,
         seed: seed.value,
         onEvent: (e) => {
           if (e.type === 'step:start') setLive((l) => ({ ...l, [e.name]: 'running' }))
           if (e.type === 'step:end') setLive((l) => ({ ...l, [e.name]: e.status }))
         },
-        onInput: ({ name, controls }) =>
-          new Promise((resolve) => {
-            const c = controls as Record<string, FieldSpec>
-            setLive((l) => ({ ...l, [name]: 'paused' }))
-            setChoice(Object.fromEntries(Object.entries(c).map(([k, v]) => [k, defaultFor(v)])))
-            setPause({
-              name,
-              controls: c,
-              resolve: (values) => {
-                setPause(undefined)
-                resolve(values)
-              },
-            })
-          }),
+        onInput: options.headless
+          ? undefined
+          : ({ name, controls }) =>
+              new Promise((resolve) => {
+                const c = controls as Record<string, FieldSpec>
+                setLive((l) => ({ ...l, [name]: 'paused' }))
+                setChoice(Object.fromEntries(Object.entries(c).map(([k, v]) => [k, defaultFor(v)])))
+                setPause({
+                  name,
+                  controls: c,
+                  resolve: (values) => {
+                    setPause(undefined)
+                    resolve(values)
+                  },
+                })
+              }),
       })
       setResult(r)
       // a run that did not pass shows its first failing step, not its first step
@@ -134,11 +153,26 @@ export function SequencePanel({ info }: { info: SequenceInfo }) {
     <div class={`sequence-panel ${sheet && current ? 'sheet-open' : ''}`} data-seq={seq.meta.id}>
       <div class="seq-left">
         <SecretsBar services={serviceNames} />
-        <ControlsGrid title="Controls" specs={specs} values={inputs} onChange={setInputs} />
+        <ControlsGrid title="Inputs" specs={specs} values={inputs} onChange={setInputs} />
         <div class="seq-run">
-          <button type="button" class="btn primary" disabled={running} onClick={run}>
+          <button type="button" class="btn primary" disabled={running} onClick={() => run()}>
             {running ? 'Running…' : '▶ Run'}
           </button>
+          {hasInputs && (
+            <button
+              type="button"
+              class="btn"
+              disabled={running}
+              title="Skip every question and use each input's default, as specbook test does"
+              onClick={async () => {
+                const fresh = await freshInputs()
+                setInputs(fresh)
+                await run({ inputs: fresh, headless: true })
+              }}
+            >
+              Run with defaults
+            </button>
+          )}
           <EnvBadge />
           {result && (
             <span class={`badge ${overall}`}>
