@@ -33,6 +33,9 @@ export const engine = createEngine(reg as never, { extension, environmentStore }
 
 export const isStatic = reg.mode === 'static'
 
+/** A build that publishes only the requests and flows the project uses (`specbook build --minimal`). */
+export const isMinimal = !!(reg as { minimal?: boolean }).minimal
+
 /** Dev only: writes a project file through the plugin, then busts import caches. */
 export async function saveFile(path: string, content: string): Promise<void> {
   const r = await fetch('/__specbook/save', {

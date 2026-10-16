@@ -390,6 +390,20 @@
   .flows .op-row:last-child {
     border-bottom: 0;
   }
+  /* saved requests: the same block as flows, in the neutral border colour, so flows stay the one accent */
+  .flows.requests {
+    border-color: var(--sb-border);
+    border-left-color: var(--sb-text-muted);
+    background: var(--sb-surface-raised);
+  }
+  .method.flow.req {
+    color: var(--sb-text-muted);
+  }
+  .req-tag {
+    margin-left: 6px;
+    font-size: 11px;
+    font-weight: 500;
+  }
   .flow-play {
     font-size: 10px;
     text-align: center;

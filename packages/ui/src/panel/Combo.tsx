@@ -9,10 +9,21 @@ interface Props {
   /** forwarded so the grid can move between rows with Enter and the arrow keys */
   onKeyDown?: (e: KeyboardEvent) => void
   cell?: string
+  /** shown, not edited: no list, no typing */
+  readOnly?: boolean
 }
 
 /** A text input with the spec's allowed values as a dropdown; any other value can still be typed. */
-export function Combo({ value, options, onChange, label, placeholder, onKeyDown, cell }: Props) {
+export function Combo({
+  value,
+  options,
+  onChange,
+  label,
+  placeholder,
+  onKeyDown,
+  cell,
+  readOnly,
+}: Props) {
   const [open, setOpen] = useState(false)
   const [at, setAt] = useState(-1)
   const [pos, setPos] = useState<Record<string, string>>()
@@ -93,7 +104,8 @@ export function Combo({ value, options, onChange, label, placeholder, onKeyDown,
         aria-expanded={open}
         role="combobox"
         autocomplete="off"
-        onFocus={() => setOpen(true)}
+        readOnly={readOnly}
+        onFocus={() => !readOnly && setOpen(true)}
         onInput={(e) => onChange((e.target as HTMLInputElement).value)}
         onKeyDown={(e) => {
           if (open && e.key === 'ArrowDown') {
@@ -119,6 +131,7 @@ export function Combo({ value, options, onChange, label, placeholder, onKeyDown,
         class="combo-toggle"
         tabIndex={-1}
         aria-label={`Show ${label} options`}
+        disabled={readOnly}
         onClick={() => setOpen(!open)}
       >
         ▾

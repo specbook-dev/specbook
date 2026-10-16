@@ -28,6 +28,8 @@ interface Props {
   placeholder?: string
   /** the grid sits under a tab that already names it */
   bare?: boolean
+  /** values are shown, not edited (a saved request carries its own) */
+  readOnly?: boolean
 }
 
 type Shown = FieldRow & { virtual?: true }
@@ -167,6 +169,7 @@ export function ParamGrid({
   bad,
   placeholder,
   bare,
+  readOnly,
 }: Props) {
   const root = useRef<HTMLElement>(null)
   const table = useRef<HTMLTableElement>(null)
@@ -252,7 +255,7 @@ export function ParamGrid({
           {all.map((r, i) => {
             const d = docOf(r.key)
             const isFile = info(r.key)?.file
-            const locked = fixed || r.virtual || info(r.key)
+            const locked = fixed || readOnly || r.virtual || info(r.key)
             return (
               <tr class={`${r.enabled ? '' : 'off'} ${bad === r.key ? 'bad' : ''}`} key={i}>
                 <td class="g-check">
@@ -260,7 +263,7 @@ export function ParamGrid({
                     type="checkbox"
                     aria-label={`Send ${r.key}`}
                     checked={r.enabled}
-                    disabled={fixed}
+                    disabled={fixed || readOnly}
                     onChange={(e) => patch(i, { enabled: (e.target as HTMLInputElement).checked })}
                   />
                 </td>
@@ -292,6 +295,7 @@ export function ParamGrid({
                     <label class="file-cell">
                       <input
                         type="file"
+                        disabled={readOnly}
                         aria-label={`File for ${r.key}`}
                         onChange={(e) => {
                           const file = (e.target as HTMLInputElement).files?.[0]
@@ -306,6 +310,7 @@ export function ParamGrid({
                       options={d.enum.map(String)}
                       label={r.key}
                       cell={`${i}:${VALUE}`}
+                      readOnly={readOnly}
                       placeholder="value"
                       onKeyDown={keys(i, VALUE)}
                       onChange={(value) => patch(i, { value, enabled: true })}
@@ -315,6 +320,7 @@ export function ParamGrid({
                       class="cell"
                       data-cell={`${i}:${VALUE}`}
                       value={r.value}
+                      readOnly={readOnly}
                       placeholder={placeholder ?? 'value'}
                       aria-label={`Value of ${r.key}`}
                       onInput={(e) =>
@@ -336,7 +342,7 @@ export function ParamGrid({
                   )}
                 </td>
                 <td class="g-act">
-                  {!fixed && r.key && (
+                  {!fixed && !readOnly && r.key && (
                     <button
                       type="button"
                       class="icon"
@@ -347,7 +353,7 @@ export function ParamGrid({
                       <Icon d="M5.5 5.5h7v7h-7zM3.5 10.5v-7h7" />
                     </button>
                   )}
-                  {!fixed && !r.virtual && (
+                  {!fixed && !readOnly && !r.virtual && (
                     <button
                       type="button"
                       class="icon"
@@ -362,7 +368,7 @@ export function ParamGrid({
               </tr>
             )
           })}
-          {!fixed && (
+          {!fixed && !readOnly && (
             <tr class="ghost" key={ghost}>
               <td class="g-check" />
               <td class="g-key">

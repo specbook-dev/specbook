@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { brand } from '../branding'
 import { catalogFilter, catalogService, type Entry, go, route, search } from '../nav'
 import { Lock } from '../panel/icons'
+import { isMinimal } from '../runtime'
 import { ModeHint } from './ModeHint'
 import { PoweredBy } from './PoweredBy'
 
@@ -19,10 +20,12 @@ const DEFAULT_FLOW_GROUP = 'Default'
 
 function isActive(e: Entry): boolean {
   const r = route.value
-  return (
-    (e.route.kind === 'op' && r.kind === 'op' && e.route.key === r.key) ||
-    (e.route.kind === 'seq' && r.kind === 'seq' && e.route.id === r.id)
-  )
+  if (e.route.kind === 'op' && r.kind === 'op' && e.route.key === r.key) {
+    // a saved request is active on its own link; the operation row stays quiet while one of its requests is open
+    const onSaved = (r.play ?? '').startsWith('saved:')
+    return e.kind === 'req' ? r.play === e.route.play : !onSaved
+  }
+  return e.route.kind === 'seq' && r.kind === 'seq' && e.route.id === r.id
 }
 
 function OpRow({ e }: { e: Entry }) {
@@ -54,6 +57,11 @@ function useCatalog(entries: Entry[], services: ServiceInfo[]) {
   const svc = single ? (services[0]?.id ?? '') : catalogService.value
   const ops = useMemo(() => entries.filter((e) => e.kind === 'op'), [entries])
   const flows = useMemo(() => entries.filter((e) => e.kind === 'seq'), [entries])
+  const reqs = useMemo(() => entries.filter((e) => e.kind === 'req'), [entries])
+  const shownReqs = useMemo(() => {
+    const scoped = svc ? reqs.filter((e) => e.service === svc) : reqs
+    return q ? search(scoped, q, 200) : scoped
+  }, [reqs, svc, q])
   const shownOps = useMemo(() => {
     const scoped = svc ? ops.filter((e) => e.service === svc) : ops
     return q ? search(scoped, q, 500) : scoped
@@ -62,7 +70,7 @@ function useCatalog(entries: Entry[], services: ServiceInfo[]) {
     const scoped = svc && !single ? flows.filter((e) => e.tags?.includes(svc)) : flows
     return q ? search(scoped, q, 100) : scoped
   }, [flows, svc, q, single])
-  return { q, single, svc, shownOps, shownFlows }
+  return { q, single, svc, shownOps, shownFlows, shownReqs }
 }
 
 /** The left column: pills, filter and grouped rows. It never changes width, so opening the panel moves nothing. */
@@ -71,7 +79,7 @@ export function CatalogList({ entries, services }: { entries: Entry[]; services:
   const list = useRef<HTMLDivElement>(null)
   // what the user chose per group; groups they haven't touched follow the default
   const [chosen, setChosen] = useState<Map<string, boolean>>(new Map())
-  const { q, single, svc, shownOps, shownFlows } = useCatalog(entries, services)
+  const { q, single, svc, shownOps, shownFlows, shownReqs } = useCatalog(entries, services)
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -165,7 +173,13 @@ export function CatalogList({ entries, services }: { entries: Entry[]; services:
             ref={filter}
             type="text"
             class="cat-filter"
-            placeholder={svc ? `Filter ${svc}` : 'Filter operations and flows'}
+            placeholder={
+              svc
+                ? `Filter ${svc}`
+                : isMinimal
+                  ? 'Filter requests and flows'
+                  : 'Filter operations and flows'
+            }
             aria-label="Filter"
             value={catalogFilter.value}
             onInput={(e) => (catalogFilter.value = (e.target as HTMLInputElement).value)}
@@ -230,6 +244,33 @@ export function CatalogList({ entries, services }: { entries: Entry[]; services:
         </section>
       )}
 
+      {shownReqs.length > 0 && (
+        <section class="flows requests" aria-label="Requests">
+          <div class="flows-title">
+            <span class="method flow req">REQ</span>
+            <span class="muted small">Saved requests you can run and check</span>
+            <span class="count">{shownReqs.length}</span>
+          </div>
+          {shownReqs.map((e) => (
+            <button
+              type="button"
+              class={`op-row flow-row req-row ${isActive(e) ? 'active' : ''}`}
+              onClick={() => go(e.route)}
+              title={`${e.method} ${e.path}`}
+            >
+              <span class={`method ${e.method}`}>{e.method}</span>
+              <span class="op-title">
+                {e.title}
+                {(e.tags ?? []).map((t) => (
+                  <span class="chip req-tag">{t}</span>
+                ))}
+              </span>
+              <span class="op-path">{e.path}</span>
+            </button>
+          ))}
+        </section>
+      )}
+
       {groups.map(([name, rows]) => {
         const expanded = isOpen(name, rows)
         return (
@@ -247,7 +288,7 @@ export function CatalogList({ entries, services }: { entries: Entry[]; services:
           </div>
         )
       })}
-      {groups.length === 0 && flowGroups.length === 0 && (
+      {groups.length === 0 && flowGroups.length === 0 && shownReqs.length === 0 && (
         <p class="muted cat-empty">
           {q ? `Nothing matches “${q}”.` : 'No operations.'}{' '}
           {q && (
@@ -262,7 +303,13 @@ export function CatalogList({ entries, services }: { entries: Entry[]; services:
 }
 
 /** The stage when nothing is open: the API's identity, since the list is the content. */
-export function Overview({ services }: { services: ServiceInfo[] }) {
+export function Overview({
+  services,
+  counts,
+}: {
+  services: ServiceInfo[]
+  counts?: { flows: number; requests: number }
+}) {
   const b = brand.value
   // wait for the project's branding: showing the fallback first and swapping it makes the page jump
   if (!b.ready) return <div class="overview" aria-busy="true" />
@@ -274,11 +321,16 @@ export function Overview({ services }: { services: ServiceInfo[] }) {
     (single
       ? (single.title ?? single.id)
       : `${services.length} APIs · ${total.toLocaleString()} operations`)
-  const meta = single
-    ? `${single.ops} ${single.ops === 1 ? 'operation' : 'operations'}${single.version ? ` · v${single.version}` : ''}`
-    : b.name || b.title
-      ? `${services.length} APIs · ${total.toLocaleString()} operations`
-      : undefined
+  const worth = (n: number, one: string, many: string) =>
+    `${n.toLocaleString()} ${n === 1 ? one : many}`
+  const meta =
+    isMinimal && counts
+      ? `${worth(counts.flows, 'flow', 'flows')} · ${worth(counts.requests, 'request', 'requests')}`
+      : single
+        ? `${single.ops} ${single.ops === 1 ? 'operation' : 'operations'}${single.version ? ` · v${single.version}` : ''}`
+        : b.name || b.title
+          ? `${services.length} APIs · ${total.toLocaleString()} operations`
+          : undefined
   return (
     <div class="overview">
       {b.logo && (
@@ -297,14 +349,18 @@ export function Overview({ services }: { services: ServiceInfo[] }) {
       <h1>{title}</h1>
       {b.tagline && <p class="tagline">{b.tagline}</p>}
       {meta && <p class="muted">{meta}</p>}
-      <p class="overview-hint">Choose an operation or flow on the left to read it and try it.</p>
+      <p class="overview-hint">
+        {isMinimal
+          ? 'Choose a request or flow on the left to run it.'
+          : 'Choose an operation or flow on the left to read it and try it.'}
+      </p>
       <ModeHint />
       <button
         type="button"
         class="btn primary overview-browse"
         onClick={() => go({ kind: 'browse' })}
       >
-        Browse operations and flows
+        {isMinimal ? 'Browse requests and flows' : 'Browse operations and flows'}
       </button>
       {b.links.length > 0 && (
         <p class="overview-links">

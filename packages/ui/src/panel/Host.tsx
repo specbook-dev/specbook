@@ -86,7 +86,7 @@ export function Host(p: Props) {
             />
           ) : (
             <RequestPanel
-              key={`${p.service}/${p.op.id}`}
+              key={`${p.service}/${p.op.id}${p.example.startsWith('saved:') ? `@${p.example}` : ''}`}
               service={p.service}
               op={p.op}
               variants={p.variants}

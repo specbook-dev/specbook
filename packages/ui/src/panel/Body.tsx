@@ -20,10 +20,20 @@ interface Props {
   files?: string[]
   /** the project's own notes for body fields, by `data.<path>` */
   notes?: Map<string, string>
+  /** shown, not edited */
+  readOnly?: boolean
 }
 
 /** Keeps the typed texts locally, so invalid variables JSON isn't rewritten while the user is typing. */
-function GraphqlBody({ draft, onChange }: { draft: Draft; onChange: (d: Draft) => void }) {
+function GraphqlBody({
+  draft,
+  onChange,
+  readOnly,
+}: {
+  draft: Draft
+  onChange: (d: Draft) => void
+  readOnly?: boolean
+}) {
   const [g, setG] = useState(() => splitGraphql(draft.body) as Graphql)
   const emitted = useRef(draft.body)
   useEffect(() => {
@@ -46,6 +56,7 @@ function GraphqlBody({ draft, onChange }: { draft: Draft; onChange: (d: Draft) =
         <span class="chip">graphql</span>
       </div>
       <BodyEditor
+        readOnly={readOnly}
         label="GraphQL query"
         language="graphql"
         value={g.query}
@@ -56,6 +67,7 @@ function GraphqlBody({ draft, onChange }: { draft: Draft; onChange: (d: Draft) =
         <span class="chip">json</span>
       </div>
       <BodyEditor
+        readOnly={readOnly}
         label="GraphQL variables"
         language="json"
         value={g.variables}
@@ -67,7 +79,16 @@ function GraphqlBody({ draft, onChange }: { draft: Draft; onChange: (d: Draft) =
 
 const language = (e: Encoding) => (e === 'graphql' ? 'graphql' : e === 'text' ? 'text' : 'json')
 
-export function Body({ encoding, draft, onChange, schema, defs, files = [], notes }: Props) {
+export function Body({
+  encoding,
+  draft,
+  onChange,
+  schema,
+  defs,
+  files = [],
+  notes,
+  readOnly,
+}: Props) {
   const [line, setLine] = useState(0)
   const paths = useMemo(() => linePaths(draft.body), [draft.body])
   const documented = encoding === 'json' || encoding === 'form'
@@ -136,6 +157,7 @@ export function Body({ encoding, draft, onChange, schema, defs, files = [], note
           title={encoding === 'binary' ? 'File' : 'Body'}
           bare={!!viewToggle}
           rows={draft.fields}
+          readOnly={readOnly}
           onChange={set}
           documented={[...new Set(fileKeys)].map((name) => ({ name, file: true }))}
           docFor={(k) => withNote(fieldDoc(schema, defs, keyPath(k), ['data']), notes, 'data', k)}
@@ -153,7 +175,7 @@ export function Body({ encoding, draft, onChange, schema, defs, files = [], note
   }
 
   if (encoding === 'graphql' && splitGraphql(draft.body))
-    return <GraphqlBody draft={draft} onChange={onChange} />
+    return <GraphqlBody draft={draft} onChange={onChange} readOnly={readOnly} />
 
   return (
     <section class="body" aria-label="Body">
@@ -161,7 +183,7 @@ export function Body({ encoding, draft, onChange, schema, defs, files = [], note
         <h3>Body</h3>
         <span class="chip">{encoding}</span>
         <span class="spacer" />
-        {encoding !== 'text' && (
+        {encoding !== 'text' && !readOnly && (
           <button type="button" class="link" onClick={format}>
             Format
           </button>
@@ -169,6 +191,7 @@ export function Body({ encoding, draft, onChange, schema, defs, files = [], note
         {viewToggle}
       </div>
       <BodyEditor
+        readOnly={readOnly}
         label="Request body"
         language={language(encoding === 'form' ? 'json' : encoding)}
         value={draft.body}
