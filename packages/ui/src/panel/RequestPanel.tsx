@@ -1,12 +1,14 @@
 import { collectPlaceholders, type Encoding, type Example, type RunResult } from '@specbook/core'
-import { useEffect, useMemo, useState } from 'preact/hooks'
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { EnvBadge } from '../components/EnvBadge'
 import type { Variant } from '../engine'
 import { fieldDoc, withNote } from '../fielddoc'
 import { engine, isStatic, registry, saveFile } from '../runtime'
 import { type Defs, type JsonSchema, propsOf, unwrap } from '../schema'
 import { statusClass, statusName } from '../status'
-import { env, envSettingsOpen, envVarsVersion, locale, seed, version } from '../store'
+import { kv } from '../storage'
+import { env, envSettingsOpen, envVarsVersion, features, locale, seed, version } from '../store'
+import { announcement, describeRun } from './announce'
 import { Body } from './Body'
 import { DraftCodeSample } from './CodeSample'
 import { type Draft, draftFrom, forStorage, previewUrl, requestParts } from './draft'
@@ -33,6 +35,8 @@ interface Props {
   variants: Variant[]
   /** example name to open, '' for the first */
   initial: string
+  /** run once as soon as the request is ready (an embed that asks for it, never against production) */
+  autoRun?: boolean
 }
 
 const storeKey = (key: string, sel: string) => `specbook:draft:${key}:${sel}`
@@ -44,7 +48,7 @@ const slug = (s: string) =>
 
 function readDraft(key: string): Draft | undefined {
   try {
-    const raw = localStorage.getItem(key)
+    const raw = kv.local.getItem(key)
     return raw ? (JSON.parse(raw) as Draft) : undefined
   } catch {
     return undefined
@@ -64,18 +68,20 @@ interface SavedExample {
 
 function takeSaved(key: string): SavedExample | undefined {
   try {
-    const raw = sessionStorage.getItem(SAVED_KEY)
+    const raw = kv.session.getItem(SAVED_KEY)
     const saved = raw ? (JSON.parse(raw) as SavedExample) : undefined
     if (saved?.key !== key) return undefined
-    sessionStorage.removeItem(SAVED_KEY)
+    kv.session.removeItem(SAVED_KEY)
     return saved
   } catch {
     return undefined
   }
 }
 
-export function RequestPanel({ service, op, variants, initial }: Props) {
+export function RequestPanel({ service, op, variants, initial, autoRun }: Props) {
   const key = `${service}/${op.id}`
+  const panelRoot = useRef<HTMLDivElement>(null)
+  const autoRan = useRef(false)
   const examples = engine.examplesOf(key)
   const [notice, setNotice] = useState<SavedExample | undefined>(() => takeSaved(key))
   const [sel, setSel] = useState(() => {
@@ -193,8 +199,8 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
     try {
       const k = storeKey(key, sel)
       if (baseDraft && JSON.stringify(forStorage(d)) === JSON.stringify(forStorage(baseDraft)))
-        localStorage.removeItem(k)
-      else localStorage.setItem(k, JSON.stringify(forStorage(d)))
+        kv.local.removeItem(k)
+      else kv.local.setItem(k, JSON.stringify(forStorage(d)))
     } catch {
       /* optional */
     }
@@ -247,17 +253,17 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
       const def = saved
         ? saved.def
         : await engine.operationRequest(key, version.value, requestParts(draft, encoding))
-      setResult(
-        await engine.run(def, {
-          env: env.value,
-          version: version.value,
-          mockStatus: env.value === 'mock' ? (forceStatus ?? forced) : undefined,
-          locale: locale.value,
-          seed: seed.value,
-          vars: Object.fromEntries(Object.entries(vars).filter(([, v]) => v !== '')),
-          fileDir: base?.dir,
-        }),
-      )
+      const ran = await engine.run(def, {
+        env: env.value,
+        version: version.value,
+        mockStatus: env.value === 'mock' ? (forceStatus ?? forced) : undefined,
+        locale: locale.value,
+        seed: seed.value,
+        vars: Object.fromEntries(Object.entries(vars).filter(([, v]) => v !== '')),
+        fileDir: base?.dir,
+      })
+      setResult(ran)
+      announcement.value = describeRun(ran)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -266,6 +272,12 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
       setTab('response')
     }
   }
+
+  useEffect(() => {
+    if (!autoRun || !draft || autoRan.current) return
+    autoRan.current = true
+    void play()
+  }, [draft])
 
   const saveExample = async (name: string) => {
     if (!draft) return
@@ -284,7 +296,7 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
     // set before writing: the watcher reloads the page as soon as the file lands
     const saved: SavedExample = { key, path, name: file }
     try {
-      sessionStorage.setItem(SAVED_KEY, JSON.stringify(saved))
+      kv.session.setItem(SAVED_KEY, JSON.stringify(saved))
     } catch {
       /* the confirmation below still shows when there is no reload */
     }
@@ -320,12 +332,14 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
         play()
       }
     }
-    addEventListener('keydown', send)
-    return () => removeEventListener('keydown', send)
+    // on the page's own root (a shadow root in an embed), not the window, so a host page's keys are left alone
+    const root: EventTarget = panelRoot.current?.getRootNode() ?? window
+    root.addEventListener('keydown', send as EventListener)
+    return () => root.removeEventListener('keydown', send as EventListener)
   })
 
   return (
-    <div class="request-panel" data-op={key}>
+    <div class="request-panel" data-op={key} ref={panelRoot}>
       <div class="rq">
         <div class="rq-bar">
           <span class={`method ${op.method}`}>{op.method}</span>
@@ -363,9 +377,11 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
         {addressError && (
           <p class="envmenu-warn" role="alert">
             {addressError}.{' '}
-            <button type="button" class="link" onClick={() => (envSettingsOpen.value = true)}>
-              Open Environment settings
-            </button>
+            {features.value.environmentSettings && (
+              <button type="button" class="link" onClick={() => (envSettingsOpen.value = true)}>
+                Open Environment settings
+              </button>
+            )}
           </p>
         )}
 

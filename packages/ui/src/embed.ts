@@ -1,4 +1,5 @@
-import type { Target } from './embed/panel'
+import { parseTarget, type Target } from './embed/target'
+import { followTheme } from './embed/theme'
 import tokens from './styles/tokens.css?inline'
 
 const css = `button {
@@ -12,13 +13,26 @@ const css = `button {
   color: var(--sb-accent);
 }
 button:hover { background: var(--sb-surface-raised); }
-button:focus-visible { outline: 2px solid var(--sb-focus-ring); }`
+button:focus-visible { outline: 2px solid var(--sb-focus-ring); }
+@media (pointer: coarse) { button { min-height: 44px; min-width: 44px; } }`
+
+let opened = false
 
 /** The panel (editor, grammars, runner) is a separate chunk fetched on first click. */
-async function open(target: Target) {
+export async function open(target: Target, trigger?: HTMLElement): Promise<void> {
   const { show } = await import('./embed/panel')
-  show(target)
+  opened = true
+  show(target, trigger)
 }
+
+/** Closes the panel, if it is open. */
+export async function close(): Promise<void> {
+  if (!opened) return
+  const { close: closePanel } = await import('./embed/panel')
+  closePanel()
+}
+
+const nameOf = (t: Target) => t.sequence ?? t.request ?? t.operation ?? ''
 
 class SpecbookPlay extends HTMLElement {
   target: Target = {}
@@ -33,29 +47,44 @@ class SpecbookPlay extends HTMLElement {
     b.type = 'button'
     b.part.add('play')
     b.textContent = '▶ Play'
-    b.addEventListener('click', () => open(this.target))
+    b.setAttribute('aria-haspopup', 'dialog')
+    b.setAttribute('aria-expanded', 'false')
+    b.setAttribute('aria-label', `Play ${nameOf(this.target)}`.trim())
+    b.addEventListener('click', () => open(this.target, this))
     root.append(b)
+    followTheme(this, this.target.theme)
   }
 }
 
 customElements.define('specbook-play', SpecbookPlay)
 
+/** A button or a link that carries the attribute is the trigger itself; anything else gets a Play button beside it. */
+const isTrigger = (el: HTMLElement) => el.matches('button, a[href], [role="button"]')
+
 function attach(el: HTMLElement) {
-  if (el.dataset.specbookReady) return
+  if (el.dataset.specbookReady !== undefined) return
   el.dataset.specbookReady = ''
-  const play = document.createElement('specbook-play') as SpecbookPlay
-  play.target = {
-    service: el.dataset.specbook || undefined,
-    operation: el.dataset.operation,
-    sequence: el.dataset.sequence,
-    example: el.dataset.example,
-    tab: el.dataset.tab === 'docs' ? 'docs' : undefined,
+  const target = parseTarget(el)
+  if (!target) return
+  if (isTrigger(el)) {
+    el.setAttribute('aria-haspopup', 'dialog')
+    if (!el.hasAttribute('aria-expanded')) el.setAttribute('aria-expanded', 'false')
+    el.addEventListener('click', (e) => {
+      e.preventDefault()
+      open(target, el)
+    })
+    return
   }
+  const play = document.createElement('specbook-play') as SpecbookPlay
+  play.target = target
   el.append(play)
 }
 
-const scan = (root: ParentNode) =>
-  root.querySelectorAll<HTMLElement>('[data-specbook]:not([data-specbook-ready])').forEach(attach)
+const SELECTOR = ['try', 'flow']
+  .map((a) => `[data-specbook-${a}]:not([data-specbook-ready])`)
+  .join(',')
+
+const scan = (root: ParentNode) => root.querySelectorAll<HTMLElement>(SELECTOR).forEach(attach)
 
 scan(document)
 // SPA docs add content after load

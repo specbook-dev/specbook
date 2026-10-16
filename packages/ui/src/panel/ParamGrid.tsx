@@ -2,6 +2,7 @@ import { signal } from '@preact/signals'
 import { useEffect, useRef } from 'preact/hooks'
 import type { FieldDoc } from '../fielddoc'
 import { inlineSummary, plainText } from '../markdown'
+import { kv } from '../storage'
 import { Combo } from './Combo'
 import type { FieldRow } from './draft'
 
@@ -43,7 +44,7 @@ const cols = signal(loadCols())
 
 function loadCols(): { key: number; val: number } {
   try {
-    const c = JSON.parse(localStorage.getItem(COLS_KEY) ?? 'null')
+    const c = JSON.parse(kv.local.getItem(COLS_KEY) ?? 'null')
     if (c && c.key >= MIN_COL && c.val >= MIN_COL && c.key + c.val <= 100 - MIN_COL) return c
   } catch {
     /* fall through */
@@ -57,8 +58,8 @@ function setCols(next: { key: number; val: number } | undefined) {
   const val = Math.min(100 - key - MIN_COL, Math.max(MIN_COL, c.val))
   cols.value = { key: Math.round(key * 10) / 10, val: Math.round(val * 10) / 10 }
   try {
-    if (next) localStorage.setItem(COLS_KEY, JSON.stringify(cols.value))
-    else localStorage.removeItem(COLS_KEY)
+    if (next) kv.local.setItem(COLS_KEY, JSON.stringify(cols.value))
+    else kv.local.removeItem(COLS_KEY)
   } catch {
     /* optional */
   }

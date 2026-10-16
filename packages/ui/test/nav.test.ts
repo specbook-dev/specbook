@@ -44,3 +44,16 @@ describe('links', () => {
     )
   })
 })
+
+describe('a host that is not the app', () => {
+  it('takes links itself instead of writing the page address', async () => {
+    const { go, setNavigator, route } = await import('../src/nav')
+    const before = route.value
+    const seen: unknown[] = []
+    setNavigator((r) => seen.push(r))
+    go({ kind: 'op', key: 'petstore/GetPetById' })
+    setNavigator(undefined)
+    expect(seen).toEqual([{ kind: 'op', key: 'petstore/GetPetById' }])
+    expect(route.value).toBe(before)
+  })
+})

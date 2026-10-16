@@ -1,6 +1,9 @@
 import type { ComponentChildren } from 'preact'
-import { useEffect, useLayoutEffect, useRef } from 'preact/hooks'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'preact/hooks'
 import { env, environmentNote, environments } from '../store'
+import { announcement } from './announce'
+
+let panelIds = 0
 
 interface Props {
   title: string
@@ -9,6 +12,8 @@ interface Props {
   flush?: boolean
   /** dims the page and traps focus (embeds); the standalone site leaves its list usable beside the panel */
   modal?: boolean
+  /** `popover`: a centered dialog on a desktop and a bottom sheet on a phone; `side` is the app's sheet from the right */
+  variant?: 'side' | 'popover'
   onPrev?: () => void
   onNext?: () => void
   onClose: () => void
@@ -24,12 +29,22 @@ export function Panel({
   subtitle,
   flush,
   modal = true,
+  variant = 'side',
   onPrev,
   onNext,
   onClose,
   children,
 }: Props) {
   const aside = useRef<HTMLElement>(null)
+  const titleId = useMemo(() => `sb-panel-title-${++panelIds}`, [])
+
+  // what was announced for one run is not read out again when the next panel opens
+  useEffect(
+    () => () => {
+      announcement.value = ''
+    },
+    [],
+  )
 
   useEffect(() => {
     const root = aside.current?.getRootNode() as Document | ShadowRoot
@@ -130,15 +145,18 @@ export function Panel({
         first.focus()
       }
     }
-    addEventListener('keydown', key)
-    return () => removeEventListener('keydown', key)
+    // a dialog over someone else's page listens on itself (focus is trapped in it), not on the window; the app's
+    // docked panel keeps its window-wide Escape
+    const target: EventTarget = modal && aside.current ? aside.current : window
+    target.addEventListener('keydown', key as EventListener)
+    return () => target.removeEventListener('keydown', key as EventListener)
   }, [onClose, modal])
 
   // a dialog when it dims the page (embeds), a complementary region when docked beside the list
   const attrs = {
-    class: `panel ${modal ? '' : 'docked'}`,
+    class: `panel ${modal ? '' : 'docked'} ${variant === 'popover' ? 'popover' : ''}`,
     part: 'panel',
-    'aria-label': title,
+    'aria-labelledby': titleId,
     'aria-modal': modal ? true : undefined,
     role: (modal ? 'dialog' : 'complementary') as 'dialog',
     tabIndex: -1,
@@ -152,7 +170,7 @@ export function Panel({
       <section {...attrs} ref={aside}>
         <header class="panel-head" part="header">
           <div class="panel-title">
-            <h2>{title}</h2>
+            <h2 id={titleId}>{title}</h2>
             {subtitle && <div class="muted small">{subtitle}</div>}
           </div>
           <span class="spacer" />
@@ -200,6 +218,9 @@ export function Panel({
           </button>
         </header>
         <div class={`panel-body ${flush ? 'flush' : ''}`}>{children}</div>
+        <div class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+          {announcement.value}
+        </div>
       </section>
     </>
   )

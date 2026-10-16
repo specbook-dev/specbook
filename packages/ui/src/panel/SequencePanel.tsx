@@ -5,6 +5,7 @@ import { defaultFor, type FieldSpec, specFromControl } from '../components/Field
 import type { SequenceInfo } from '../engine'
 import { engine } from '../runtime'
 import { env, locale, seed, version } from '../store'
+import { announcement, describeRun } from './announce'
 import { Failure } from './Checks'
 import { ControlsGrid } from './ControlsGrid'
 import { SecretsBar } from './SecretsBar'
@@ -31,7 +32,17 @@ const short = (v: unknown) => {
 }
 
 /** |timeline|request|: the journey on the left, the selected step's exchange on the right. */
-export function SequencePanel({ info }: { info: SequenceInfo }) {
+export function SequencePanel({
+  info,
+  preset,
+  autoRun,
+}: {
+  info: SequenceInfo
+  /** input values to start from instead of the defaults (an embed's data-specbook-inputs) */
+  preset?: Record<string, unknown>
+  /** run on the defaults as soon as the flow is ready */
+  autoRun?: boolean
+}) {
   const { seq } = info
   const specs = useMemo(
     () =>
@@ -81,9 +92,22 @@ export function SequencePanel({ info }: { info: SequenceInfo }) {
 
   useEffect(() => {
     let current = true
-    setInputs(Object.fromEntries(Object.entries(specs).map(([k, v]) => [k, defaultFor(v)])))
+    const start = (v: Record<string, unknown>) => ({ ...v, ...(preset ?? {}) })
+    setInputs(start(Object.fromEntries(Object.entries(specs).map(([k, v]) => [k, defaultFor(v)]))))
     // generated values need faker: fill them in as soon as it is ready
-    if (hasGenerated) void freshInputs().then((v) => current && setInputs(v))
+    if (hasGenerated)
+      void freshInputs().then((v) => {
+        if (!current) return
+        setInputs(start(v))
+        if (autoRun) void run({ inputs: start(v), headless: true })
+      })
+    else if (autoRun)
+      void run({
+        inputs: start(
+          Object.fromEntries(Object.entries(specs).map(([k, v]) => [k, defaultFor(v)])),
+        ),
+        headless: true,
+      })
     setResult(undefined)
     setLive({})
     setPause(undefined)
@@ -134,6 +158,7 @@ export function SequencePanel({ info }: { info: SequenceInfo }) {
               }),
       })
       setResult(r)
+      announcement.value = describeRun(r)
       // a run that did not pass shows its first failing step, not its first step
       const bad = r.steps
         .filter((s) => s.kind !== 'auth')

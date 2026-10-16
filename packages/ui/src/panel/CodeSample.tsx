@@ -11,6 +11,7 @@ import {
 import type { ComponentChildren } from 'preact'
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks'
 import { engine } from '../runtime'
+import { kv } from '../storage'
 import { env, envVarsVersion, version } from '../store'
 import { type Draft, requestParts } from './draft'
 
@@ -18,7 +19,7 @@ const LANG_KEY = 'specbook:code-lang'
 
 function savedLang(): SnippetLang {
   try {
-    const v = localStorage.getItem(LANG_KEY)
+    const v = kv.local.getItem(LANG_KEY)
     if (v === 'curl' || v === 'fetch') return v
   } catch {
     /* optional */
@@ -82,7 +83,7 @@ export function CodeSample({ service, profile, secured, make, sent }: Props) {
     setView(l)
     if (l === 'sent') return
     try {
-      localStorage.setItem(LANG_KEY, l)
+      kv.local.setItem(LANG_KEY, l)
     } catch {
       /* optional */
     }

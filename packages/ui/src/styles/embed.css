@@ -1,0 +1,116 @@
+/*
+ * How the panel sits on someone else's page. Unlayered on purpose: it must beat the app's layered rules (the full-screen
+ * phone sheet, the sheet from the right) which this presentation replaces.
+ */
+
+/* the browser's top layer when it has one (so no host z-index can cover the panel), else a very high fixed box */
+.sb-top {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: transparent;
+  color: inherit;
+}
+.sb-top.sb-fallback {
+  z-index: 2147483000;
+}
+.sb-top[hidden] {
+  display: none;
+}
+
+.panel-backdrop {
+  backdrop-filter: blur(2px);
+}
+
+/* desktop: a centered dialog */
+.panel.popover {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(880px, calc(100vw - 48px));
+  min-width: 0;
+  height: min(86vh, 780px);
+  overflow: hidden;
+  border: 1px solid var(--sb-border);
+  border-radius: 14px;
+  box-shadow:
+    0 24px 64px color-mix(in srgb, black 35%, transparent),
+    0 2px 8px color-mix(in srgb, black 20%, transparent);
+  animation: sb-popover-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes sb-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+@keyframes sb-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel.popover {
+    animation: none;
+  }
+}
+
+/* phone: a sheet from the bottom, with a handle, clear of the notch and the home bar */
+@media (max-width: 820px) {
+  .panel.popover {
+    inset: auto 0 0 0;
+    margin: 0;
+    width: 100%;
+    height: min(92dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px));
+    border-width: 1px 0 0;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation-name: sb-sheet-in;
+  }
+  .panel.popover::before {
+    content: "";
+    flex: none;
+    width: 36px;
+    height: 4px;
+    margin: 8px auto 0;
+    border-radius: 2px;
+    background: var(--sb-border);
+  }
+}
+
+/* a finger, not a pointer: the controls of the header are comfortable targets */
+@media (pointer: coarse) {
+  .panel.popover .panel-head .icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+.embed-problem {
+  margin: var(--sb-space-4);
+  color: var(--sb-text);
+}
+
+/* what the page's attributes asked for that could not be done, over the foot of the panel */
+.embed-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 22;
+  max-width: min(640px, calc(100vw - 24px));
+  padding: 6px 12px;
+  border: 1px solid var(--sb-border);
+  border-radius: 8px;
+  background: var(--sb-surface-raised, var(--sb-surface));
+  color: var(--sb-text);
+  font-size: 13px;
+}

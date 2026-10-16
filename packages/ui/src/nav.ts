@@ -70,7 +70,15 @@ export const paletteOpen = signal(false)
 export const catalogService = signal('')
 export const catalogFilter = signal('')
 
+let navigator: ((r: Route) => void) | undefined
+
+/** A host that is not the app (an embed) takes links itself instead of writing the page's address. */
+export const setNavigator = (fn: ((r: Route) => void) | undefined) => {
+  navigator = fn
+}
+
 export function go(r: Route) {
+  if (navigator) return navigator(r)
   location.hash = hashFor(r)
   route.value = r
 }

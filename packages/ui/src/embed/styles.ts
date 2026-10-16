@@ -2,6 +2,7 @@ import complete from 'prism-code-editor/autocomplete.css?inline'
 import completeIcons from 'prism-code-editor/autocomplete-icons.css?inline'
 import layout from 'prism-code-editor/layout.css?inline'
 import app from '../styles/app.css?inline'
+import embed from '../styles/embed.css?inline'
 import panel from '../styles/panel.css?inline'
 import tokens from '../styles/tokens.css?inline'
 
@@ -21,6 +22,7 @@ export const panelSheets = () => [
   sheet(app),
   sheet(panel),
   sheet(root),
+  sheet(embed),
 ]
 
 /** Inline `color`/`font` on the host would be beaten by host-page rules, so the root element sets them. */

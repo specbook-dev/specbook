@@ -219,6 +219,22 @@ Markdown lives next to what it describes:
 
 A heading made of one code span (`` ## `name` ``) attaches the text under it to that field.
 
+### Try it on any page
+
+`specbook build` also writes `specbook.js`. Load it on a page of your own docs and mark what should run:
+
+```html
+<p data-specbook-try="petstore/GetPetById">Fetch a pet.</p>
+<button data-specbook-flow="adopt-pet" data-specbook-inputs='{"quantity":2}'>Adopt two</button>
+<script type="module" src="/specbook/specbook.js"></script>
+```
+
+A Play button appears beside a plain element; a button or link that carries the attribute opens the panel itself. The panel
+is a dialog on a desktop and a sheet from the bottom on a phone, follows the page's light or dark theme, and keeps what a
+visitor types out of the page's storage. Other attributes: `data-specbook-example`, `-tab="docs"`, `-env`, `-theme`, and
+`-auto-run` (never against production). It works under `script-src 'self'` with no eval; the code editors use inline
+`style` attributes, so a strict policy also needs `style-src-attr 'unsafe-inline'`.
+
 ## Develop
 
 Needs Node 24 (`nvm use`) and pnpm.
