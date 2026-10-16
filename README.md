@@ -31,6 +31,8 @@ read in your browser; nothing is uploaded.
   origin there is no CORS; from elsewhere it works for APIs that allow browser calls. Credentials stay in the tab.
 - **Sign in.** OAuth 2.0 and OpenID Connect APIs get a Sign in button (PKCE, no client secret); the token stays
   in the tab. [How to set it up](#sign-in-to-oauth-apis).
+- **Test and monitor.** The same requests and flows run in CI and against production, with no spec needed, and QA
+  can run them from a published portal. [How](docs/testing-and-monitoring.md).
 - **Flows.** Chain requests, capture values from one response into the next, and assert on the way.
 - **Share a view.** A link opens the same operation for someone else, for any spec served from a public address.
 - **Embed it.** Serve the viewer from your API's docs route: it runs on your origin, so no CORS, and your
@@ -135,10 +137,11 @@ no project, `npx @specbook/cli preview <url|file>` works without installing anyt
 ```sh
 npx specbook init                # scaffold config, the #api/* import and an environments folder
 npx specbook add petstore --spec ./openapi/petstore.json   # or a URL: it is downloaded and recorded
-npx specbook generate            # types, operations, examples and metadata from the specs
+npx specbook generate            # types and mock examples from the specs; dev, build and test do it when needed
 npx specbook dev                 # the UI: docs, a play panel and a credential proxy
 npx specbook build               # a static docs site, and specbook.js to embed it
 npx specbook test --env mock     # run requests and flows
+npx specbook build --minimal     # a portal with just your requests and flows, for QA
 npx specbook bundle              # the tests as one .mjs that runs with just node, for ops and CI
 npx specbook check               # validate specs, generated code drift, environment files and addresses
 npx specbook preview <url|file>  # open any document in the UI, with no project
@@ -146,6 +149,17 @@ npx specbook preview <url|file>  # open any document in the UI, with no project
 
 `npx specbook build --viewer` also copies the spec viewer next to the site, for a team that serves it from its
 own host (open it with `?spec=<url>`).
+
+### Test, and monitor
+
+A developer writes a request or a flow once. QA runs it with a click in a published portal (`specbook build --minimal`),
+CI runs it with `specbook test --env staging`, and ops run it against production on a schedule: `specbook bundle`
+compiles the tests into one file, and `node specbook-tests.mjs --env prod --safe --tag monitor` runs it with nothing
+installed.
+
+Pass `--safe` against production and a run only reads. A failure shows what was expected and what came
+back, with credentials removed. The exit code is 0 (passed), 1 (a test failed), 2 (could not run) or 3 (usage).
+See [Testing and monitoring](docs/testing-and-monitoring.md).
 
 ### Config, variables and secrets
 
