@@ -54,6 +54,23 @@ cookies. `spec` may be relative; `baseUrl` supplies the API address when the doc
 | You want the hosted viewer inside your page | An iframe of ui.specbook.dev works, but it is cross-origin, so the API still has to allow it. An iframe of your self-hosted copy is same-origin. |
 | It is someone else's API | It works when that API allows browser calls. A browser extension for the rest is planned. |
 
+## Sign in to OAuth APIs
+
+A scheme with an OAuth 2.0 authorization code flow, or an OpenID Connect one, gets a **Sign in** button beside
+the credentials prompt. It uses PKCE, so there is no client secret, and the token stays in the tab. Register a
+public client with the provider and allow this redirect URI:
+
+| Where you run it | Register this redirect URI |
+| --- | --- |
+| The hosted viewer | `https://ui.specbook.dev/oauth/callback/` (it does not change when the viewer's version does) |
+| A viewer you embed or host yourself | That page's own address |
+| `specbook dev` and `specbook preview` | The address they print |
+
+From the hosted viewer or a static build the browser makes the token exchange, so the provider must also allow
+the page's origin (CORS; for the hosted viewer `https://ui.specbook.dev`). Through `dev` and `preview` the dev
+server's proxy makes it, so that is not needed. Sign-in needs a secure page (https, or localhost). If the
+provider will not allow it, paste a token as before.
+
 ## Self-host the viewer
 
 The built viewer is a folder of static files. It uses relative paths, so it runs from any directory your server
@@ -148,21 +165,18 @@ own host (open it with `?spec=<url>`).
 
 A document opened in the viewer, or with `specbook preview`, gets an environment for each entry in its
 `servers` list. The first is `live`; the others are named from their description (`Sandbox` becomes `sandbox`),
-and a server's variables take their defaults. A key typed for one server's host is never sent to another. In a
-project, environments come from the config's `services[].baseUrl`.
+and a server's variables take their defaults. Credentials are kept per API origin, so a key typed for one
+server's host is not sent to another's. In a project, environments come from the config's
+`services[].baseUrl`.
 
 Variables and secrets come from the project's config, the environment files in `.specbook/environments/`
 and the process environment. Secret values go in `<env>.secrets.env`, which the folder's own `.gitignore`
 keeps out of the repository. `npx specbook secrets --env <name>` shows where each declared secret resolves from,
 never the values. In the UI you can also type a value for the tab, which wins over files and variables.
 
-**Sign in.** A scheme with an OAuth 2.0 authorization code flow, or an OpenID Connect one, gets a Sign in button
-beside the credentials prompt (PKCE, no client secret; the token stays in the tab). Register the page's address
-with the provider as a redirect URI: on the hosted viewer that is `https://ui.specbook.dev/oauth/callback/`, a
-page that does not change when the viewer's version does; on a viewer you serve yourself or embed, it is that
-page's own address. `specbook dev` and `preview` print theirs. Sign-in needs a secure page (https, or
-localhost). A scheme has one sign-in provider for all its environments. If an environment signs in somewhere
-else, paste a token there; a separate service and auth profile for it also works, but lists the API twice.
+**Sign in.** See [Sign in to OAuth APIs](#sign-in-to-oauth-apis) for what to register with the provider. A
+scheme has one sign-in provider for all its environments: if an environment signs in somewhere else, paste a
+token there; a separate service and auth profile for it also works, but lists the API twice.
 
 ### Documentation beside the code
 
