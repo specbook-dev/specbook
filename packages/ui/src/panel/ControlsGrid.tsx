@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks'
-import { defaultFor, type FieldSpec } from '../components/Fields'
+import { defaultFor, type FieldSpec, generateFor } from '../components/Fields'
 import { Combo } from './Combo'
 
 interface Props {
@@ -135,6 +135,18 @@ function ValueCell({
   }
 }
 
+/** A die: the control that makes another generated value. */
+function Die() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+      <rect x="1.5" y="1.5" width="13" height="13" rx="3" fill="none" stroke="currentColor" />
+      <circle cx="5.2" cy="5.2" r="1.1" fill="currentColor" />
+      <circle cx="10.8" cy="10.8" r="1.1" fill="currentColor" />
+      <circle cx="8" cy="8" r="1.1" fill="currentColor" />
+    </svg>
+  )
+}
+
 /**
  * A flow's controls (inputs, or the choices of an input step) as the same spreadsheet the request
  * parameters use: name, value, description.
@@ -142,9 +154,29 @@ function ValueCell({
 export function ControlsGrid({ title, specs, values, onChange }: Props) {
   const names = Object.keys(specs)
   if (names.length === 0) return null
+  const generated = names.filter((n) => specs[n]?.generate)
   return (
     <section class="grid controls-grid" aria-label={title}>
-      <h3>{title}</h3>
+      <h3 class="controls-head">
+        <span>{title}</span>
+        {generated.length > 1 && (
+          <button
+            type="button"
+            class="btn small gen-all"
+            title="Make a new value for every generated input"
+            onClick={() =>
+              onChange({
+                ...values,
+                ...Object.fromEntries(
+                  generated.map((n) => [n, generateFor(specs[n] as FieldSpec)]),
+                ),
+              })
+            }
+          >
+            <Die /> Generate all
+          </button>
+        )}
+      </h3>
       <table>
         <colgroup>
           <col class="c-key" />
@@ -169,12 +201,25 @@ export function ControlsGrid({ title, specs, values, onChange }: Props) {
                   </span>
                 </td>
                 <td class="g-val">
-                  <ValueCell
-                    name={name}
-                    spec={spec}
-                    value={values[name]}
-                    onChange={(v) => onChange({ ...values, [name]: v })}
-                  />
+                  <div class={spec.generate ? 'cell-gen' : undefined}>
+                    <ValueCell
+                      name={name}
+                      spec={spec}
+                      value={values[name]}
+                      onChange={(v) => onChange({ ...values, [name]: v })}
+                    />
+                    {spec.generate && (
+                      <button
+                        type="button"
+                        class="gen"
+                        aria-label={`Generate ${spec.label ?? name}`}
+                        title="Make another value"
+                        onClick={() => onChange({ ...values, [name]: generateFor(spec) })}
+                      >
+                        <Die />
+                      </button>
+                    )}
+                  </div>
                 </td>
                 <td class="g-doc" title={spec.description}>
                   <span class="chip">{hint(spec)}</span> {spec.description}

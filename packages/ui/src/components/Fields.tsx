@@ -7,6 +7,8 @@ export interface FieldSpec {
   label?: string
   description?: string
   default?: unknown
+  /** makes a fresh starting value (a faker value): the control offers to generate another */
+  generate?: () => unknown
   options?: { label: string; value: unknown }[]
   shape?: Record<string, FieldSpec>
   item?: FieldSpec
@@ -50,11 +52,26 @@ function baseSpec(ctl: any, o: any): FieldSpec {
         max: o.max,
       }
     default:
-      return { kind: ctl.kind, default: o.default, min: o.min, max: o.max }
+      return typeof o.default === 'function'
+        ? { kind: ctl.kind, generate: o.default as () => unknown, min: o.min, max: o.max }
+        : { kind: ctl.kind, default: o.default, min: o.min, max: o.max }
   }
 }
 
+/** A fresh generated value for a field, or its plain default when it has no generator or the generator cannot run. */
+export function generateFor(spec: FieldSpec): unknown {
+  if (spec.generate) {
+    try {
+      return spec.generate()
+    } catch {
+      /* faker is not ready: fall through to the plain default */
+    }
+  }
+  return defaultFor({ ...spec, generate: undefined })
+}
+
 export function defaultFor(spec: FieldSpec): unknown {
+  if (spec.generate) return generateFor(spec)
   switch (spec.kind) {
     case 'select':
       return spec.options?.[0]?.value
