@@ -3,6 +3,11 @@ import { defineConfig } from '@specbook/core'
 export default defineConfig({
   project: 'petstore-example',
   vars: {
+    // where each API lives: the defaults, which an environment overrides in .specbook/environments/<env>.env
+    petstoreUrl: 'https://petstore3.swagger.io/api/v3',
+    stripeUrl: 'https://api.stripe.com',
+    countriesUrl: 'https://countries.trevorblades.com',
+    githubUrl: 'https://api.github.com',
     defaultStatus: 'available',
     // GitHub sandbox repository; override with --var owner=... --var repo=...
     owner: 'your-username',
@@ -26,21 +31,21 @@ export default defineConfig({
   services: {
     petstore: {
       spec: './openapi/petstore.json',
-      baseUrl: { live: 'https://petstore3.swagger.io/api/v3' },
+      baseUrl: '{{petstoreUrl}}',
       auth: 'apiKey',
     },
     stripe: {
       spec: './openapi/stripe.json',
-      baseUrl: { live: 'https://api.stripe.com' },
+      baseUrl: '{{stripeUrl}}',
       auth: 'stripe',
     },
     countries: {
       spec: './openapi/countries.json',
-      baseUrl: { live: 'https://countries.trevorblades.com' },
+      baseUrl: '{{countriesUrl}}',
     },
     github: {
       spec: './openapi/github.json',
-      baseUrl: { live: 'https://api.github.com' },
+      baseUrl: '{{githubUrl}}',
       auth: 'github',
     },
   },

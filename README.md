@@ -149,34 +149,45 @@ no project, `npx @specbook/cli preview <url|file>` works without installing anyt
 
 ```sh
 npx specbook init                # scaffold config, the #api/* import and an environments folder
-npx specbook add petstore --spec ./openapi/petstore.json --base-url https://petstore3.swagger.io/api/v3
+npx specbook add petstore --spec ./openapi/petstore.json
 npx specbook generate            # types, operations, examples and metadata from the specs
 npx specbook dev                 # the UI: docs, a play panel and a credential proxy
 npx specbook build               # a static docs site, and specbook.js to embed it
 npx specbook run 'sequences/*.seq.ts' --env mock
-npx specbook check               # validate specs, generated code drift and environment files
+npx specbook check               # validate specs, generated code drift, environment files and addresses
 npx specbook preview <url|file>  # open any document in the UI, with no project
 ```
 
 `npx specbook build --viewer` also copies the spec viewer next to the site, for a team that serves it from its
 own host (open it with `?spec=<url>`).
 
-### Environments and secrets
+### Config, variables and secrets
 
 A document opened in the viewer, or with `specbook preview`, gets an environment for each entry in its
 `servers` list. The first is `live`; the others are named from their description (`Sandbox` becomes `sandbox`),
 and a server's variables take their defaults. Credentials are kept per API origin, so a key typed for one
-server's host is not sent to another's. In a project, environments come from the config's
-`services[].baseUrl`.
+server's host is not sent to another's.
 
-Variables and secrets come from the project's config, the environment files in `.specbook/environments/`
-and the process environment. Secret values go in `<env>.secrets.env`, which the folder's own `.gitignore`
-keeps out of the repository. `npx specbook secrets --env <name>` shows where each declared secret resolves from,
-never the values. In the UI you can also type a value for the tab, which wins over files and variables.
+In a project a service's address is a variable, so each environment can set its own. `vars` in the config are
+the defaults; `.specbook/environments/<env>.env` overrides them (or `environments.<env>.vars` in the config),
+and `<env>.secrets.env`, which the folder's `.gitignore` keeps out of the repository, holds the secrets:
 
-**Sign in.** See [Sign in to OAuth APIs](#sign-in-to-oauth-apis) for what to register with the provider. A
-scheme has one sign-in provider for all its environments: if an environment signs in somewhere else, paste a
-token there; a separate service and auth profile for it also works, but lists the API twice.
+```ts
+vars: { petstoreUrl: 'https://petstore3.swagger.io/api/v3' },
+services: { petstore: { spec: './openapi/petstore.json', baseUrl: '{{petstoreUrl}}' } },
+```
+
+```sh
+# .specbook/environments/staging.env
+petstoreUrl=https://staging.petstore.example/api/v3
+```
+
+`specbook add` writes this from a spec's `servers`. An auth profile's `oauth` addresses can be variables too, so
+an environment can sign in at its own provider. In the UI, **Environment settings** shows an environment's
+variables and where its calls go, and **New environment…** copies one (kept in the browser on a page with no
+project files). `npx specbook secrets --env <name>` shows where each secret resolves from, never the values.
+
+**Sign in.** See [Sign in to OAuth APIs](#sign-in-to-oauth-apis) for what to register with the provider.
 
 ### Documentation beside the code
 
