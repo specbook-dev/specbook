@@ -5,6 +5,6 @@ export type {
   ManifestOperation,
   OperationMeta,
 } from './build'
-export { generate, generateFromDoc } from './generate'
+export { generate, generateFromDoc, withPlainSpec } from './generate'
 export { synthesize, tsType } from './schema'
 export { generateToDisk, writeAtomically } from './write'

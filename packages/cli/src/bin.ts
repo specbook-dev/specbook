@@ -8,6 +8,7 @@ import { generateCommand } from './commands/generate'
 import { initCommand } from './commands/init'
 import { previewCommand } from './commands/preview'
 import { secretsCommand } from './commands/secrets'
+import { refreshCommand } from './commands/spec-source'
 import { testCommand } from './commands/test'
 import { buildCommand, copyViewer, devCommand } from './commands/ui'
 import { createLoader } from './load'
@@ -18,7 +19,9 @@ import { TEST_FLAGS, TEST_HELP, testOptions, UsageError } from './test-args'
 const HELP = `specbook <command>
 
   init                         scaffold config, #api/* import and the environments folder
-  add <service> --spec <p>     register an OpenAPI spec in the config and generate it
+  add <service> --spec <p|url> register an OpenAPI spec in the config and generate it; an address is downloaded to
+                               openapi/ and recorded in openapi/sources.json
+  add --refresh [service...]   download the recorded addresses again, say what changed and regenerate it
       --base-url <url>         address to use instead of the spec's first server
   generate [service...]        generate types, operations, examples and metadata from specs
   dev [--port <n>]             start the UI dev server (docs, play panel, credential proxy)
@@ -46,6 +49,7 @@ async function main(): Promise<number> {
       port: { type: 'string' },
       'base-url': { type: 'string' },
       spec: { type: 'string' },
+      refresh: { type: 'boolean' },
       out: { type: 'string' },
       external: { type: 'string', multiple: true },
       'no-open': { type: 'boolean' },
@@ -87,8 +91,11 @@ async function main(): Promise<number> {
       return 0
     }
     if (cmd === 'add') {
+      if (values.refresh) return await refreshCommand(project, loader, rest)
       if (!rest[0] || !values.spec) {
-        console.error('usage: specbook add <service> --spec <path> [--base-url <url>]')
+        console.error(
+          'usage: specbook add <service> --spec <path|url> [--base-url <url>]\n       specbook add --refresh [service...]',
+        )
         return 3
       }
       await addCommand(project, rest[0], values.spec, values['base-url'])

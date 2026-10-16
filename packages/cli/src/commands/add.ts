@@ -1,10 +1,11 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import SwaggerParser from '@apidevtools/swagger-parser'
-import { generateToDisk } from '@specbook/codegen'
+import { generateToDisk, withPlainSpec } from '@specbook/codegen'
 import { openApiServers, type ServerEntry } from '@specbook/core'
 import { ensureEnvironmentsDir, readEnvironment, varsFile, writeEnvKey } from '@specbook/vite'
 import type { Project } from '../project'
+import { fetchSpec, isUrl } from './spec-source'
 
 /** `petstore` → `petstoreUrl`, `my-api` → `myApiUrl`: the variable a service's address is kept in. */
 export const addressVariable = (service: string) =>
@@ -26,12 +27,23 @@ export async function addCommand(
   if (!/^[A-Za-z][\w-]*$/.test(service)) throw new Error(`Invalid service name "${service}"`)
   if (project.config.services[service])
     throw new Error(`Service "${service}" already exists in the config`)
-  const specAbs = resolve(process.cwd(), spec)
+  // an address is downloaded into openapi/ and recorded in openapi/sources.json; a path is used where it is
+  let specAbs = resolve(process.cwd(), spec)
+  if (isUrl(spec)) {
+    const got = await fetchSpec(project, service, spec)
+    specAbs = got.file
+    console.log(
+      `✓ downloaded ${spec} → ${relative(process.cwd(), got.file)} (${(got.entry.bytes / 1e6).toFixed(1)} MB, sha256 ${got.entry.sha256.slice(0, 12)})`,
+    )
+  }
   const specRel = `./${relative(project.root, specAbs).split('\\').join('/')}`
 
   let servers: ServerEntry[] = []
   try {
-    servers = openApiServers((await SwaggerParser.parse(specAbs)) as any, specAbs).servers
+    servers = openApiServers(
+      (await withPlainSpec(specAbs, (plain) => SwaggerParser.parse(plain as string))) as any,
+      specAbs,
+    ).servers
   } catch {
     /* an unreadable spec fails at generate, with a better message */
   }
