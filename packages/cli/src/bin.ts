@@ -23,6 +23,7 @@ const HELP = `specbook <command>
   generate [service...]        generate types, operations, examples and metadata from specs
   dev [--port <n>]             start the UI dev server (docs, play panel, credential proxy)
   build [--out <dir>]          build the static docs site and the embeddable specbook.js
+      --minimal                publish only the operations your requests and flows use (a portal for QA and ops)
       --viewer                 also copy the spec viewer to <out>/viewer/ (open it with ?spec=<url>)
   preview <url|file>           open any OpenAPI/Swagger document in the UI, no project needed
       --port <n> --no-open     port / do not launch the browser
@@ -49,6 +50,7 @@ async function main(): Promise<number> {
       external: { type: 'string', multiple: true },
       'no-open': { type: 'boolean' },
       viewer: { type: 'boolean' },
+      minimal: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
   })
@@ -108,7 +110,7 @@ async function main(): Promise<number> {
       return await new Promise<number>(() => {}) // keep serving until killed
     }
     if (cmd === 'build') {
-      await buildCommand(project, values.out ?? 'dist-docs')
+      await buildCommand(project, values.out ?? 'dist-docs', { minimal: values.minimal })
       if (values.viewer) {
         const dest = await copyViewer(project, values.out ?? 'dist-docs')
         console.log(`viewer copied to ${dest}`)

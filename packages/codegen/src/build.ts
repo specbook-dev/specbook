@@ -547,7 +547,7 @@ export function generateFromDoc(
           content: `import { defineOperation } from '${core}'
 import type * as T from '../types'
 
-${jsdoc({ description: [...new Set([op.summary, op.description].filter(Boolean))].join('\n\n'), deprecated: op.deprecated })}export const ${id} = defineOperation<{
+${jsdoc({ description: [...new Set([op.summary, op.description].filter(Boolean))].join('\n\n'), deprecated: op.deprecated })}export const ${id} = /* @__PURE__ */ defineOperation<{
   params: { ${paramsT} }
   body: ${bodyT}
   responses: { ${responseTypes.join('; ')} }

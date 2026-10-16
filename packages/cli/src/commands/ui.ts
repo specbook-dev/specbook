@@ -1,9 +1,10 @@
-import { copyFile, cp, stat } from 'node:fs/promises'
+import { copyFile, cp, readFile, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { specbook } from '@specbook/vite'
 import { build, createServer, type InlineConfig } from 'vite'
+import { usedOperationKeys } from '../ops'
 import type { Project } from '../project'
 
 function uiRoot(): string {
@@ -51,7 +52,7 @@ function dependencyFolders(root: string): string[] {
   return [...found]
 }
 
-function uiConfig(project: Project): InlineConfig {
+function uiConfig(project: Project, operations?: Set<string>): InlineConfig {
   const root = uiRoot()
   return {
     root,
@@ -63,7 +64,9 @@ function uiConfig(project: Project): InlineConfig {
       exclude: ['@specbook/core'],
       rolldownOptions: { transform: { jsx: { runtime: 'automatic', importSource: 'preact' } } },
     },
-    plugins: [specbook({ projectRoot: project.root, outDir: project.config.codegen?.outDir })],
+    plugins: [
+      specbook({ projectRoot: project.root, outDir: project.config.codegen?.outDir, operations }),
+    ],
     server: {
       fs: {
         allow: [
@@ -96,12 +99,24 @@ export async function devCommand(project: Project, port = 5173) {
   return server
 }
 
-export async function buildCommand(project: Project, outDir: string): Promise<void> {
+/**
+ * Builds the portal. `minimal` publishes only the operations the project's requests and flows use, with those requests and
+ * flows: a smaller site that does not reveal the rest of the API.
+ */
+export async function buildCommand(
+  project: Project,
+  outDir: string,
+  options: { minimal?: boolean } = {},
+): Promise<void> {
   const out = resolve(project.root, outDir)
+  const generated = join(project.root, project.config.codegen?.outDir ?? '.generated')
+  const operations = options.minimal ? await usedOperationKeys(project, generated) : undefined
+  if (operations && operations.size === 0)
+    throw new Error('Nothing to publish: no request or flow imports an operation (see --minimal)')
   // One build, two entries, so the lazy chunks are shared: the docs app (index.html) and the embeddable
   // `specbook.js` (`<script type="module" src=".../specbook.js">`), which loads its chunks relative to itself.
   await build({
-    ...uiConfig(project),
+    ...uiConfig(project, operations),
     base: './',
     build: {
       outDir: out,
@@ -119,10 +134,26 @@ export async function buildCommand(project: Project, outDir: string): Promise<vo
       },
     },
   })
-  await copyFile(
-    join(project.root, project.config.codegen?.outDir ?? '.generated', 'specbook.json'),
-    join(out, 'specbook.json'),
-  ).catch(() => {})
+  await copyMetadata(join(generated, 'specbook.json'), join(out, 'specbook.json'), operations)
+}
+
+/** `specbook.json` lists every operation of the spec: a minimal build lists only the ones it publishes. */
+async function copyMetadata(from: string, to: string, operations?: Set<string>): Promise<void> {
+  try {
+    if (!operations) return await copyFile(from, to)
+    const meta = JSON.parse(await readFile(from, 'utf8')) as {
+      services: Record<string, { operations: Record<string, unknown> }>
+    }
+    for (const [svc, s] of Object.entries(meta.services)) {
+      s.operations = Object.fromEntries(
+        Object.entries(s.operations).filter(([id]) => operations.has(`${svc}/${id}`)),
+      )
+      if (Object.keys(s.operations).length === 0) delete meta.services[svc]
+    }
+    await writeFile(to, `${JSON.stringify(meta)}\n`)
+  } catch {
+    /* a project without generated metadata still builds */
+  }
 }
 
 /**

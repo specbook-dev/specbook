@@ -40,6 +40,8 @@ export async function scanExamples(
   const gen = `${root}/${outDir}`
   for (const abs of await fg('*/examples/*/*.example.json', { cwd: gen, absolute: true })) {
     const [svc, , id, file] = relative(gen, abs).split(sep) as [string, string, string, string]
+    // only operations the build knows (a minimal build lists just those it publishes)
+    if (!operations.has(`${svc}/${id}`)) continue
     add(`${svc}/${id}`, {
       name: file.replace(NAME, ''),
       abs,
