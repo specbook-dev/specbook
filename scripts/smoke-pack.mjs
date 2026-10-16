@@ -200,7 +200,7 @@ export default FindPetsByStatus.request({
   else if (/dependency scan|could not be resolved/i.test(log)) fail(`specbook dev warned\n${log}`)
   else ok('specbook dev serves the app with a clean dependency scan')
 
-  // a run against a local server
+  // a compiled bundle runs with nothing but node, against a local server
   // the server is a separate process: this one is blocked while a command runs
   const api = spawn(
     process.execPath,
@@ -223,6 +223,12 @@ export default FindPetsByStatus.request({
   )
   try {
     sb(['test', '--env', 'local'], 'specbook test --env local')
+    const bundleFile = join(work, 'out', 'specbook-tests.mjs')
+    sb(['bundle', '--out', bundleFile], 'specbook bundle')
+    // an empty folder with node and nothing else: no node_modules, no spec, no generated code
+    const empty = join(work, 'empty')
+    mkdirSync(empty, { recursive: true })
+    run(process.execPath, [bundleFile, '--env', 'local'], empty, 'the bundle runs with just node')
   } finally {
     api.kill()
   }

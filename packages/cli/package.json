@@ -1,7 +1,7 @@
 {
   "name": "@specbook/cli",
   "version": "0.2.0",
-  "description": "Specbook command line: init, add, generate, dev, build, test, check, secrets and preview.",
+  "description": "Specbook command line: init, add, generate, dev, build, test, bundle, check, secrets and preview.",
   "keywords": [
     "specbook",
     "openapi",
@@ -48,6 +48,7 @@
     "@specbook/ui": "workspace:*",
     "@specbook/vite": "workspace:*",
     "fast-glob": "3.3.2",
+    "rolldown": "1.2.13",
     "swagger2openapi": "7.0.8",
     "vite": "8.3.4",
     "vite-node": "6.0.0"
