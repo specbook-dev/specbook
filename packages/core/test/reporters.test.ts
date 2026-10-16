@@ -226,6 +226,31 @@ describe('the list report', () => {
     expect(formatList([r], { quiet: true })).toContain('Flows')
   })
 
+  it('lists the slowest steps one to a line, a request by its name alone', async () => {
+    const { transport } = fakeTransport(() => ({ status: 200, body: { id: '1', name: 'Rex' } }))
+    const run = (name: string, ms: number) =>
+      runRequest(GetPet.request({ name, path: { id: '1' } }), {
+        env: 'staging',
+        transport,
+        implicitStatusCheck: true,
+      }).then((r) => ({
+        ...r,
+        steps: r.steps.map((s) => ({ ...s, durationMs: ms })),
+      }))
+    const text = formatList([await run('Get a country', 11), await run('List continents', 5)])
+    const lines = text.split('\n')
+    const at = lines.findIndex((l) => l.trim() === 'Slowest')
+    expect(at).toBeGreaterThan(-1)
+    expect(lines.slice(at + 1, at + 3).map((l) => l.trim())).toEqual([
+      '11ms  Get a country',
+      '5ms  List continents',
+    ])
+    // durations line up on their right edge
+    expect(lines[at + 1]?.indexOf('Get a country')).toBe(lines[at + 2]?.indexOf('List continents'))
+    // each on its own line, and the name is not repeated (`Get a country › Get a country`)
+    expect(text).not.toContain('Get a country › Get a country')
+  })
+
   it('summarizes flows, steps and assertions, flaky and errored included', async () => {
     const { r } = await failingFlow()
     const flaky = { ...r, status: 'pass', flaky: true, attempts: 2 } as RunResult
