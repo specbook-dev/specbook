@@ -247,6 +247,12 @@ export interface RunResult {
   seed?: number
   usedDrafts: boolean
   tags: string[]
+  /** The project file the request or flow comes from, relative to the project; set by the CLI. */
+  file?: string
+  /** How many times it was run when retries were allowed (1 = no retry); set by the CLI. */
+  attempts?: number
+  /** It failed, then passed on a retry; set by the CLI. */
+  flaky?: boolean
   status: 'pass' | 'fail' | 'error'
   startedAt: string
   durationMs: number

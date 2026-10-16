@@ -50,7 +50,13 @@ export interface AuthProfile {
 }
 
 export type RunEvent =
-  | { type: 'run:start'; id: string }
+  | {
+      type: 'run:start'
+      id: string
+      title?: string
+      kind?: 'request' | 'sequence'
+      tags?: string[]
+    }
   | { type: 'step:start'; name: string }
   | { type: 'auth:login'; profile: string }
   | { type: 'request'; name: string; request: RenderedRequest }
@@ -641,7 +647,13 @@ export async function runRequest(
 ): Promise<RunResult> {
   const rt = newRuntime(o)
   const t0 = o.now?.() ?? now0()
-  emit(rt, { type: 'run:start', id: def.op.id })
+  emit(rt, {
+    type: 'run:start',
+    id: def.op.id,
+    title: def.input.name ?? def.op.id,
+    kind: 'request',
+    tags: def.input.tags,
+  })
   const name = def.input.name ?? def.op.id
   const { result, authResults } = await execute(rt, def, name, NO_FLOW)
   return finish(
@@ -658,7 +670,13 @@ export async function runSequence(seq: Sequence<any, any>, o: RunOptions): Promi
   rt.seqAuth = seq.meta.auth
   rt.seqAssertMode = seq.meta.assertMode
   const t0 = o.now?.() ?? now0()
-  emit(rt, { type: 'run:start', id: seq.meta.id })
+  emit(rt, {
+    type: 'run:start',
+    id: seq.meta.id,
+    title: seq.meta.title,
+    kind: 'sequence',
+    tags: seq.meta.tags,
+  })
   const steps: StepResult[] = []
   const captured: Record<string, any> = {}
   const from: Record<string, string> = {}

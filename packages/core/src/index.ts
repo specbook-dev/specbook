@@ -1,6 +1,7 @@
 export { assert, createAsserter, stripAnsi } from './assert'
 export * from './config'
 export * from './controls'
+export * from './diff'
 export * from './environment'
 export type { Example, ExampleLoader, FileReader, Row } from './example'
 export { fromFormRows, fromRows, toFormRows, toRows } from './example'
