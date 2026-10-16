@@ -2,7 +2,7 @@ import type { Controls, InferControls } from './controls'
 import type { Assert, AssertMode, AuthProfileName, RequestDef } from './types'
 
 export interface StepCtx<P, C> {
-  params: P
+  inputs: P
   captured: C
   vars: Record<string, unknown>
   env: string
@@ -34,7 +34,7 @@ export interface SequenceMeta {
   tags?: string[]
   /** Heading the flow is listed under in the catalog; flows without one are under "Default". */
   group?: string
-  params?: Controls
+  inputs?: Controls
   auth?: AuthProfileName | false
   assertMode?: AssertMode
   continueOnFailure?: boolean
@@ -55,7 +55,7 @@ export interface Sequence<P = {}, C = {}> {
     name: string,
     fn: (ctx: StepCtx<P, C>, h: { assert: Assert }) => void | Promise<void>,
   ): Sequence<P, C>
-  /** Pause for user input; the chosen values merge into ctx.params. */
+  /** Pause for user input; the chosen values merge into ctx.inputs. */
   input<R extends Controls>(
     name: string,
     controls: (ctx: StepCtx<P, C>) => R,
@@ -77,7 +77,7 @@ function build(meta: SequenceMeta, nodes: readonly StepNode[]): Sequence<any, an
 }
 
 export function sequence<P extends Controls = {}>(
-  meta: Omit<SequenceMeta, 'params'> & { params?: P },
+  meta: Omit<SequenceMeta, 'inputs'> & { inputs?: P },
 ): Sequence<InferControls<P>, {}> {
   return build(meta, [])
 }

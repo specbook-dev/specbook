@@ -113,7 +113,7 @@ export interface TestCommandOptions {
   /** files or globs; the project's requests and sequences when none are given */
   patterns: string[]
   env: string
-  params: Record<string, unknown>
+  inputs: Record<string, unknown>
   vars: Record<string, unknown>
   /** `name` or `name:path`: list, json, junit, github, ndjson */
   reporters: string[]
@@ -472,7 +472,7 @@ async function execute(
         env: o.env,
         vars,
         overrides: o.vars,
-        params: o.params,
+        inputs: o.inputs,
         transport,
         secrets,
         auth: authOf(config),

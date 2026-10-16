@@ -177,7 +177,7 @@ export interface RequestDef<T extends OpTypes = AnyOp, I extends Init = Init, C 
   readonly input: RequestInput<T, I, C>
   /** Deep-merge patches applied to the rendered data template, in order. */
   readonly dataPatches: readonly unknown[]
-  /** Explicit `.with({ vars })`; beats captures and params, only UI overrides are higher. */
+  /** Explicit `.with({ vars })`; beats captures and inputs, only UI overrides are higher. */
   readonly varOverrides: Readonly<Record<string, unknown>>
   /** Phantom: lets sequence steps infer the captured type. */
   readonly _captured?: C
@@ -214,7 +214,7 @@ export interface RenderedRequest {
 /** Where a placeholder's value came from, highest precedence first. */
 export interface VarUse {
   key: string
-  source: 'override' | 'capture' | 'param' | 'init' | 'config'
+  source: 'override' | 'capture' | 'input' | 'init' | 'config'
   /** Step that produced it, for captures. */
   step?: string
   /** A capture replaced a value of another type (e.g. a string id in an integer slot). */

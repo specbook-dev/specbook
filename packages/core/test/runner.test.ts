@@ -173,12 +173,12 @@ describe('runSequence', () => {
   const seq = sequence({
     id: 'checkout',
     title: 'Checkout',
-    params: { n: c.number({ default: 2 }) },
+    inputs: { n: c.number({ default: 2 }) },
   })
     .step('Create', create)
     .each(
       'Fetch',
-      (ctx) => Array.from({ length: ctx.params.n }, (_, i) => `o${i}`),
+      (ctx) => Array.from({ length: ctx.inputs.n }, (_, i) => `o${i}`),
       (id) =>
         GetOrder.request({
           path: { id },
@@ -226,7 +226,7 @@ describe('runSequence', () => {
     expect(r.steps.map((x) => x.status)).toEqual(['fail', 'fail'])
   })
 
-  it('input() offers options built from captured data and merges the choice into params', async () => {
+  it('input() offers options built from captured data and merges the choice into inputs', async () => {
     const Search = defineOperation<{
       params: {}
       body: never
@@ -241,7 +241,7 @@ describe('runSequence', () => {
           default: 0,
         }),
       }))
-      .step('Book', (ctx) => request({ method: 'POST', url: `/book/${ctx.params.flightId}` }))
+      .step('Book', (ctx) => request({ method: 'POST', url: `/book/${ctx.inputs.flightId}` }))
     const { transport, calls } = fakeTransport((req) =>
       req.url === '/flights'
         ? {

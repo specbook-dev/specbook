@@ -126,7 +126,7 @@ describe('captures are variables', () => {
     expect(calls[0]?.url).toBe('/orders/fallback')
   })
 
-  it('.with({ vars }) beats a capture, and params beat init', async () => {
+  it('.with({ vars }) beats a capture, and flow inputs beat init', async () => {
     const { transport, calls } = api()
     const pinned = get.with({ vars: { orderId: 'pinned' } })
     await runSequence(
@@ -139,13 +139,13 @@ describe('captures are variables', () => {
     expect(calls[1]?.url).toBe('/orders/pinned')
 
     const named = Create.request({ init: { n: 'init' }, data: { name: '{{n}}', qty: 1 } })
-    const seq = sequence({ id: 'p', title: 'P', params: { n: c.text({ default: 'param' }) } }).step(
+    const seq = sequence({ id: 'p', title: 'P', inputs: { n: c.text({ default: 'input' }) } }).step(
       'named',
       named,
     )
     const r = await runSequence(seq, { env: 'mock', transport })
-    expect(calls[2]?.body).toMatchObject({ name: 'param' })
-    expect(r.steps[0]?.uses).toContainEqual({ key: 'n', source: 'param' })
+    expect(calls[2]?.body).toMatchObject({ name: 'input' })
+    expect(r.steps[0]?.uses).toContainEqual({ key: 'n', source: 'input' })
   })
 
   it('assert sees captures in vars and the request that was sent in req', async () => {

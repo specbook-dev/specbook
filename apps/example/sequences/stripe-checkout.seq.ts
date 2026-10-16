@@ -10,7 +10,7 @@ export default sequence({
   description:
     'Customer → payment intent → confirm with a test card → refund. Use Stripe test mode only.',
   tags: ['stripe'],
-  params: {
+  inputs: {
     amount: c.number({ default: 2000, min: 50 }),
     currency: c.select(['usd', 'eur', 'gbp'] as const, { default: 'usd' }),
     paymentMethod: c.select(['pm_card_visa', 'pm_card_mastercard'] as const, {

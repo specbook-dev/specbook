@@ -26,7 +26,7 @@ describe('example project (Petstore, mock env)', () => {
     const code = await testCommand(project, loader, {
       patterns: ['sequences/*.seq.ts', 'requests/**/*.req.ts'],
       env: 'mock',
-      params: {},
+      inputs: {},
       vars: {},
       reporters: [],
       tags: [],
@@ -47,7 +47,7 @@ describe('example project (Petstore, mock env)', () => {
     const code = await testCommand(project, loader, {
       patterns: ['sequences/*.seq.ts'],
       env: 'live',
-      params: {},
+      inputs: {},
       vars: {},
       reporters: [],
       tags: [],
@@ -64,7 +64,7 @@ describe('example project (Petstore, mock env)', () => {
     const code = await testCommand(project, loader, {
       patterns: ['sequences/*.seq.ts'],
       env: 'nowhere',
-      params: {},
+      inputs: {},
       vars: {},
       reporters: [],
       tags: [],

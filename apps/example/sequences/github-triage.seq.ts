@@ -11,7 +11,7 @@ export default sequence({
   description:
     'Create an issue, label it, comment, verify the comment, then close it. Use a sandbox repo.',
   tags: ['github'],
-  params: {
+  inputs: {
     label: c.select(['bug', 'enhancement', 'question'] as const, { default: 'bug' }),
     comment: c.text({ default: 'Looking into this.' }),
   },

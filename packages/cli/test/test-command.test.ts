@@ -115,7 +115,7 @@ afterAll(async () => {
 const base0: TestCommandOptions = {
   patterns: [],
   env: 'live',
-  params: {},
+  inputs: {},
   vars: {},
   reporters: [],
   tags: [],
