@@ -291,6 +291,10 @@
   .newenv-backdrop {
     z-index: 60;
   }
+  .newenv {
+    /* the palette stretches to fill its height; a short form should not */
+    align-self: flex-start;
+  }
   .newenv form {
     display: flex;
     flex-direction: column;
@@ -311,7 +315,8 @@
     border: 1px solid var(--sb-border);
     border-radius: var(--sb-radius-control);
     padding: 8px 10px;
-    font-size: 14px;
+    /* 16px, so iOS does not zoom the page when a field is focused */
+    font-size: 16px;
   }
   .palette ul {
     list-style: none;
@@ -683,7 +688,7 @@
       white-space: nowrap;
     }
     .palette-btn kbd,
-    .header .spacer {
+    .header > .spacer {
       display: none;
     }
     .header .menu-btn {
@@ -719,8 +724,32 @@
       justify-content: space-between;
       flex-wrap: nowrap;
     }
-    .header-controls select {
-      min-width: 140px;
+    /* every labelled control in the menu: the label to the left, the control the same width on the right */
+    .header-controls .row > select {
+      flex: 0 0 56%;
+      width: 56%;
+      min-width: 0;
+    }
+    /* Synthetic data is a row inside a row (its label and, once fixed, a seed field): the inner one fills it */
+    .header-controls .row > .row {
+      flex: 1 1 100%;
+    }
+    .header-controls .row.muted {
+      flex-wrap: wrap;
+    }
+    .header-controls .seed-input {
+      flex: 0 0 56%;
+      margin-left: auto;
+    }
+    .header-controls .envmenu,
+    .header-controls .envmenu-btn {
+      width: 100%;
+    }
+    .header-controls .envmenu-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--sb-space-2);
     }
     /* in the menu there is room for the words, and each link is a full row */
     .header-controls .gh-label,

@@ -1,6 +1,7 @@
 import { copyFile, cp, stat } from 'node:fs/promises'
 import { createRequire } from 'node:module'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { specbook } from '@specbook/vite'
 import { build, createServer, type InlineConfig } from 'vite'
 import type { Project } from '../project'
@@ -8,6 +9,46 @@ import type { Project } from '../project'
 function uiRoot(): string {
   const require = createRequire(import.meta.url)
   return dirname(require.resolve('@specbook/ui/package.json'))
+}
+
+/** The `node_modules` folder a resolved file sits in (the innermost one), or undefined outside any. */
+export function nodeModulesOf(file: string): string | undefined {
+  const marker = `${sep}node_modules`
+  const at = file.lastIndexOf(`${marker}${sep}`)
+  return at < 0 ? undefined : file.slice(0, at + marker.length)
+}
+
+/** Every `node_modules` folder a file is inside, innermost first. */
+export function enclosingNodeModules(file: string): string[] {
+  const out: string[] = []
+  for (let dir = dirname(file); dirname(dir) !== dir; dir = dirname(dir))
+    if (basename(dir) === 'node_modules') out.push(dir)
+  return out
+}
+
+/**
+ * Where the dev server may serve files from. A package installed by `npx` can sit in one `node_modules` while
+ * its dependencies (the editor's stylesheets, vite's client) are hoisted to another, or the CLI can be linked
+ * in from a checkout: every `node_modules` this CLI and the UI sit in, and the one each dependency the page
+ * loads from disk resolves into, is a place it may serve from.
+ */
+function dependencyFolders(root: string): string[] {
+  const found = new Set<string>([
+    ...enclosingNodeModules(fileURLToPath(import.meta.url)),
+    ...enclosingNodeModules(join(root, 'package.json')),
+  ])
+  for (const from of [join(root, 'package.json'), fileURLToPath(import.meta.url)]) {
+    const require = createRequire(from)
+    for (const name of ['vite', 'prism-code-editor', 'preact', '@preact/signals']) {
+      try {
+        const folder = nodeModulesOf(require.resolve(name))
+        if (folder) found.add(folder)
+      } catch {
+        /* not resolvable from here: the others still are */
+      }
+    }
+  }
+  return [...found]
 }
 
 function uiConfig(project: Project): InlineConfig {
@@ -23,7 +64,16 @@ function uiConfig(project: Project): InlineConfig {
       rolldownOptions: { transform: { jsx: { runtime: 'automatic', importSource: 'preact' } } },
     },
     plugins: [specbook({ projectRoot: project.root, outDir: project.config.codegen?.outDir })],
-    server: { fs: { allow: [resolve(root, '../..'), project.root, resolve(root, '..')] } },
+    server: {
+      fs: {
+        allow: [
+          resolve(root, '../..'),
+          project.root,
+          resolve(root, '..'),
+          ...dependencyFolders(root),
+        ],
+      },
+    },
   }
 }
 

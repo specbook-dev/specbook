@@ -582,12 +582,8 @@ ${names.map((n) => `  ${JSON.stringify(n)}: () => import(${JSON.stringify(`${VIR
       const relevant = (file: string) => {
         const rel = relative(root, file)
         if (rel.startsWith('..') || /node_modules/.test(rel)) return false
-        // environment files change which environments exist and what their variables are
-        if (
-          /^\.specbook[\\/]environments[\\/][^\\/]+\.env$/.test(rel) &&
-          !/\.secrets\.env$/.test(rel)
-        )
-          return true
+        // not `.specbook/environments/*.env`: the page reads an environment's variables live, and a reload
+        // when its file is first written would blank the page under whoever is editing a variable
         return /\.(req|seq)\.ts$|\.example\.json$|\.md$/.test(rel) || rel.startsWith(outDir)
       }
       // one reload per burst of changes: a save also arrives here from the watcher

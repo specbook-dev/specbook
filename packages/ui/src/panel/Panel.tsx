@@ -63,14 +63,23 @@ export function Panel({
       const top = vv?.offsetTop ?? 0
       const height = vv?.height ?? innerHeight
       const at = field.getBoundingClientRect().top
-      const want = top + height * 0.2
-      if (at > top + height * 0.4 || at < top) box.scrollTop += at - want
+      // a dropdown field needs its list visible too, and picking from it needs no keyboard: it is moved
+      // only when it is down where the keyboard would be, and not as far
+      const dropdown = field.getAttribute('role') === 'combobox'
+      const want = top + height * (dropdown ? 0.3 : 0.2)
+      if (at > top + height * (dropdown ? 0.55 : 0.4) || at < top) box.scrollTop += at - want
     }
     const focusin = (e: Event) => {
       const field = e.target as HTMLElement
       if (!phone.matches || !field.matches?.(FIELD)) return
       const box = scroller(field)
-      if (box && padded?.box !== box) {
+      // a dropdown field high enough on the screen is not moved, so it needs no room below (which would
+      // only show a scrollbar)
+      const vv = typeof visualViewport === 'undefined' ? undefined : visualViewport
+      const low =
+        field.getBoundingClientRect().top >
+        (vv?.offsetTop ?? 0) + (vv?.height ?? innerHeight) * 0.55
+      if (box && padded?.box !== box && (field.getAttribute('role') !== 'combobox' || low)) {
         if (padded) padded.box.style.paddingBottom = padded.was
         padded = { box, was: box.style.paddingBottom }
         box.style.paddingBottom = '70vh'

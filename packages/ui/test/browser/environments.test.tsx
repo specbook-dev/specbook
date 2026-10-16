@@ -1,5 +1,6 @@
 import { render } from 'preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { page } from 'vitest/browser'
 import { App } from '../../src/app'
 import { catalogService, go } from '../../src/nav'
 import { env, envSettingsOpen, newEnvironmentOpen } from '../../src/store'
@@ -118,5 +119,53 @@ describe('environments in the app', () => {
         body: { env: 'live', name: 'petstoreUrl', value: 'http://localhost:9000/v3' },
       }),
     )
+  })
+
+  it('fits a phone: the settings and the dialog stay inside the screen, with room for an address', async () => {
+    const [w, h] = [window.innerWidth, window.innerHeight]
+    await page.viewport(390, 844)
+    try {
+      await mount()
+      // on a phone the header controls sit behind the menu button
+      ;($('.menu-btn') as HTMLButtonElement).click()
+      await waitFor(() =>
+        expect(getComputedStyle($('.header-controls') as Element).display).not.toBe('none'),
+      )
+      // the menu's labelled controls line up: one left edge and one width for every select
+      const selects = [...root.querySelectorAll('.header-controls select')].map((e) =>
+        e.getBoundingClientRect(),
+      )
+      expect(selects.length).toBeGreaterThan(1)
+      expect(new Set(selects.map((r) => Math.round(r.left))).size).toBe(1)
+      expect(new Set(selects.map((r) => Math.round(r.width))).size).toBe(1)
+      ;($('.envmenu-btn') as HTMLButtonElement).click()
+      await waitFor(() => expect($('.envmenu-pop')).not.toBeNull())
+      const pop = $('.envmenu-pop') as HTMLElement
+      await waitFor(() =>
+        expect(pop.querySelector('input[aria-label="Value of petstoreUrl"]')).not.toBeNull(),
+      )
+      // the close button sits at the popover's right edge, not beside the title
+      const close = pop.querySelector('button[aria-label="Close"]') as HTMLElement
+      expect(pop.getBoundingClientRect().right - close.getBoundingClientRect().right).toBeLessThan(
+        24,
+      )
+      expect(pop.scrollWidth).toBeLessThanOrEqual(pop.clientWidth)
+      expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth)
+      const address = pop.querySelector('input[aria-label="Value of petstoreUrl"]') as HTMLElement
+      // the address field is most of the popover's width, not squeezed beside its name
+      expect(address.getBoundingClientRect().width).toBeGreaterThan(pop.clientWidth * 0.55)
+      for (const input of pop.querySelectorAll('input'))
+        expect(parseFloat(getComputedStyle(input).fontSize)).toBeGreaterThanOrEqual(16)
+      envSettingsOpen.value = false
+      newEnvironmentOpen.value = true
+      await waitFor(() => expect($('.newenv')).not.toBeNull())
+      const box = ($('.newenv') as HTMLElement).getBoundingClientRect()
+      expect(box.left).toBeGreaterThanOrEqual(0)
+      expect(box.right).toBeLessThanOrEqual(window.innerWidth)
+      for (const f of document.querySelectorAll('.newenv input, .newenv select'))
+        expect(parseFloat(getComputedStyle(f).fontSize)).toBeGreaterThanOrEqual(16)
+    } finally {
+      await page.viewport(w, h)
+    }
   })
 })

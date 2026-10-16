@@ -1578,6 +1578,8 @@
     max-height: min(70vh, 640px);
     overflow: auto;
     display: grid;
+    /* one column that cannot outgrow the popover: Safari sizes an auto track to its widest field */
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--sb-space-3);
     padding: var(--sb-space-3) var(--sb-space-4);
     background: var(--sb-surface);
@@ -1821,6 +1823,13 @@
     }
     .envrow {
       flex-wrap: wrap;
+    }
+    /* a variable: its name above, then the value (an address needs the room) beside its source */
+    .envrow code {
+      flex: 1 0 100%;
+    }
+    .envrow input {
+      flex: 1 1 0;
     }
     .envrow input,
     .envrow select {

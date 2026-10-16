@@ -112,6 +112,8 @@ export async function previewCommand(
     project: service,
     ...(Object.keys(vars).length ? { vars } : {}),
     ...(Object.keys(environments).length ? { environments } : {}),
+    // the header carries our mark, as the hosted viewer's does, unless the document brings a logo
+    ...(api.info?.['x-logo'] ? {} : { branding: { logo: '/src/assets/mark.svg' } }),
     secrets,
     auth,
     services: {

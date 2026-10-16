@@ -180,7 +180,21 @@ export default FindPetsByStatus.request({
   }
   // the scan runs after the server is listening; give it time to report
   await new Promise((r) => setTimeout(r, 3000))
+  // the files the page loads from disk are inside what the server may serve (a package installed beside
+  // its hoisted dependencies, as npx does, is where they were refused)
+  const refused = []
+  if (status === 200) {
+    const main = await fetch(`http://localhost:${port}/src/main.tsx`).then((r) => r.text())
+    const wanted = new Set(['/@vite/client'])
+    for (const m of main.matchAll(/["']([^"']+\.(?:css|svg))["']/g)) wanted.add(m[1])
+    for (const path of wanted) {
+      const r = await fetch(`http://localhost:${port}${path}`).catch(() => ({ status: 0 }))
+      if (r.status !== 200) refused.push(`${path} -> ${r.status}`)
+    }
+  }
   dev.kill()
+  if (refused.length)
+    fail(`specbook dev refused files the page loads:\n${refused.join('\n')}\n${log}`)
   if (status !== 200) fail(`specbook dev did not answer\n${log}`)
   else if (/dependency scan|could not be resolved/i.test(log)) fail(`specbook dev warned\n${log}`)
   else ok('specbook dev serves the app with a clean dependency scan')

@@ -116,6 +116,8 @@ describe('preview', () => {
     const written = await readFile(join(p.root, '.specbook/specbook.config.ts'), 'utf8')
     // the first server is the variable's default; each other server is an environment setting it
     const config = JSON.parse(written.replace('export default ', ''))
+    // no logo of its own: the header carries Specbook's mark
+    expect(config.branding.logo).toBe('/src/assets/mark.svg')
     expect(config.services.many.baseUrl).toBe('{{baseUrl}}')
     expect(config.vars).toEqual({ baseUrl: 'https://api.example.test' })
     expect(config.environments.sandbox.vars).toEqual({ baseUrl: 'https://sandbox.example.test' })
