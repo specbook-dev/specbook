@@ -15,10 +15,14 @@ import {
 import { listEnvironmentFiles, readEnvironment } from '@specbook/vite'
 import fg from 'fast-glob'
 import type { Loader } from '../load'
+import { readGenerated, usedOperations } from '../ops'
 import type { Project } from '../project'
 import { ensureGenerated, isTracked } from './ensure'
 
-/** Validates specs, generated-code drift and placeholder/secret references. Exit 1 on errors. */
+/**
+ * Validates specs, generated-code drift, the operations your requests import, environment files, every address in every
+ * environment and placeholder/secret references. Exit 1 on errors.
+ */
 export async function checkCommand(project: Project, loader: Loader): Promise<number> {
   const errors: string[] = []
   const warnings: string[] = []
@@ -51,6 +55,18 @@ export async function checkCommand(project: Project, loader: Loader): Promise<nu
     } catch (e) {
       errors.push(`[${name}] invalid spec: ${e instanceof Error ? e.message : e}`)
     }
+  }
+
+  // an operation a request imports that the spec does not have: a typo, or one the spec dropped
+  const used = await usedOperations(project)
+  for (const [service, names] of [...used.named].sort()) {
+    const metas = await readGenerated(outDir, service)
+    if (!metas || !cfg.services[service]) continue
+    for (const id of [...names].sort())
+      if (!metas[id])
+        errors.push(
+          `[${used.where.get(`${service}/${id}`)?.[0] ?? service}] ${id} is not an operation of "${service}"`,
+        )
   }
 
   // environment files: a declared secret in a committed `<env>.env` is a leak waiting to happen

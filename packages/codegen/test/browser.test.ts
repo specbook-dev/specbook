@@ -23,7 +23,8 @@ describe.each([
     // exactly the TypeScript sources are left out
     const left = [...fullByPath.keys()].filter((p) => !dataByPath.has(p))
     expect(left.length).toBeGreaterThan(0)
-    expect(left.every((p) => SOURCES.test(p))).toBe(true)
+    // (and opmeta.json, which a run on disk reads and the browser has no use for)
+    expect(left.every((p) => SOURCES.test(p) || p === 'opmeta.json')).toBe(true)
     // and nothing extra appears
     expect([...dataByPath.keys()].every((p) => fullByPath.has(p))).toBe(true)
     // every data file is byte-identical

@@ -34,7 +34,9 @@ export async function generateServices(
 function stale(project: Project, name: string): boolean {
   const svc = project.config.services[name]
   const manifest = join(outDirOf(project), name, 'manifest.json')
-  if (!svc || !existsSync(manifest)) return true
+  // generated before the operations file existed: it has no record of its operations' metadata
+  if (!svc || !existsSync(manifest) || !existsSync(join(outDirOf(project), name, 'opmeta.json')))
+    return true
   const built = statSync(manifest).mtimeMs
   const spec = resolve(project.root, svc.spec)
   return (
