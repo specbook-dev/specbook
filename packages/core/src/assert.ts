@@ -9,13 +9,24 @@ export const stripAnsi = (s: string) => s.replace(ANSI, '')
 /** Plain uvu/assert, for use outside a run. */
 export const assert = uvu as unknown as Assert
 
-function locate(stack: string | undefined): AssertionResult['location'] {
+const FRAME = /(?:\(|at )?([^\s()]+):(\d+):(\d+)\)?\s*$/
+
+/**
+ * Where in the user's code an assertion was made: the first frame of the stack that is not this helper. Run from source
+ * the helper is `core/src/assert`; inside a bundled CLI it is the bundle itself, so any frame in the file the stack starts
+ * in is the helper too.
+ */
+export function locate(stack: string | undefined): AssertionResult['location'] {
   if (!stack) return undefined
-  const lines = stack.split('\n').slice(1)
-  for (const line of lines) {
-    if (line.includes('/core/src/assert') || line.includes('node_modules')) continue
-    const m = /(?:\(|at )?([^\s()]+):(\d+):(\d+)\)?\s*$/.exec(line)
-    if (m) return { file: m[1] as string, line: Number(m[2]), column: Number(m[3]) }
+  const frames = stack
+    .split('\n')
+    .slice(1)
+    .map((line) => ({ line, m: FRAME.exec(line) }))
+  const own = frames[0]?.m?.[1]
+  for (const { line, m } of frames) {
+    if (!m || line.includes('/core/src/assert') || line.includes('node_modules')) continue
+    if (m[1] === own) continue
+    return { file: m[1] as string, line: Number(m[2]), column: Number(m[3]) }
   }
   return undefined
 }
