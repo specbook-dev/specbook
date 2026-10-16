@@ -136,7 +136,7 @@ function ValueCell({
 }
 
 /**
- * A sequence's controls (params, or the choices of an input step) as the same spreadsheet the request
+ * A flow's controls (inputs, or the choices of an input step) as the same spreadsheet the request
  * parameters use: name, value, description.
  */
 export function ControlsGrid({ title, specs, values, onChange }: Props) {

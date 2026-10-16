@@ -431,7 +431,7 @@ export default sequence({
   title: "Adopt a pet",
   description: 'Find \\'em, order it.',
   tags: ['petstore', 'smoke'],
-  params: { quantity: c.number({ default: 1, id: 'nope', title: 'not this' }) },
+  inputs: { quantity: c.number({ default: 1, id: 'nope', title: 'not this' }) },
 }).step('x', y)`
     expect(parseSequenceMeta(src)).toEqual({
       id: 'adopt-pet',

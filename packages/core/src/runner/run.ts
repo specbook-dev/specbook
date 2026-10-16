@@ -74,8 +74,8 @@ export interface RunOptions {
   vars?: Record<string, unknown>
   /** Highest-precedence overrides (UI vars panel, CLI --var). */
   overrides?: Record<string, unknown>
-  /** Sequence param overrides. */
-  params?: Record<string, unknown>
+  /** Flow input values: the ones a person would set (UI controls, CLI --input). */
+  inputs?: Record<string, unknown>
   transport: Transport
   /** Resolved secret values, keyed by secret name. Not needed in the mock env. */
   secrets?: Record<string, string>
@@ -94,7 +94,7 @@ export interface RunOptions {
   auth?: Record<string, AuthProfile>
   /** service -> default auth profile name. */
   serviceAuth?: Record<string, string>
-  /** Called at `input()` steps; omit for headless (params override > default > first option). */
+  /** Called at `input()` steps; omit for headless (inputs given > default > first option). */
   onInput?: (req: {
     name: string
     controls: ReturnType<typeof describeControls>
@@ -323,13 +323,13 @@ async function ensureSession(
 
 /** What earlier steps and the sequence hand to a request. */
 interface Flow {
-  params: Record<string, unknown>
+  inputs: Record<string, unknown>
   captured: Record<string, unknown>
   /** capture name -> the step that produced it */
   from: Record<string, string>
 }
 
-const NO_FLOW: Flow = { params: {}, captured: {}, from: {} }
+const NO_FLOW: Flow = { inputs: {}, captured: {}, from: {} }
 
 interface ExecOut {
   result: StepResult
@@ -362,7 +362,7 @@ async function execute(
     const layers: [VarUse['source'], Record<string, unknown>][] = [
       ['config', rt.o.vars ?? {}],
       ['init', evalInit(def.input.init)],
-      ['param', flow.params],
+      ['input', flow.inputs],
       ['capture', flow.captured],
       ['override', evalInit(def.varOverrides)],
       ['override', rt.o.overrides ?? {}],
@@ -684,12 +684,12 @@ export async function runSequence(seq: Sequence<any, any>, o: RunOptions): Promi
     Object.assign(captured, values)
     for (const k of Object.keys(values)) from[k] = step
   }
-  let params: Record<string, unknown>
+  let inputs: Record<string, unknown>
   try {
-    params = resolveControls(seq.meta.params ?? {}, o.params)
+    inputs = resolveControls(seq.meta.inputs ?? {}, o.inputs)
   } catch (e: any) {
     steps.push({
-      name: 'params',
+      name: 'inputs',
       kind: 'input',
       status: 'error',
       assertions: [],
@@ -701,7 +701,7 @@ export async function runSequence(seq: Sequence<any, any>, o: RunOptions): Promi
   }
   const vars = o.vars ?? {}
   const ctx = (): StepCtx<any, any> => ({
-    params,
+    inputs,
     captured,
     vars: { ...vars, ...(o.overrides ?? {}) },
     env: o.env,
@@ -725,7 +725,7 @@ export async function runSequence(seq: Sequence<any, any>, o: RunOptions): Promi
       if (node.kind === 'step') {
         const def = typeof node.def === 'function' ? node.def(ctx()) : node.def
         const { result, authResults } = await execute(rt, def, node.name, {
-          params,
+          inputs,
           captured,
           from,
         })
@@ -748,7 +748,7 @@ export async function runSequence(seq: Sequence<any, any>, o: RunOptions): Promi
         for (let i = 0; i < items.length; i++) {
           const def = node.def(items[i], ctx(), i)
           const { result, authResults } = await execute(rt, def, `${node.name} #${i + 1}`, {
-            params,
+            inputs,
             captured,
             from,
           })
@@ -773,9 +773,9 @@ export async function runSequence(seq: Sequence<any, any>, o: RunOptions): Promi
         emit(rt, { type: 'input:required', name: node.name, controls: described })
         const given = o.onInput
           ? await o.onInput({ name: node.name, controls: described })
-          : (o.params ?? {})
+          : (o.inputs ?? {})
         const values = resolveControls(controls, given)
-        params = { ...params, ...values }
+        inputs = { ...inputs, ...values }
         steps.push({
           name: node.name,
           kind: 'input',

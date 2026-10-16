@@ -35,7 +35,7 @@ export function SequencePanel({ info }: { info: SequenceInfo }) {
   const specs = useMemo(
     () =>
       Object.fromEntries(
-        Object.entries((seq.meta.params ?? {}) as Record<string, unknown>).map(([k, c]) => [
+        Object.entries((seq.meta.inputs ?? {}) as Record<string, unknown>).map(([k, c]) => [
           k,
           specFromControl(c),
         ]),
@@ -52,7 +52,7 @@ export function SequencePanel({ info }: { info: SequenceInfo }) {
     }
     return [...names]
   }, [seq])
-  const [params, setParams] = useState<Record<string, unknown>>({})
+  const [inputs, setInputs] = useState<Record<string, unknown>>({})
   const [result, setResult] = useState<RunResult>()
   const [live, setLive] = useState<Live>({})
   const [running, setRunning] = useState(false)
@@ -68,7 +68,7 @@ export function SequencePanel({ info }: { info: SequenceInfo }) {
   const [error, setError] = useState<string>()
 
   useEffect(() => {
-    setParams(Object.fromEntries(Object.entries(specs).map(([k, v]) => [k, defaultFor(v)])))
+    setInputs(Object.fromEntries(Object.entries(specs).map(([k, v]) => [k, defaultFor(v)])))
     setResult(undefined)
     setLive({})
     setPause(undefined)
@@ -91,7 +91,7 @@ export function SequencePanel({ info }: { info: SequenceInfo }) {
       const r = await engine.run(seq, {
         env: env.value,
         version: version.value,
-        params,
+        inputs,
         locale: locale.value,
         seed: seed.value,
         onEvent: (e) => {
@@ -128,7 +128,7 @@ export function SequencePanel({ info }: { info: SequenceInfo }) {
     <div class={`sequence-panel ${sheet && current ? 'sheet-open' : ''}`} data-seq={seq.meta.id}>
       <div class="seq-left">
         <SecretsBar services={serviceNames} />
-        <ControlsGrid title="Controls" specs={specs} values={params} onChange={setParams} />
+        <ControlsGrid title="Controls" specs={specs} values={inputs} onChange={setInputs} />
         <div class="seq-run">
           <button type="button" class="btn primary" disabled={running} onClick={run}>
             {running ? 'Running…' : '▶ Run'}

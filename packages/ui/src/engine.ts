@@ -83,7 +83,7 @@ export interface RunInput {
   version: number
   /** Forced mock status per run (mock env only). */
   mockStatus?: number
-  params?: Record<string, unknown>
+  inputs?: Record<string, unknown>
   vars?: Record<string, unknown>
   onEvent?: (e: RunEvent) => void
   onInput?: Parameters<typeof runSequence>[1]['onInput']
@@ -623,7 +623,7 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
       env: i.env,
       vars: await scopeOf(i.env, i.version),
       overrides: i.vars,
-      params: i.params,
+      inputs: i.inputs,
       transport: await transportFor(i.env, i.proxyBase ?? '/__specbook/proxy', i.version),
       // placeholders stay in the request: the dev server's proxy or a static page's transport fills them
       deferSecrets: true,

@@ -175,7 +175,7 @@ export async function checkCommand(project: Project, loader: Loader): Promise<nu
       } else if (name.startsWith('session.') || name.startsWith('faker.')) {
       } else if (!init.has(root) && !known.has(root)) {
         warnings.push(
-          `[${rel}] "{{${name}}}" has no init value or config var, so it must come from a capture or sequence param`,
+          `[${rel}] "{{${name}}}" has no init value or config var, so it must come from a capture or flow input`,
         )
       }
     }

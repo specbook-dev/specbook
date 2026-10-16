@@ -6,7 +6,7 @@ export class UsageError extends Error {}
 
 export const TEST_FLAGS = {
   env: { type: 'string', default: 'mock' },
-  param: { type: 'string', multiple: true },
+  input: { type: 'string', multiple: true },
   var: { type: 'string', multiple: true },
   tag: { type: 'string', multiple: true },
   reporter: { type: 'string', multiple: true },
@@ -40,7 +40,7 @@ export const TEST_HELP = `      --env <name>             environment (default: m
       --reporter <r[:path]>    list (default) | json | junit | github | ndjson (repeatable)
       --trace <when>           on-failure (default) | always | off: the request and response of a step
       --quiet                  only failures and the summary
-      --param k=v              flow param / input value (repeatable)
+      --input k=v              flow input value (repeatable)
       --var k=v                variable override (repeatable)
       --secrets-file <path>    dotenv file with secrets
       --locale <l> --seed <n>  synthetic data locale / deterministic seed
@@ -77,7 +77,7 @@ export function testOptions(values: Values, patterns: string[]): TestCommandOpti
   return {
     patterns,
     env: values.env as string,
-    params: kv(values.param as string[] | undefined),
+    inputs: kv(values.input as string[] | undefined),
     vars: kv(values.var as string[] | undefined),
     reporters: (values.reporter as string[] | undefined) ?? [],
     secretsFile: values['secrets-file'] as string | undefined,

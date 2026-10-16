@@ -21,9 +21,9 @@ export function SequenceDocs({ info }: { info: SequenceInfo }) {
   const { seq } = info
   const { intro, notes } = useSequenceNotes(info)
 
-  const params = useMemo(
+  const inputs = useMemo(
     () =>
-      Object.entries((seq.meta.params ?? {}) as Record<string, unknown>).map(([name, c]) => {
+      Object.entries((seq.meta.inputs ?? {}) as Record<string, unknown>).map(([name, c]) => {
         const spec: FieldSpec = specFromControl(c)
         return { name, spec, initial: defaultFor(spec) }
       }),
@@ -42,7 +42,7 @@ export function SequenceDocs({ info }: { info: SequenceInfo }) {
 
       {intro && <div class="doc-custom" dangerouslySetInnerHTML={{ __html: intro }} />}
 
-      {params.length > 0 && (
+      {inputs.length > 0 && (
         <section>
           <h2>Controls</h2>
           <table class="fields">
@@ -55,7 +55,7 @@ export function SequenceDocs({ info }: { info: SequenceInfo }) {
               </tr>
             </thead>
             <tbody>
-              {params.map((p) => (
+              {inputs.map((p) => (
                 <tr>
                   <td>
                     <code>{p.name}</code>

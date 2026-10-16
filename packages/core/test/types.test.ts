@@ -24,17 +24,17 @@ describe('types', () => {
       },
     })
   })
-  it('accumulates captures through steps and params through input()', () => {
+  it('accumulates captures through steps and inputs through input()', () => {
     const req = CreateOrder.request({
       capture: { orderId: (res) => (res.status === 201 ? res.data.id : '') },
     })
-    sequence({ id: 's', title: 'S', params: { from: c.select(['LAS', 'BLI'] as const) } })
+    sequence({ id: 's', title: 'S', inputs: { from: c.select(['LAS', 'BLI'] as const) } })
       .step('create', req)
       .input('pick', () => ({ n: c.number() }))
       .check('types', (ctx) => {
         expectTypeOf(ctx.captured.orderId).toEqualTypeOf<string>()
-        expectTypeOf(ctx.params.from).toEqualTypeOf<'LAS' | 'BLI'>()
-        expectTypeOf(ctx.params.n).toEqualTypeOf<number>()
+        expectTypeOf(ctx.inputs.from).toEqualTypeOf<'LAS' | 'BLI'>()
+        expectTypeOf(ctx.inputs.n).toEqualTypeOf<number>()
       })
   })
   it('each() collects captures as arrays', () => {

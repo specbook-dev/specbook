@@ -8,7 +8,7 @@ export default sequence({
   title: 'Adopt a pet',
   description: 'Find available pets, pick one, order it, then verify the order.',
   tags: ['petstore', 'smoke'],
-  params: {
+  inputs: {
     quantity: c.number({
       default: 1,
       min: 1,
