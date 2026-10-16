@@ -27,7 +27,7 @@ import { type EnvironmentAddresses, handleProxy, type ProxyConfig } from './prox
 import { parseSequenceMeta, scanSequences } from './sequences'
 
 export * from './environments'
-export { safeProjectPath, scanProject } from './files'
+export { requestsDirFor, safeProjectPath, scanProject } from './files'
 export type { EnvironmentAddresses, ProxyConfig, ProxyDeps } from './proxy'
 export { handleProxy } from './proxy'
 

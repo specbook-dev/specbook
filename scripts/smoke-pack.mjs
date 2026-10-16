@@ -150,7 +150,8 @@ export default FindPetsByStatus.request({
 })
 `,
   )
-  sb(['run', 'requests/*.req.ts', '--env', 'mock'], 'specbook run (mock)')
+  sb(['test', '--env', 'mock'], 'specbook test (mock)')
+
   sb(['build', '--viewer', '--out', 'dist-docs'], 'specbook build --viewer')
   for (const f of ['dist-docs/index.html', 'dist-docs/specbook.js', 'dist-docs/viewer/index.html'])
     if (!existsSync(join(proj, f))) fail(`build did not write ${f}`)
@@ -198,6 +199,33 @@ export default FindPetsByStatus.request({
   if (status !== 200) fail(`specbook dev did not answer\n${log}`)
   else if (/dependency scan|could not be resolved/i.test(log)) fail(`specbook dev warned\n${log}`)
   else ok('specbook dev serves the app with a clean dependency scan')
+
+  // a run against a local server
+  // the server is a separate process: this one is blocked while a command runs
+  const api = spawn(
+    process.execPath,
+    [
+      '-e',
+      `require('node:http').createServer((req, res) => {
+         res.setHeader('content-type', 'application/json')
+         res.end(req.url.startsWith('/pet/findByStatus') ? '[]' : '{}')
+       }).listen(0, '127.0.0.1', function () { console.log(this.address().port) })`,
+    ],
+    { stdio: ['ignore', 'pipe', 'inherit'] },
+  )
+  const apiPort = await new Promise((resolve) =>
+    api.stdout.once('data', (d) => resolve(Number(String(d).trim()))),
+  )
+  mkdirSync(join(proj, '.specbook/environments'), { recursive: true })
+  writeFileSync(
+    join(proj, '.specbook/environments/local.env'),
+    `petstoreUrl=http://127.0.0.1:${apiPort}\n`,
+  )
+  try {
+    sb(['test', '--env', 'local'], 'specbook test --env local')
+  } finally {
+    api.kill()
+  }
 } finally {
   rmSync(work, { recursive: true, force: true })
 }
