@@ -14,30 +14,33 @@ export interface JsonAuthProfile {
   oauth?: OAuthSettings
 }
 
+/** Gives the address a profile field should carry for a raw URL from the document. */
+type Address = (field: 'authorizationUrl' | 'tokenUrl' | 'openIdConnectUrl', raw: string) => string
+
 /** An OpenID Connect scheme: the discovery document says where to sign in. */
-function discovery(s: any, base: string | undefined): OAuthSettings | undefined {
+function discovery(s: any, address: Address): OAuthSettings | undefined {
   if (typeof s.openIdConnectUrl !== 'string' || s.openIdConnectUrl === '') return undefined
   try {
-    return { openIdConnectUrl: new URL(s.openIdConnectUrl, base).toString() }
+    return { openIdConnectUrl: address('openIdConnectUrl', s.openIdConnectUrl) }
   } catch {
     return undefined
   }
 }
 
 /** The authorization code flow of an OAuth scheme (OpenAPI 3 `flows`, or Swagger 2 `accessCode`). */
-function codeFlow(s: any, base: string | undefined): OAuthSettings | undefined {
+function codeFlow(s: any, address: Address): OAuthSettings | undefined {
   const flow = s.flows?.authorizationCode ?? (s.flow === 'accessCode' ? s : undefined)
   if (!flow?.authorizationUrl || !flow?.tokenUrl) return undefined
-  const abs = (u: string) => {
+  const abs = (field: 'authorizationUrl' | 'tokenUrl', u: string) => {
     try {
-      return new URL(u, base).toString()
+      return address(field, u)
     } catch {
       return u
     }
   }
   return {
-    authorizationUrl: abs(flow.authorizationUrl),
-    tokenUrl: abs(flow.tokenUrl),
+    authorizationUrl: abs('authorizationUrl', flow.authorizationUrl),
+    tokenUrl: abs('tokenUrl', flow.tokenUrl),
     ...(flow.scopes && Object.keys(flow.scopes).length ? { scopes: flow.scopes } : {}),
   }
 }
@@ -48,6 +51,12 @@ export interface SpecAuth {
   secrets: Record<string, Record<string, never>>
   /** the profile requests use unless they say otherwise */
   defaultProfile?: string
+  /**
+   * Sign-in addresses the document gives relative to its servers become variables, so each environment
+   * signs in at its own server: the `live` values here, and one entry per other environment below.
+   */
+  vars: Record<string, string>
+  environmentVars: Record<string, Record<string, string>>
 }
 
 const secretName = (scheme: string) =>
@@ -60,10 +69,41 @@ const secretName = (scheme: string) =>
  * Turns a document's security schemes into auth profiles whose secrets are filled in at run time, so
  * previewing a protected API only needs the user to paste a key. OAuth-style schemes take an access token.
  */
-export function authFromSpec(api: any, source?: string): SpecAuth {
+export function authFromSpec(api: any, source?: string, servers?: ServerEntry[]): SpecAuth {
   const schemes: Record<string, any> =
     api.components?.securitySchemes ?? api.securityDefinitions ?? {}
-  const out: SpecAuth = { auth: {}, secrets: {} }
+  const out: SpecAuth = { auth: {}, secrets: {}, vars: {}, environmentVars: {} }
+  const pageBase = source && isUrl(source) ? source : undefined
+  const resolve = (raw: string, base: string | undefined) => new URL(raw, base).toString()
+  // a relative address follows the server (OpenAPI 3.1): one variable per scheme and field, set per environment
+  const addressFor =
+    (scheme: string): Address =>
+    (field, raw) => {
+      if (!servers?.length || isUrl(raw)) return resolve(raw, pageBase)
+      const name = `${secretName(scheme)
+        .toLowerCase()
+        .replace(/_(.)/g, (_, c) => c.toUpperCase())}${field[0]?.toUpperCase()}${field.slice(1)}`
+      let any = false
+      for (const sv of servers) {
+        try {
+          const abs = resolve(raw, sv.url.endsWith('/') ? sv.url : `${sv.url}/`)
+          if (sv.name === 'live') out.vars[name] = abs
+          else out.environmentVars[sv.name] = { ...out.environmentVars[sv.name], [name]: abs }
+          any = true
+        } catch {
+          /* this server cannot resolve it */
+        }
+      }
+      if (!any) return resolve(raw, pageBase)
+      if (out.vars[name] === undefined) {
+        try {
+          out.vars[name] = resolve(raw, pageBase)
+        } catch {
+          out.vars[name] = raw
+        }
+      }
+      return `{{${name}}}`
+    }
   for (const [name, s] of Object.entries(schemes)) {
     const secret = secretName(name)
     const ref = `{{secrets.${secret}}}`
@@ -88,8 +128,8 @@ export function authFromSpec(api: any, source?: string): SpecAuth {
       title = `${name} (basic auth, paste base64 of user:password)`
     } else if (s.type === 'oauth2' || s.type === 'openIdConnect') {
       apply = { headers: { authorization: `Bearer ${ref}` } }
-      const base = source && isUrl(source) ? source : undefined
-      oauth = s.type === 'oauth2' ? codeFlow(s, base) : discovery(s, base)
+      const address = addressFor(name)
+      oauth = s.type === 'oauth2' ? codeFlow(s, address) : discovery(s, address)
       title = `${name} (OAuth, ${oauth ? 'sign in or ' : ''}paste an access token)`
     }
     if (!apply) continue
@@ -207,6 +247,32 @@ export function openApiServers(
     servers.push({ name, url, ...describe(entry) })
   }
   return { servers, needsBaseUrl, omitted }
+}
+
+/**
+ * What a document's servers become in a config: the first server's address as the variable `varName`, the
+ * others as the same variable in an environment of their own, and a `baseUrl` that reads it.
+ */
+export function environmentsFromServers(
+  servers: ServerEntry[],
+  varName: string,
+): {
+  vars: Record<string, string>
+  environments: Record<string, { description?: string; vars?: Record<string, string> }>
+  baseUrl: string
+} {
+  const vars: Record<string, string> = {}
+  const environments: Record<string, { description?: string; vars?: Record<string, string> }> = {}
+  for (const s of servers) {
+    const description = s.description ? { description: s.description } : {}
+    if (s.name === 'live') {
+      vars[varName] = s.url
+      if (s.description) environments.live = description
+    } else {
+      environments[s.name] = { ...description, vars: { [varName]: s.url } }
+    }
+  }
+  return { vars, environments, baseUrl: `{{${varName}}}` }
 }
 
 /** Where the API lives, from `servers[0]` (OpenAPI 3) or `host`/`basePath` (Swagger 2). */

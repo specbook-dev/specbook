@@ -41,7 +41,11 @@ export interface AuthProfile {
   token?: (res: ApiResponse<number, any>) => Session
   apply: { headers?: Record<string, string>; query?: Record<string, string> }
   retryOn401?: boolean
-  /** an interactive sign-in the UI can offer (authorization code with PKCE); the runner ignores it */
+  /**
+   * an interactive sign-in the UI can offer (authorization code with PKCE); the runner ignores it.
+   * `authorizationUrl`, `tokenUrl`, `openIdConnectUrl` and `clientId` may use environment variables
+   * (`'{{issuer}}/token'`).
+   */
   oauth?: OAuthSettings
 }
 
@@ -60,7 +64,7 @@ export type RunEvent =
 
 export interface RunOptions {
   env: string
-  /** config.vars merged with environments[env].vars. */
+  /** config.vars, then environments[env].vars, then the environment's file. */
   vars?: Record<string, unknown>
   /** Highest-precedence overrides (UI vars panel, CLI --var). */
   overrides?: Record<string, unknown>

@@ -18,7 +18,12 @@ export interface EnvironmentConfig {
 export interface ServiceConfig<E extends string = string> {
   /** Path to an OpenAPI/Swagger file (relative to the config's project root). */
   spec: string
-  baseUrl: Partial<Record<E | 'live', string>>
+  /**
+   * Where calls go. A template over the environment's variables (`'{{petstoreUrl}}'`: config `vars`, then
+   * `environments.<env>.vars`, then `.specbook/environments/<env>.env`), which also makes `live` an
+   * environment; or one address per environment.
+   */
+  baseUrl: string | Partial<Record<E | 'live', string>>
   /** Default auth profile for this service. */
   auth?: string
 }
@@ -51,7 +56,10 @@ export interface BrandingConfig {
 
 export interface SpecbookConfig<E extends string = string> {
   project: string
-  /** Non-sensitive variables, safe to commit. */
+  /**
+   * Non-sensitive variables, safe to commit: the defaults every environment starts from. An environment
+   * overrides them in `environments.<env>.vars` or `.specbook/environments/<env>.env`.
+   */
   vars?: Record<string, unknown>
   environments?: Partial<Record<E, EnvironmentConfig>>
   /** Secret references; OSS resolves them from env vars / dotenv files. */
