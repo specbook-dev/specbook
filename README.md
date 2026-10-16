@@ -29,6 +29,8 @@ read in your browser; nothing is uploaded.
   fields come back, query filters shape lists, path parameters become ids.
 - **Live calls.** The same requests run against the real API from your browser. Served from the API's own
   origin there is no CORS; from elsewhere it works for APIs that allow browser calls. Credentials stay in the tab.
+- **Sign in.** OAuth 2.0 and OpenID Connect APIs get a Sign in button (PKCE, no client secret); the token stays
+  in the tab. [How to set it up](#sign-in-to-oauth-apis).
 - **Flows.** Chain requests, capture values from one response into the next, and assert on the way.
 - **Share a view.** A link opens the same operation for someone else, for any spec served from a public address.
 - **Embed it.** Serve the viewer from your API's docs route: it runs on your origin, so no CORS, and your
@@ -53,23 +55,6 @@ cookies. `spec` may be relative; `baseUrl` supplies the API address when the doc
 | Your policy will not load a third-party script | Self-host the viewer (below). |
 | You want the hosted viewer inside your page | An iframe of ui.specbook.dev works, but it is cross-origin, so the API still has to allow it. An iframe of your self-hosted copy is same-origin. |
 | It is someone else's API | It works when that API allows browser calls. A browser extension for the rest is planned. |
-
-## Sign in to OAuth APIs
-
-A scheme with an OAuth 2.0 authorization code flow, or an OpenID Connect one, gets a **Sign in** button beside
-the credentials prompt. It uses PKCE, so there is no client secret, and the token stays in the tab. Register a
-public client with the provider and allow this redirect URI:
-
-| Where you run it | Register this redirect URI |
-| --- | --- |
-| The hosted viewer | `https://ui.specbook.dev/oauth/callback/` (it does not change when the viewer's version does) |
-| A viewer you embed or host yourself | That page's own address |
-| `specbook dev` and `specbook preview` | The address they print |
-
-From the hosted viewer or a static build the browser makes the token exchange, so the provider must also allow
-the page's origin (CORS; for the hosted viewer `https://ui.specbook.dev`). Through `dev` and `preview` the dev
-server's proxy makes it, so that is not needed. Sign-in needs a secure page (https, or localhost). If the
-provider will not allow it, paste a token as before.
 
 ## Self-host the viewer
 
@@ -163,14 +148,14 @@ own host (open it with `?spec=<url>`).
 
 ### Config, variables and secrets
 
-A document opened in the viewer, or with `specbook preview`, gets an environment for each entry in its
-`servers` list. The first is `live`; the others are named from their description (`Sandbox` becomes `sandbox`),
-and a server's variables take their defaults. Credentials are kept per API origin, so a key typed for one
-server's host is not sent to another's.
+A document opened in the viewer or with `specbook preview` gets an environment for each entry in its `servers`
+(`live` first, the rest named from their description). Credentials are kept per API origin, so a key typed for
+one server is never sent to another.
 
-In a project a service's address is a variable, so each environment can set its own. `vars` in the config are
-the defaults; `.specbook/environments/<env>.env` overrides them (or `environments.<env>.vars` in the config),
-and `<env>.secrets.env`, which the folder's `.gitignore` keeps out of the repository, holds the secrets:
+In a project, `vars` in the config are the defaults for every environment. `.specbook/environments/<env>.env`
+(or `environments.<env>.vars`) overrides them for one environment, and `<env>.secrets.env`, which the folder's
+`.gitignore` keeps out of the repository, holds its secrets. A service's address is a variable, so each
+environment can point elsewhere:
 
 ```ts
 vars: { petstoreUrl: 'https://petstore3.swagger.io/api/v3' },
@@ -182,12 +167,29 @@ services: { petstore: { spec: './openapi/petstore.json', baseUrl: '{{petstoreUrl
 petstoreUrl=https://staging.petstore.example/api/v3
 ```
 
-`specbook add` writes this from a spec's `servers`. An auth profile's `oauth` addresses can be variables too, so
-an environment can sign in at its own provider. In the UI, **Environment settings** shows an environment's
-variables and where its calls go, and **New environment…** copies one (kept in the browser on a page with no
-project files). `npx specbook secrets --env <name>` shows where each secret resolves from, never the values.
+`specbook add` writes this from a spec's `servers`. In the UI, **Environment settings** shows an environment's
+variables and where its calls go, and **New environment…** copies one (kept in the browser when there are no
+project files). `npx specbook secrets --env <name>` shows where each secret comes from, never the values.
 
-**Sign in.** See [Sign in to OAuth APIs](#sign-in-to-oauth-apis) for what to register with the provider.
+### Sign in to OAuth APIs
+
+A scheme with an OAuth 2.0 authorization code flow, or an OpenID Connect one, gets a **Sign in** button beside
+the credentials prompt. It uses PKCE, so there is no client secret, and the token stays in the tab. Register a
+public client with the provider and allow this redirect URI:
+
+| Where you run it | Register this redirect URI |
+| --- | --- |
+| The hosted viewer | `https://ui.specbook.dev/oauth/callback/` (it does not change when the viewer's version does) |
+| A viewer you embed or host yourself | That page's own address |
+| `specbook dev` and `specbook preview` | The address they print |
+
+From the hosted viewer or a static build the browser makes the token exchange, so the provider must also allow
+the page's origin (CORS; for the hosted viewer `https://ui.specbook.dev`). Through `dev` and `preview` the dev
+server's proxy makes it, so that is not needed. Sign-in needs a secure page (https, or localhost). If the
+provider will not allow it, paste a token as before.
+
+An auth profile's `oauth` addresses (`authorizationUrl`, `tokenUrl`, `openIdConnectUrl`, `clientId`) can be
+variables like a service's address, so an environment can sign in at its own provider.
 
 ### Documentation beside the code
 
