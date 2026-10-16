@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, statSync } from 'node:fs'
+import { utimes } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { generateToDisk } from '@specbook/codegen'
 import type { Loader } from '../load'
@@ -24,6 +25,9 @@ export async function generateServices(
   for (const [name, svc] of services) {
     const spec = resolve(project.root, svc.spec)
     const out = await generateToDisk({ spec, service: name, outDir })
+    // output that did not change is not rewritten, so its time would stay older than the spec forever: say it is current
+    const now = new Date()
+    await utimes(join(out.root, 'manifest.json'), now, now).catch(() => {})
     log(`✓ ${name}: ${out.operations.length} operations → ${out.root}`)
   }
   await writeMetadata(project.root, outDir, loader)

@@ -51,6 +51,23 @@ describe('generated code that is not committed', () => {
     expect(await ensureGenerated(p, loader)).toEqual(['petstore'])
   })
 
+  it('does not regenerate every time when the spec is newer but generates the same code', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const p = await project()
+    await ensureGenerated(p, loader)
+    // the spec was checked out again after the output was made: newer, but the same document
+    const hourAgo = new Date(Date.now() - 3_600_000)
+    const halfHourAgo = new Date(Date.now() - 1_800_000)
+    for (const f of ['manifest.json', 'opmeta.json'])
+      await utimes(join(p.root, '.generated/petstore', f), hourAgo, hourAgo)
+    await utimes(join(p.root, 'openapi/petstore.json'), halfHourAgo, halfHourAgo)
+
+    expect(await ensureGenerated(p, loader)).toEqual(['petstore'])
+    // the output is the same, so nothing was rewritten, and it must still count as up to date
+    expect(await ensureGenerated(p, loader)).toEqual([])
+    expect(await ensureGenerated(p, loader)).toEqual([])
+  })
+
   it('check regenerates local output instead of reporting drift, and still validates the spec', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
