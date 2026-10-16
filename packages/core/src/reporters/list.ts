@@ -182,14 +182,20 @@ export function formatSummary(results: RunResult[], o: ListOptions = {}): string
     .flatMap((r) =>
       leaves(r.steps)
         .filter((s) => s.status !== 'skipped')
-        .map((s) => ({ name: `${r.title} › ${s.name}`, ms: s.durationMs })),
+        // a request is a flow of one step: its name is said once
+        .map((s) => ({
+          name: r.title === s.name ? r.title : `${r.title} › ${s.name}`,
+          ms: s.durationMs,
+        })),
     )
     .sort((a, b) => b.ms - a.ms)
     .slice(0, 5)
   if (slow.length > 1) {
-    lines.push(
-      `${c.bold(' Slowest    ')} ${c.dim(slow.map((s) => `${s.name} ${formatDuration(s.ms)}`).join(' · '))}`,
-    )
+    const times = slow.map((s) => formatDuration(s.ms))
+    const width = Math.max(...times.map((t) => t.length))
+    lines.push(c.bold(' Slowest'))
+    for (const [i, s] of slow.entries())
+      lines.push(`   ${c.dim(`${(times[i] as string).padStart(width)}  ${s.name}`)}`)
   }
   return lines.join('\n')
 }
