@@ -14,9 +14,12 @@ export async function initCommand(cwd: string): Promise<void> {
 
 export default defineConfig({
   project: 'my-apis',
-  vars: {},
+  // defaults for every environment; an environment overrides them in .specbook/environments/<env>.env
+  vars: {
+    // petstoreUrl: 'https://petstore3.swagger.io/api/v3',
+  },
   services: {
-    // petstore: { spec: './openapi/petstore.json', baseUrl: { live: 'https://petstore3.swagger.io/api/v3' } },
+    // petstore: { spec: './openapi/petstore.json', baseUrl: '{{petstoreUrl}}' },
   },
 })
 `,

@@ -1,19 +1,26 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { handleProxy as proxy } from '@specbook/core'
 
-export interface ProxyConfig {
-  services: Record<string, { baseUrl: Record<string, string | undefined> }>
-  secretNames: Record<string, { env?: string }>
+/** Where one environment's calls may go, worked out on the server from the project's config and files. */
+export interface EnvironmentAddresses {
+  /** each service's base URL in this environment */
+  services: Record<string, string | undefined>
   /**
-   * Origin of each OAuth profile's token endpoint, read from the project's own config. A sign-in
-   * exchanges its code through `<mount>/<env>/auth:<profile>/…`; the page chooses the path, never the host.
+   * Origin of each OAuth profile's token endpoint. A sign-in exchanges its code through
+   * `<mount>/<env>/auth:<profile>/…`; the page chooses the path, never the host.
    */
-  tokenOrigins?: Record<string, string>
+  tokenOrigins: Record<string, string>
   /**
    * Origin of each OpenID Connect profile's discovery document, addressed as
    * `<mount>/<env>/discovery:<profile>/…` (the token endpoint may be on another host).
    */
-  discoveryOrigins?: Record<string, string>
+  discoveryOrigins: Record<string, string>
+}
+
+export interface ProxyConfig {
+  secretNames: Record<string, { env?: string }>
+  /** The addresses for `env`; empty for an environment the project does not have. */
+  resolve(env: string): Promise<EnvironmentAddresses>
 }
 
 /** The reserved service name a sign-in's token exchange is addressed to. */
@@ -69,6 +76,15 @@ export async function handleProxy(
   if (!url.startsWith(`${MOUNT}/`)) return false
 
   const config = await deps.getConfig()
+  const addressesByEnv = new Map<string, Promise<EnvironmentAddresses>>()
+  const addressesFor = (env: string) => {
+    let a = addressesByEnv.get(env)
+    if (!a) {
+      a = config.resolve(env)
+      addressesByEnv.set(env, a)
+    }
+    return a
+  }
   const secretsByEnv = new Map<string, Record<string, string>>()
   const method = req.method ?? 'GET'
   const headers = new Headers()
@@ -84,12 +100,13 @@ export async function handleProxy(
   const response = await proxy(request, {
     mount: MOUNT,
     policy: {
-      upstream: (env, service) => {
+      upstream: async (env, service) => {
+        const a = await addressesFor(env)
         if (service.startsWith(AUTH_SERVICE_PREFIX))
-          return config.tokenOrigins?.[decode(service.slice(AUTH_SERVICE_PREFIX.length))]
+          return a.tokenOrigins[decode(service.slice(AUTH_SERVICE_PREFIX.length))]
         if (service.startsWith(DISCOVERY_SERVICE_PREFIX))
-          return config.discoveryOrigins?.[decode(service.slice(DISCOVERY_SERVICE_PREFIX.length))]
-        return config.services[service]?.baseUrl[env]
+          return a.discoveryOrigins[decode(service.slice(DISCOVERY_SERVICE_PREFIX.length))]
+        return a.services[service]
       },
       // a developer's own machine: their local services are the point
       allowPrivateHosts: true,

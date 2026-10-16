@@ -4,10 +4,13 @@ import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import {
   type AuthProfile,
+  baseUrlFor,
   collectSecretNames,
   createFetchTransport,
   createMockTransport,
   dotenvProvider,
+  environmentNames,
+  environmentScope,
   envProvider,
   exitCode,
   formatGithub,
@@ -26,7 +29,7 @@ import {
   toJson,
   toJUnit,
 } from '@specbook/core'
-import { readEnvironment } from '@specbook/vite'
+import { listEnvironmentFiles, readEnvironment } from '@specbook/vite'
 import fg from 'fast-glob'
 import { exampleLoadersFor } from '../examples'
 import type { Loader } from '../load'
@@ -128,6 +131,11 @@ export async function runCommand(
   const examples = exampleLoadersFor(project)
   // `.specbook/environments/<env>.env` (variables) and `<env>.secrets.env` (secrets) for this run
   const envFiles = await readEnvironment(project.root, o.env)
+  const knownEnvs = environmentNames(config, await listEnvironmentFiles(project.root))
+  if (!knownEnvs.includes(o.env)) {
+    console.error(`Unknown environment "${o.env}". Known: ${knownEnvs.join(', ')}`)
+    return 3
+  }
 
   // the mock environment needs no secrets
   let secrets: Record<string, string> = {}
@@ -160,24 +168,21 @@ export async function runCommand(
     }
   }
 
+  // config `vars`, then the environment's own, then its file; also where an address is read from
+  const vars = environmentScope(config, o.env, envFiles.vars)
+
   let transport: Transport
   if (o.env === 'mock') {
     transport = createMockTransport({ loader: mockLoaderFor(project) })
   } else {
     const fetchT = createFetchTransport({
       baseUrl: (service) => {
-        const url = config.services[service]?.baseUrl[o.env as 'live']
+        const url = baseUrlFor(config, service, o.env, vars)
         if (!url) throw new Error(`No baseUrl for service "${service}" in env "${o.env}"`)
         return url
       },
     })
     transport = (req: PreparedRequest, signal) => fetchT(req, signal)
-  }
-
-  const vars = {
-    ...(config.vars ?? {}),
-    ...(config.environments?.[o.env]?.vars ?? {}),
-    ...envFiles.vars,
   }
 
   // faker is a peer dependency of the project; only load it when it can be resolved

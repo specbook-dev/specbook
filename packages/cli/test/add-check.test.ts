@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { cp, mkdtemp, readFile, symlink, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -48,6 +48,34 @@ describe('add / check', () => {
       await addCommand(project, 'pets2', './openapi/petstore.json', 'https://example.test')
       const cfg = await readFile(join(dir, '.specbook/specbook.config.ts'), 'utf8')
       expect(cfg).toContain("pets2: {\n      spec: './openapi/petstore.json'")
+      // the address is a variable; the config had no `vars`, so one is added
+      expect(cfg).toContain("baseUrl: '{{pets2Url}}'")
+      expect(cfg).toMatch(/vars: \{\n\s+pets2Url: 'https:\/\/example\.test',\n\s+\},/)
+
+      // a spec with several servers: the first is the default, the others are environment files
+      const spec = JSON.parse(await readFile(join(dir, 'openapi/petstore.json'), 'utf8'))
+      spec.servers = [
+        { url: 'https://prod.example.test/v1' },
+        { url: 'https://staging.example.test/v1', description: 'Staging' },
+        { url: 'http://localhost:8080/v1', description: 'Local' },
+      ]
+      await writeFile(join(dir, 'openapi/multi.json'), JSON.stringify(spec))
+      await mkdir(join(dir, '.specbook/environments'), { recursive: true })
+      await writeFile(
+        join(dir, '.specbook/environments/staging.env'),
+        'multiUrl=https://kept.example.test\nOTHER=1\n',
+      )
+      await addCommand(project, 'multi', './openapi/multi.json')
+      const multi = await readFile(join(dir, '.specbook/specbook.config.ts'), 'utf8')
+      expect(multi).toMatch(/multiUrl: 'https:\/\/prod\.example\.test\/v1'/)
+      expect(multi).toContain("baseUrl: '{{multiUrl}}'")
+      // an existing value in an environment file is not overwritten; a new environment gets its file
+      expect(await readFile(join(dir, '.specbook/environments/staging.env'), 'utf8')).toBe(
+        'multiUrl=https://kept.example.test\nOTHER=1\n',
+      )
+      expect(await readFile(join(dir, '.specbook/environments/local.env'), 'utf8')).toContain(
+        'multiUrl=http://localhost:8080/v1',
+      )
       await expect(addCommand(project, 'petstore', './openapi/petstore.json')).rejects.toThrow(
         /already exists/,
       )

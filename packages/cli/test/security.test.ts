@@ -37,6 +37,8 @@ describe('authFromSpec', () => {
       auth: {},
       secrets: {},
       defaultProfile: undefined,
+      vars: {},
+      environmentVars: {},
     })
   })
 })

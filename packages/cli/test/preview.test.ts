@@ -114,8 +114,11 @@ describe('preview', () => {
       'Environments: live → https://api.example.test, sandbox → https://sandbox.example.test',
     )
     const written = await readFile(join(p.root, '.specbook/specbook.config.ts'), 'utf8')
-    expect(written).toContain('"live": "https://api.example.test"')
-    expect(written).toContain('"sandbox": "https://sandbox.example.test"')
+    // the first server is the variable's default; each other server is an environment setting it
+    const config = JSON.parse(written.replace('export default ', ''))
+    expect(config.services.many.baseUrl).toBe('{{baseUrl}}')
+    expect(config.vars).toEqual({ baseUrl: 'https://api.example.test' })
+    expect(config.environments.sandbox.vars).toEqual({ baseUrl: 'https://sandbox.example.test' })
     // the dev server accepts the new environment (its name is a valid file and route segment)
     const env = (await (await fetch(`${p.url}__specbook/environment?env=sandbox`)).json()) as {
       env: string

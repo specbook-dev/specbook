@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
-import { handleProxy, safeProjectPath, scanProject } from '../src'
+import { type EnvironmentAddresses, handleProxy, safeProjectPath, scanProject } from '../src'
 import { requestsDirFor } from '../src/files'
 import { parseSequenceMeta } from '../src/sequences'
 
@@ -63,17 +63,15 @@ describe('proxy', () => {
   const proxy = createServer((req, res) => {
     handleProxy(req, res, {
       getConfig: async () => ({
-        services: {
-          svc: {
-            baseUrl: { live: `http://127.0.0.1:${(upstream.address() as AddressInfo).port}/v1` },
-          },
-        },
         secretNames: { KEY: {}, FILE_ONLY: {} },
-        tokenOrigins: {
-          'My OAuth': `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`,
-        },
-        discoveryOrigins: {
-          'My SSO': `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`,
+        resolve: async (env): Promise<EnvironmentAddresses> => {
+          if (env !== 'live') return { services: {}, tokenOrigins: {}, discoveryOrigins: {} }
+          const origin = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`
+          return {
+            services: { svc: `${origin}/v1` },
+            tokenOrigins: { 'My OAuth': origin },
+            discoveryOrigins: { 'My SSO': origin },
+          }
         },
       }),
       readSecrets: async (env) =>
@@ -254,6 +252,65 @@ describe('proxy', () => {
     expect((await fetch(`${base()}/prod/svc/x`)).status).toBe(404)
     const r = await fetch(`${base()}/live/svc/x`, { headers: { a: '{{secrets.MISSING}}' } })
     expect(r.status).toBe(400)
+  })
+})
+
+describe('addresses per environment', () => {
+  const cfg = {
+    vars: { api: 'https://api.test/v1', issuer: 'https://id.test/realms/prod' },
+    environments: { sandbox: { vars: { api: 'https://sandbox.test/v1' } } },
+    services: {
+      svc: { spec: '', baseUrl: '{{api}}' },
+      old: { spec: '', baseUrl: { live: 'https://old.test', staging: 'https://old-staging.test' } },
+    },
+    auth: {
+      sso: { oauth: { authorizationUrl: '{{issuer}}/auth', tokenUrl: '{{issuer}}/token' } },
+      oidc: { oauth: { openIdConnectUrl: '{{issuer}}/.well-known/openid-configuration' } },
+    },
+  }
+  const files = (vars: Record<string, unknown> = {}, environments = ['staging']) => ({
+    environments,
+    vars: async () => vars,
+  })
+  const token = async (url: string) => `token-of:${new URL(url).origin}`
+
+  it('uses the defaults for live and an environment file or section over them', async () => {
+    const { addressesFor } = await import('../src/addresses')
+    const live = await addressesFor(cfg, 'live', files(), token)
+    expect(live.services).toEqual({ svc: 'https://api.test/v1', old: 'https://old.test' })
+    const sandbox = await addressesFor(cfg, 'sandbox', files(), token)
+    expect(sandbox.services.svc).toBe('https://sandbox.test/v1')
+    const staging = await addressesFor(
+      cfg,
+      'staging',
+      files({ api: 'https://staging.test/v1', issuer: 'https://id.test/realms/staging' }),
+      token,
+    )
+    expect(staging.services).toEqual({
+      svc: 'https://staging.test/v1',
+      old: 'https://old-staging.test',
+    })
+    expect(staging.tokenOrigins).toEqual({
+      sso: 'https://id.test',
+      oidc: 'token-of:https://id.test',
+    })
+  })
+
+  it('gives nothing for an environment the project does not have, or for mock', async () => {
+    const { addressesFor } = await import('../src/addresses')
+    expect((await addressesFor(cfg, 'prod', files(), token)).services).toEqual({})
+    expect((await addressesFor(cfg, 'mock', files(), token)).services).toEqual({})
+  })
+
+  it('leaves out an address that is missing a variable', async () => {
+    const { addressesFor } = await import('../src/addresses')
+    const out = await addressesFor(
+      { services: { svc: { spec: '', baseUrl: '{{nowhere}}' } } },
+      'live',
+      files(),
+      token,
+    )
+    expect(out.services).toEqual({})
   })
 })
 

@@ -16,7 +16,7 @@ const HELP = `specbook <command>
 
   init                         scaffold config, #api/* import and the environments folder
   add <service> --spec <p>     register an OpenAPI spec in the config and generate it
-      --base-url <url>         live base URL to write into the config
+      --base-url <url>         address to use instead of the spec's first server
   generate [service...]        generate types, operations, examples and metadata from specs
   dev [--port <n>]             start the UI dev server (docs, play panel, credential proxy)
   build [--out <dir>]          build the static docs site and the embeddable specbook.js

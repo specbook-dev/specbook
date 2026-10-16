@@ -3,14 +3,17 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createRequire } from 'node:module'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
+import { environmentNames } from '@specbook/core'
 import fg from 'fast-glob'
 import type { Plugin, ViteDevServer } from 'vite'
+import { type AddressConfig, addressesFor, NO_ADDRESSES } from './addresses'
 import { createDiscovery } from './discovery'
 import { scanDocs } from './docs'
 import {
   ensureEnvironmentsDir,
   isEnvName,
   isVarName,
+  listEnvironmentFiles,
   readAllVars,
   readEnvironment,
   secretsFileFor,
@@ -20,12 +23,12 @@ import {
 } from './environments'
 import { scanExamples } from './examples'
 import { requestsDirFor, safeProjectPath, scanProject } from './files'
-import { handleProxy, type ProxyConfig } from './proxy'
+import { type EnvironmentAddresses, handleProxy, type ProxyConfig } from './proxy'
 import { parseSequenceMeta, scanSequences } from './sequences'
 
 export * from './environments'
 export { safeProjectPath, scanProject } from './files'
-export type { ProxyConfig, ProxyDeps } from './proxy'
+export type { EnvironmentAddresses, ProxyConfig, ProxyDeps } from './proxy'
 export { handleProxy } from './proxy'
 
 export interface SpecbookPluginOptions {
@@ -434,38 +437,29 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
 `
   }
 
-  async function getProxyConfig(): Promise<ProxyConfig> {
+  async function loadProjectConfig(): Promise<AddressConfig | undefined> {
     const cfgFile = findConfig(root)
-    if (!server || !cfgFile) return { services: {}, secretNames: {} }
-    const mod = await server.ssrLoadModule(cfgFile)
-    const cfg = (mod.default ?? {}) as {
-      services?: Record<string, { baseUrl?: Record<string, string> }>
-      secrets?: Record<string, { env?: string }>
-      auth?: Record<string, { oauth?: { tokenUrl?: string; openIdConnectUrl?: string } }>
-    }
-    const tokenOrigins: Record<string, string> = {}
-    const discoveryOrigins: Record<string, string> = {}
-    for (const [name, profile] of Object.entries(cfg.auth ?? {})) {
-      try {
-        const { tokenUrl, openIdConnectUrl } = profile.oauth ?? {}
-        if (tokenUrl) tokenOrigins[name] = new URL(tokenUrl).origin
-        else if (openIdConnectUrl) {
-          discoveryOrigins[name] = new URL(openIdConnectUrl).origin
-          const token = await tokenOriginOf(openIdConnectUrl)
-          if (token) tokenOrigins[name] = token
-        }
-      } catch {
-        /* an unparsable URL is left out; a sign-in against it fails with a 404 */
-      }
-    }
-    return {
-      services: Object.fromEntries(
-        Object.entries(cfg.services ?? {}).map(([k, v]) => [k, { baseUrl: v.baseUrl ?? {} }]),
-      ),
-      secretNames: cfg.secrets ?? {},
-      tokenOrigins,
-      discoveryOrigins,
-    }
+    if (!server || !cfgFile) return undefined
+    return ((await server.ssrLoadModule(cfgFile)).default ?? {}) as AddressConfig
+  }
+
+  async function getProxyConfig(): Promise<ProxyConfig> {
+    const cfg = await loadProjectConfig()
+    if (!cfg) return { secretNames: {}, resolve: async () => NO_ADDRESSES }
+    // addresses are worked out here, per environment, from config and files: the page never says where to go
+    const resolve = async (env: string): Promise<EnvironmentAddresses> =>
+      isEnvName(env)
+        ? addressesFor(
+            cfg,
+            env,
+            {
+              environments: await listEnvironmentFiles(root),
+              vars: async () => (await readEnvironment(root, env)).vars,
+            },
+            tokenOriginOf,
+          )
+        : NO_ADDRESSES
+    return { secretNames: cfg.secrets ?? {}, resolve }
   }
 
   return {
@@ -588,6 +582,12 @@ ${names.map((n) => `  ${JSON.stringify(n)}: () => import(${JSON.stringify(`${VIR
       const relevant = (file: string) => {
         const rel = relative(root, file)
         if (rel.startsWith('..') || /node_modules/.test(rel)) return false
+        // environment files change which environments exist and what their variables are
+        if (
+          /^\.specbook[\\/]environments[\\/][^\\/]+\.env$/.test(rel) &&
+          !/\.secrets\.env$/.test(rel)
+        )
+          return true
         return /\.(req|seq)\.ts$|\.example\.json$|\.md$/.test(rel) || rel.startsWith(outDir)
       }
       // one reload per burst of changes: a save also arrives here from the watcher
@@ -671,6 +671,40 @@ ${names.map((n) => `  ${JSON.stringify(n)}: () => import(${JSON.stringify(`${VIR
                   `"${s.key}" is a secret but is in ${env}.env, which is committed. Move it to ${env}.secrets.env.`,
               )
             return json(res, 200, { env, vars: values.vars, secrets, warnings })
+          }
+          if (url.pathname === '/__specbook/environment' && req.method === 'POST') {
+            // a new environment is a copy of another one's own variables (never its secrets)
+            const origin = req.headers.origin
+            if (origin && new URL(origin).host !== req.headers.host)
+              return json(res, 403, { error: 'cross-origin request refused' })
+            const { name, from } = JSON.parse(await readBody(req)) as {
+              name?: string
+              from?: string
+            }
+            if (!isEnvName(name) || name === 'mock' || !isEnvName(from))
+              return json(res, 400, { error: 'bad environment name' })
+            const conf = await loadProjectConfig()
+            const known = environmentNames(
+              { services: conf?.services ?? {}, environments: conf?.environments },
+              await listEnvironmentFiles(root),
+            )
+            if (known.includes(name)) return json(res, 409, { error: `"${name}" already exists` })
+            if (!known.includes(from))
+              return json(res, 400, { error: `unknown environment "${from}"` })
+            const own = {
+              ...(
+                conf?.environments as Record<string, { vars?: Record<string, unknown> }> | undefined
+              )?.[from]?.vars,
+              ...(await readEnvironment(root, from)).vars,
+            }
+            await ensureEnvironmentsDir(root)
+            const file = varsFile(root, name)
+            await writeFile(file, `# variables for ${name}, copied from ${from}\n`)
+            for (const [k, v] of Object.entries(own)) {
+              if (v === null || typeof v === 'object' || !isVarName(k)) continue
+              await writeEnvKey(file, k, String(v))
+            }
+            return json(res, 200, { ok: true, name })
           }
           if (
             (url.pathname === '/__specbook/secret' || url.pathname === '/__specbook/var') &&

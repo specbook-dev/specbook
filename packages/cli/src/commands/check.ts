@@ -2,7 +2,16 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { generate } from '@specbook/codegen'
-import { collectPlaceholders } from '@specbook/core'
+import {
+  AddressError,
+  baseUrlFor,
+  collectPlaceholders,
+  environmentNames,
+  environmentScope,
+  isAbsoluteHttp,
+  type OAuthSettings,
+  oauthFor,
+} from '@specbook/core'
 import { listEnvironmentFiles, readEnvironment } from '@specbook/vite'
 import fg from 'fast-glob'
 import type { Loader } from '../load'
@@ -45,30 +54,73 @@ export async function checkCommand(project: Project, loader: Loader): Promise<nu
   }
 
   // environment files: a declared secret in a committed `<env>.env` is a leak waiting to happen
-  const knownEnvs = new Set<string>([
-    'mock',
-    ...Object.keys(cfg.environments ?? {}),
-    ...Object.values(cfg.services).flatMap((s) => Object.keys(s.baseUrl ?? {})),
-  ])
+  // with a service whose address is a variable, every environment file is an environment in use
+  const knownEnvs = new Set<string>(environmentNames(cfg))
+  const usesVariables = Object.values(cfg.services).some((s) => typeof s.baseUrl === 'string')
+  const fileVarNames = new Set<string>()
+  const envFileVars: Record<string, Record<string, string>> = {}
   const secretKeys = new Set(
     Object.entries(cfg.secrets ?? {}).map(([name, ref]) => ref.env ?? name),
   )
   for (const env of await listEnvironmentFiles(project.root)) {
-    if (!knownEnvs.has(env))
+    if (!knownEnvs.has(env) && !usesVariables)
       warnings.push(
         `[.specbook/environments/${env}.*] no service has a "${env}" baseUrl, so this environment is never used`,
       )
     const values = await readEnvironment(project.root, env)
-    for (const key of Object.keys(values.vars))
+    envFileVars[env] = values.vars
+    for (const key of Object.keys(values.vars)) {
+      fileVarNames.add(key)
       if (secretKeys.has(key))
         errors.push(
           `[.specbook/environments/${env}.env] "${key}" is a declared secret but sits in a committed file; move it to ${env}.secrets.env`,
         )
+    }
+  }
+
+  // every address, in every environment: a missing variable is a warning, a value that is no address an error
+  const address = (where: string, env: string, f: () => string | undefined, required: boolean) => {
+    try {
+      const url = f()
+      if (url && !isAbsoluteHttp(url))
+        errors.push(`[${where}] address in "${env}" is not an http(s) URL: ${url}`)
+      else if (!url && required) warnings.push(`[${where}] has no address in "${env}"`)
+    } catch (e) {
+      if (!(e instanceof AddressError)) throw e
+      ;(e.variable ? warnings : errors).push(`[${where}] ${e.message}`)
+    }
+  }
+  for (const env of environmentNames(cfg, Object.keys(envFileVars))) {
+    if (env === 'mock') continue
+    const scope = environmentScope(cfg, env, envFileVars[env])
+    for (const [name, svc] of Object.entries(cfg.services))
+      if (typeof svc.baseUrl === 'string')
+        address(name, env, () => baseUrlFor(cfg, name, env, scope), true)
+    for (const [name, profile] of Object.entries(cfg.auth ?? {})) {
+      const oauth = profile.oauth as Record<string, unknown> | undefined
+      if (!oauth) continue
+      for (const field of ['authorizationUrl', 'tokenUrl', 'openIdConnectUrl'] as const) {
+        if (typeof oauth[field] !== 'string') continue
+        address(
+          `auth ${name}`,
+          env,
+          () =>
+            (
+              oauthFor(profile.oauth as OAuthSettings, scope, name) as unknown as Record<
+                string,
+                string
+              >
+            )[field],
+          true,
+        )
+      }
+    }
   }
 
   const known = new Set<string>([
     ...Object.keys(cfg.vars ?? {}),
     ...Object.values(cfg.environments ?? {}).flatMap((e) => Object.keys(e?.vars ?? {})),
+    ...fileVarNames,
   ])
   const declared = new Set(Object.keys(cfg.secrets ?? {}))
   const files = await fg('**/*.req.ts', {

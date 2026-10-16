@@ -1,9 +1,22 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
+import SwaggerParser from '@apidevtools/swagger-parser'
 import { generateToDisk } from '@specbook/codegen'
+import { openApiServers, type ServerEntry } from '@specbook/core'
+import { ensureEnvironmentsDir, readEnvironment, varsFile, writeEnvKey } from '@specbook/vite'
 import type { Project } from '../project'
 
-/** Registers a service in the config file (text edit) and generates its code. */
+/** `petstore` → `petstoreUrl`, `my-api` → `myApiUrl`: the variable a service's address is kept in. */
+export const addressVariable = (service: string) =>
+  `${service.replace(/[-_]+(.)/g, (_, c: string) => c.toUpperCase())}Url`
+
+const quote = (s: string) => `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
+
+/**
+ * Registers a service in the config file (text edit) and generates its code. The address is a variable
+ * (`petstoreUrl`, defaulting to the spec's first server) and every other server the spec lists becomes that
+ * variable in an environment file of its own, so the project has the environments `preview` would show.
+ */
 export async function addCommand(
   project: Project,
   service: string,
@@ -16,18 +29,60 @@ export async function addCommand(
   const specAbs = resolve(process.cwd(), spec)
   const specRel = `./${relative(project.root, specAbs).split('\\').join('/')}`
 
-  const text = await readFile(project.configFile, 'utf8')
-  const entry = `    ${service}: {\n      spec: '${specRel}',\n      baseUrl: { live: '${baseUrl ?? ''}' },\n    },\n`
+  let servers: ServerEntry[] = []
+  try {
+    servers = openApiServers((await SwaggerParser.parse(specAbs)) as any, specAbs).servers
+  } catch {
+    /* an unreadable spec fails at generate, with a better message */
+  }
+  const variable = addressVariable(service)
+  const live = baseUrl ?? servers.find((s) => s.name === 'live')?.url ?? ''
+
+  let text = await readFile(project.configFile, 'utf8')
+  const rel = relative(process.cwd(), project.configFile)
+  const entry = `    ${service}: {\n      spec: '${specRel}',\n      baseUrl: '{{${variable}}}',\n    },\n`
+  const varLine = `    ${variable}: ${quote(live)},\n`
+  let edited = false
   const m = /services\s*:\s*\{\s*\n/.exec(text)
   if (m) {
-    await writeFile(
-      project.configFile,
-      text.slice(0, m.index + m[0].length) + entry + text.slice(m.index + m[0].length),
-    )
-    console.log(`✓ added "${service}" to ${relative(process.cwd(), project.configFile)}`)
+    text = text.slice(0, m.index + m[0].length) + entry + text.slice(m.index + m[0].length)
+    const have = new RegExp(`\\b${variable}\\s*:`).test(text)
+    const vars = /\bvars\s*:\s*\{[ \t]*\n?/.exec(text)
+    if (have) {
+      console.log(`  "${variable}" is already in the config; left as it is`)
+    } else if (vars) {
+      text =
+        text.slice(0, vars.index + vars[0].length).replace(/\{[ \t]*$/, '{\n') +
+        varLine +
+        text.slice(vars.index + vars[0].length)
+    } else {
+      const at = text.search(/\n\s*services\s*:/)
+      text = `${text.slice(0, at)}\n  vars: {\n${varLine}  },${text.slice(at)}`
+    }
+    await writeFile(project.configFile, text)
+    edited = true
+    console.log(`✓ added "${service}" to ${rel}`)
   } else {
-    console.log(`Could not edit the config automatically. Add this under services:\n\n${entry}`)
+    console.log(
+      `Could not edit the config automatically. Add this under vars:\n\n${varLine}\nand this under services:\n\n${entry}`,
+    )
   }
+
+  // each other server is the same variable in an environment file; a value already there is kept
+  const written: string[] = []
+  for (const s of servers.filter((x) => x.name !== 'live')) {
+    if ((await readEnvironment(project.root, s.name)).vars[variable] !== undefined) continue
+    await ensureEnvironmentsDir(project.root)
+    await writeEnvKey(varsFile(project.root, s.name), variable, s.url)
+    written.push(`  ${s.name}.env  ${variable}=${s.url}`)
+  }
+  if (edited && !live)
+    console.log(`  the spec lists no server: set ${variable} in the config or an environment file`)
+  if (written.length) {
+    console.log(`✓ other servers became environments in .specbook/environments/:`)
+    for (const line of written) console.log(line)
+  }
+
   const out = await generateToDisk({
     spec: specAbs,
     service,

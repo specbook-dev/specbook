@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, extname, join, resolve } from 'node:path'
 import SwaggerParser from '@apidevtools/swagger-parser'
 import { generateToDisk } from '@specbook/codegen'
-import { openApiServers, type SpecbookConfig } from '@specbook/core'
+import { environmentsFromServers, openApiServers, type SpecbookConfig } from '@specbook/core'
 import type { Project } from '../project'
 import { authFromSpec } from '../security'
 import { devCommand } from './ui'
@@ -69,7 +69,6 @@ export async function previewCommand(
   const title = (api.info?.title as string | undefined) ?? 'API'
   const service = slug(title)
   const { servers } = openApiServers(api, source)
-  const baseUrl = Object.fromEntries(servers.map((s) => [s.name, s.url]))
   // one server keeps the line it always had; several are listed, so it is clear what the picker offers
   const where =
     servers.length === 0
@@ -93,15 +92,33 @@ export async function previewCommand(
     await writeFile(specFile, await res.text())
   }
 
-  const { auth, secrets, defaultProfile } = authFromSpec(api, source)
+  // the servers become one variable, `live` its default and each other server an environment of its own;
+  // a relative sign-in address follows the server, so it is a variable too
+  const {
+    auth,
+    secrets,
+    defaultProfile,
+    vars: authVars,
+    environmentVars,
+  } = authFromSpec(api, source, servers)
+  const addresses = environmentsFromServers(servers, 'baseUrl')
+  const environments: Record<string, { description?: string; vars?: Record<string, string> }> = {
+    ...addresses.environments,
+  }
+  for (const [name, vars] of Object.entries(environmentVars))
+    environments[name] = { ...environments[name], vars: { ...environments[name]?.vars, ...vars } }
+  const vars = { ...addresses.vars, ...authVars }
   const config = {
     project: service,
+    ...(Object.keys(vars).length ? { vars } : {}),
+    ...(Object.keys(environments).length ? { environments } : {}),
     secrets,
     auth,
     services: {
       [service]: {
         spec: specFile,
-        baseUrl,
+        // no server to read an address from: none, so a call says so rather than going nowhere
+        baseUrl: servers.some((s) => s.name === 'live') ? addresses.baseUrl : {},
         ...(defaultProfile ? { auth: defaultProfile } : {}),
       },
     },

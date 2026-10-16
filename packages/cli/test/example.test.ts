@@ -49,4 +49,23 @@ describe('example project (Petstore, mock env)', () => {
     err.mockRestore()
     expect(code).toBe(2)
   }, 30_000)
+
+  it('exits 3 and lists the environments when --env names one the project does not have', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const loader = await createLoader(root)
+    const project = await loadProject(root, loader)
+    const code = await runCommand(project, loader, {
+      patterns: ['sequences/*.seq.ts'],
+      env: 'nowhere',
+      params: {},
+      vars: {},
+      reporters: [],
+      tags: [],
+    })
+    await loader.close()
+    const said = err.mock.calls.map((c) => c.join(' ')).join('\n')
+    err.mockRestore()
+    expect(code).toBe(3)
+    expect(said).toContain('Unknown environment "nowhere". Known: mock, live')
+  }, 30_000)
 })
