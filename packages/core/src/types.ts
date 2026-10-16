@@ -109,6 +109,8 @@ export interface RequestInput<T extends OpTypes, I extends Init = Init, C = {}> 
   data?: Source<T['body']>
   encoding?: Encoding
   timeoutMs?: number
+  /** A request that only reads (a POST search, a GraphQL query): allowed in a read-only run. */
+  safe?: boolean
   capture?: { [K in keyof C]: (res: ResponseOf<T>, vars: ResolvedInit<I>) => C[K] }
   assert?: (
     res: ResponseOf<T>,

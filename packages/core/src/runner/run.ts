@@ -73,6 +73,11 @@ export interface RunOptions {
   transport: Transport
   /** Resolved secret values, keyed by secret name. Not needed in the mock env. */
   secrets?: Record<string, string>
+  /**
+   * Refuse to send a request that may change data (anything but GET, HEAD and OPTIONS, a GraphQL mutation, or a request
+   * not marked `safe`). Auth logins are exempt. For runs against real environments that must not write.
+   */
+  readOnly?: boolean
   /** Leave `{{secrets.*}}` placeholders in the wire request (a trusted server substitutes them). */
   deferSecrets?: boolean
   auth?: Record<string, AuthProfile>
@@ -226,8 +231,22 @@ function substitute<T>(value: T, rt: Runtime, profile?: string): T {
   return walk(value) as T
 }
 
+/** Events are masked as they are emitted: a listener (a stream, a log) must never see a secret value. */
 function emit(rt: Runtime, e: RunEvent) {
-  rt.o.onEvent?.(e)
+  rt.o.onEvent?.(rt.mask.size ? maskDeep(e, rt.mask) : e)
+}
+
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+
+/** True when the request cannot change data: a read method, a GraphQL query, or one marked `safe`. */
+function isReadOnly(def: RequestDef<any, any, any>, prepared: PreparedRequest): boolean {
+  if (def.input.safe) return true
+  if (READ_METHODS.has(prepared.method)) return true
+  if (prepared.encoding === 'graphql') {
+    const body = prepared.body as { query?: unknown } | undefined
+    return typeof body?.query === 'string' && !/(^|[\s}])mutation\b/.test(body.query)
+  }
+  return false
 }
 
 function profileFor(rt: Runtime, def: RequestDef<any, any, any>): string | undefined {
@@ -416,6 +435,10 @@ async function execute(
       profile,
     }
     emit(rt, { type: 'request', name, request: result.request })
+    if (rt.o.readOnly && kind !== 'auth' && !isReadOnly(def, prepared))
+      throw new StepError(
+        `Refusing ${prepared.method} ${def.op.path} in "${rt.o.env}": this is a read-only run. Pass --allow-write to send it.`,
+      )
 
     const send = async () => {
       if (profile) await ensureSession(rt, profile, authResults)
@@ -587,7 +610,13 @@ export async function collectSecretNames(
 }
 
 function newRuntime(o: RunOptions): Runtime {
-  return { o, sessions: new Map(), inflight: new Map(), mask: new Set() }
+  // every resolved secret is masked from the start, not only once it has been substituted into a request
+  return {
+    o,
+    sessions: new Map(),
+    inflight: new Map(),
+    mask: new Set(Object.values(o.secrets ?? {})),
+  }
 }
 
 export async function runRequest(
