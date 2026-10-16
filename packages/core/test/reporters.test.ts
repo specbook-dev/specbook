@@ -257,6 +257,10 @@ describe('the list report', () => {
     expect(colorEnabled({ NO_COLOR: '1' }, true)).toBe(false)
     expect(colorEnabled({ FORCE_COLOR: '1' }, false)).toBe(true)
     expect(colorEnabled({ TERM: 'dumb' }, true)).toBe(false)
+    // a CI log that renders color gets it, unless it was asked not to
+    expect(colorEnabled({ GITHUB_ACTIONS: 'true' }, false)).toBe(true)
+    expect(colorEnabled({ GITHUB_ACTIONS: 'true', NO_COLOR: '1' }, false)).toBe(false)
+    expect(colorEnabled({}, false)).toBe(false)
     expect(colorEnabled({}, false)).toBe(false)
   })
 

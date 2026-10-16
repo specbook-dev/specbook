@@ -1,4 +1,4 @@
-// Terminal colors, only when they will be seen: a TTY, not NO_COLOR, or FORCE_COLOR.
+// Terminal colors, only when they will be seen: a TTY or a CI log that renders them, not NO_COLOR, or FORCE_COLOR.
 
 export interface Colors {
   red(s: string): string
@@ -9,10 +9,14 @@ export interface Colors {
   bold(s: string): string
 }
 
-/** Whether to color output: FORCE_COLOR wins, then NO_COLOR, then whether the stream is an interactive terminal. */
+/** CI systems whose logs render color though the stream is not a terminal. */
+const COLOR_CI = ['GITHUB_ACTIONS', 'GITLAB_CI', 'CIRCLECI', 'BUILDKITE']
+
+/** Whether to color output: FORCE_COLOR wins, then NO_COLOR, then an interactive terminal or a CI log that shows color. */
 export function colorEnabled(env: Record<string, string | undefined>, isTTY: boolean): boolean {
   if (env.FORCE_COLOR && env.FORCE_COLOR !== '0') return true
   if (env.NO_COLOR !== undefined && env.NO_COLOR !== '') return false
+  if (COLOR_CI.some((k) => env[k] && env[k] !== 'false')) return true
   return isTTY && env.TERM !== 'dumb'
 }
 
