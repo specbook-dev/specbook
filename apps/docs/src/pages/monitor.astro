@@ -2,10 +2,12 @@
 import cli from '../../../../packages/cli/package.json'
 import DemoStatus from '../components/DemoStatus.astro'
 import Next from '../components/Next.astro'
+import Replay from '../components/Replay'
 import Snippet from '../components/Snippet.astro'
 import Terminal from '../components/Terminal'
 import Page from '../layouts/Page.astro'
 import { bundleFacts } from '../lib/bundle'
+import { capture } from '../lib/captures'
 
 const bundle = bundleFacts()
 ---
@@ -53,8 +55,9 @@ const bundle = bundleFacts()
                 </p>
                 <p class="note">
                   Check it with <code>sha256sum -c specbook-tests.mjs.sha256</code>. It is built from the same
-                  requests and flows as the rest of this site and runs with <code>--env mock</code>: its demo
-                  API answers inside a browser, so there is nothing for node to reach.
+                  requests and flows as the rest of this site. This site's demo API answers inside your browser, so
+                  node has nothing to reach here: point <code>--var petstoreUrl=…</code> at an API of your own, as
+                  the recording below does.
                 </p>
               </>
             ) : (
@@ -71,6 +74,18 @@ const bundle = bundleFacts()
         </p>
       </div>
       <Terminal client:visible chaos={['calm', 'down', 'flaky', 'missing']} version={cli.version} />
+
+      <div class="prose">
+        <p>
+          On the machine that runs it, the download needs only node. This is the recording of the file running
+          against a staging address:
+        </p>
+      </div>
+      <Replay client:visible capture={capture('bundle-run')} />
+      <div class="prose">
+        <p>When the API is down, every request errors and the run exits 1, which is what pages someone:</p>
+      </div>
+      <Replay client:visible capture={capture('test-down')} />
 
       <h2 class="title">Safe against production</h2>
       <div class="prose">

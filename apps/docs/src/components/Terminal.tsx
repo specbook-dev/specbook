@@ -119,7 +119,7 @@ export default function Terminal({ files = [], chaos = ['calm'], grep, version }
 
   const blocked = ready !== 'ready'
   return (
-    <div class="term">
+    <div class="term term-live">
       <div class="term-bar">
         <span class="dots" aria-hidden="true">
           <i />

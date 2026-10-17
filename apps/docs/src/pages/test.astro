@@ -2,9 +2,11 @@
 import cli from '../../../../packages/cli/package.json'
 import DemoStatus from '../components/DemoStatus.astro'
 import Next from '../components/Next.astro'
+import Replay from '../components/Replay'
 import Snippet from '../components/Snippet.astro'
 import Terminal from '../components/Terminal'
 import Page from '../layouts/Page.astro'
+import { capture } from '../lib/captures'
 ---
 
 <Page
@@ -59,6 +61,23 @@ import Page from '../layouts/Page.astro'
         </p>
       </div>
       <p><a class="btn primary" href="/qa/">Open the QA portal ↗</a></p>
+
+      <h2 class="title">A failure you can read</h2>
+      <div class="prose">
+        <p>
+          When the API answers with something other than what the request expects, the run says which check, what
+          was expected, what came back, the line of your file, and the exchange that led to it. Below the order has
+          changed under a check that expected it to be placed.
+        </p>
+      </div>
+      <Replay client:visible capture={capture('test-fail')} />
+      <div class="prose">
+        <p>
+          A flow that fails once and passes when run again is not hidden. With <code>--retries 1</code> it passes,
+          is called flaky in the summary, and the exit code stays 0.
+        </p>
+      </div>
+      <Replay client:visible capture={capture('test-flaky')} />
 
       <h2 class="title">CI: the same checks on every change</h2>
       <div class="prose">

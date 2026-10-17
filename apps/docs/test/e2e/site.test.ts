@@ -217,7 +217,7 @@ describe('the built site', () => {
         timeout: 30_000,
       })
       .toBe('ready')
-    const term = page.locator('.term').first()
+    const term = page.locator('.term-live').first()
     // the island loads when it is on screen
     await term.scrollIntoViewIfNeeded()
     const output = term.locator('.term-out')
@@ -240,6 +240,22 @@ describe('the built site', () => {
     expect(await violations(page)).toEqual([])
     // the browser logs the 500s the demo API answers on purpose; anything else is a problem
     expect(problems.filter((p) => !/status of 500/.test(p))).toEqual([])
+    await context.close()
+  })
+
+  it('a recording of the real tool plays on the Test page', async () => {
+    const context = await browser.newContext()
+    const { page, problems } = await open(context, '/test/')
+    const replay = page
+      .locator('section.term', { hasText: 'specbook test' })
+      .filter({ has: page.getByRole('button', { name: 'Replay' }) })
+      .first()
+    await replay.scrollIntoViewIfNeeded()
+    await expect
+      .poll(() => replay.locator('.term-out').textContent(), { timeout: 20_000 })
+      .toMatch(/exit [01]/)
+    expect(await violations(page)).toEqual([])
+    expect(problems).toEqual([])
     await context.close()
   })
 

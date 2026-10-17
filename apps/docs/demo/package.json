@@ -13,7 +13,8 @@
     "build:sw": "node scripts/build-sw.mjs",
     "test:sw": "vitest run server/sw.test.ts",
     "build:qa": "specbook build --minimal --out dist-qa",
-    "bundle": "specbook bundle --out dist-bundle/specbook-tests.mjs"
+    "bundle": "specbook bundle --out dist-bundle/specbook-tests.mjs",
+    "capture": "node scripts/capture.mjs"
   },
   "dependencies": {
     "@specbook/core": "workspace:*",

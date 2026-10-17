@@ -1,8 +1,10 @@
 ---
 import DemoStatus from '../components/DemoStatus.astro'
 import Next from '../components/Next.astro'
+import Replay from '../components/Replay'
 import Snippet from '../components/Snippet.astro'
 import Page from '../layouts/Page.astro'
+import { capture } from '../lib/captures'
 ---
 
 <Page
@@ -32,6 +34,12 @@ import Page from '../layouts/Page.astro'
         <li><strong>Run</strong> them in <code>specbook dev</code>, in the terminal, or right here.</li>
       </ol>
       <Snippet file="snippets/install.sh" region="install" title="terminal" />
+      <div class="prose">
+        <p>That is the whole setup. This is what the three commands print, recorded from the real tool:</p>
+      </div>
+      <Replay client:visible capture={capture('develop-init')} />
+      <Replay client:visible capture={capture('develop-add')} />
+      <Replay client:visible capture={capture('develop-generate')} />
 
       <h2 class="title">A request</h2>
       <div class="prose">
