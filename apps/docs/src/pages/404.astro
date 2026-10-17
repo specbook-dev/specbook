@@ -1,0 +1,17 @@
+---
+import Page from '../layouts/Page.astro'
+import { PAGES } from '../lib/pages'
+---
+
+<Page title="Not found" description="That page does not exist.">
+  <section class="block">
+    <div class="wrap">
+      <span class="eyebrow">404</span>
+      <h1 class="display" style="font-size: clamp(2rem, 5vw, 3.2rem)">There is nothing here.</h1>
+      <p class="lede">Try one of these instead.</p>
+      <p>
+        {PAGES.map((p) => <a class="btn" style="margin: 4px 6px 4px 0" href={`/${p.slug}/`}>{p.name}</a>)}
+      </p>
+    </div>
+  </section>
+</Page>

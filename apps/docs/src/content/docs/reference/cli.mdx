@@ -1,0 +1,35 @@
+---
+title: Command line
+description: Every command and what it does.
+---
+
+| Command | What it does |
+| --- | --- |
+| `specbook init` | Scaffolds the config, the `#api/*` import and an environments folder. |
+| `specbook add <service> --spec <path or url>` | Registers a spec and generates it. An address is downloaded to `openapi/` and recorded in `openapi/sources.json`. |
+| `specbook add --refresh [service...]` | Downloads the recorded addresses again, says what changed, and regenerates it. |
+| `specbook generate [service...]` | Types, operations, examples and metadata from the specs. `dev`, `build` and `test` do it when needed. |
+| `specbook dev [--port n]` | The docs, a play panel and a credential proxy, as you write. |
+| `specbook build [--out dir] [--minimal] [--viewer]` | A static docs site and `specbook.js`. `--minimal` publishes only what your requests and flows use. |
+| `specbook test [glob...]` | Runs requests and flows against an environment. |
+| `specbook bundle [--out file] [--tag t]` | Compiles the tests into one `.mjs` that runs with just node. |
+| `specbook check` | Validates specs, generated code drift, imported operations, placeholders and environment files. |
+| `specbook secrets [--env name]` | Shows where each secret resolves from. |
+| `specbook preview <url or file>` | Opens any document in the UI, with no project. |
+
+## `specbook test`
+
+| Flag | |
+| --- | --- |
+| `--env <name>` | The environment (default `mock`, for development). |
+| `--tag <tag>`, `--grep <re>`, `--grep-invert <re>` | Choose what runs, by tag or by file and title. |
+| `--list` | Print what would run. |
+| `--shard i/n`, `--bail n` | Split a run, or stop after n failed flows. |
+| `--retries n` | Run a failed flow again; a pass on a retry is flaky and exits 0. |
+| `--timeout ms`, `--global-timeout ms` | Per request, and for the whole run. |
+| `--safe` | Refuse requests that may change data. For production. |
+| `--reporter list\|json\|junit\|github\|ndjson[:path]` | Reporters, repeatable. |
+| `--input k=v`, `--var k=v` | A flow input, or a variable (an address too). |
+
+Exit codes: 0 passed, 1 a flow failed or errored, 2 it could not run (missing secrets, a missing spec, an import that is
+no operation), 3 usage.

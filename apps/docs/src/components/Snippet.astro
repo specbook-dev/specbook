@@ -1,0 +1,68 @@
+---
+// A block of code read from a real file (see lib/snippet.ts), in Starlight's code frame, with an optional Run button that
+// opens the play panel on the very request or flow the code defines.
+import { Code } from '@astrojs/starlight/components'
+import { readSnippet } from '../lib/snippet'
+
+interface Props {
+  file: string
+  region?: string
+  lines?: string
+  /** the frame's title; the file's name when not given */
+  title?: string | false
+  /** line numbers or ranges to highlight, like `{2,5-7}` */
+  mark?: string
+  /** `flow:adopt-pet` or `try:petstore/GetPetById`: shows a Run button */
+  run?: string
+  /** preset flow inputs for the Run button */
+  inputs?: Record<string, unknown>
+}
+
+const { file, region, lines, title, mark, run, inputs } = Astro.props
+const snippet = readSnippet({ file, region, lines })
+const [kind, target] = run?.split(':') ?? []
+const attr =
+  kind === 'flow' ? 'data-specbook-flow' : kind === 'try' ? 'data-specbook-try' : undefined
+---
+
+<figure class="snippet">
+  <Code
+    code={snippet.code}
+    lang={snippet.lang}
+    title={title === false ? undefined : (title ?? snippet.name)}
+    mark={mark ? mark.split(',') : undefined}
+  />
+  {
+    attr && target && (
+      <p class="snippet-run">
+        <button
+          type="button"
+          class="run"
+          {...{ [attr]: target }}
+          data-specbook-env="demo"
+          data-specbook-inputs={inputs ? JSON.stringify(inputs) : undefined}
+        >
+          ▶ Run it
+        </button>
+        <span class="muted">against the demo API, in this page</span>
+      </p>
+    )
+  }
+</figure>
+
+<style>
+  .snippet {
+    margin: 0;
+  }
+  .snippet-run {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: -6px 0 22px;
+  }
+  .muted {
+    color: var(--muted);
+    font-size: 14px;
+  }
+</style>

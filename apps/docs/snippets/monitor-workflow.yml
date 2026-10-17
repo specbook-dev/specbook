@@ -1,0 +1,15 @@
+# #region workflow
+# .github/workflows/monitor.yml
+on:
+  schedule: [{ cron: '*/15 * * * *' }]
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      # download the file your pipeline built, then:
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: node specbook-tests.mjs --env prod --safe --tag monitor --retries 1 --timeout 10000 --reporter json:report.json
+        env:
+          PETSTORE_API_KEY: ${{ secrets.PETSTORE_API_KEY }}
+# #endregion workflow

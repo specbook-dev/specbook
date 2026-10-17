@@ -34,6 +34,51 @@
     "test:sw": {
       "dependsOn": ["^build"],
       "cache": false
+    },
+    "example#build:docs": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist-docs/**"]
+    },
+    "docs-demo#build:qa": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist-qa/**"]
+    },
+    "docs-demo#build:sw": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist-sw/**"]
+    },
+    "docs-demo#bundle": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist-bundle/**"]
+    },
+    "@specbook/ui#build:viewer": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist-viewer/**"]
+    },
+    "docs#build:site": {
+      "dependsOn": [
+        "^build",
+        "example#build:docs",
+        "docs-demo#build:qa",
+        "docs-demo#build:sw",
+        "docs-demo#bundle",
+        "@specbook/ui#build:viewer"
+      ],
+      "outputs": ["dist/**"]
+    },
+    "test:site": {
+      "dependsOn": ["docs#build:site"],
+      "cache": false
+    },
+    "docs-demo#generate": {
+      "dependsOn": ["^build"],
+      "outputs": [".generated/**"]
+    },
+    "docs#typecheck": {
+      "dependsOn": ["^build", "docs-demo#generate"]
+    },
+    "docs#test": {
+      "dependsOn": ["^build", "docs-demo#generate"]
     }
   }
 }

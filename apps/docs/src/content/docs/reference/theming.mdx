@@ -1,0 +1,15 @@
+---
+title: Theming
+description: Every color, font and radius is a CSS variable.
+---
+
+import Snippet from '../../../components/Snippet.astro'
+
+A page that embeds the viewer or the play panel restyles it from its own stylesheet. Light and dark follow the
+visitor's system; `data-theme="light"` or `"dark"` on the root forces one.
+
+<Snippet file="snippets/theme.css" region="theme" title="site.css" />
+
+The variables cover surfaces (`--sb-bg`, `--sb-surface`, `--sb-border`), text, accent, status colors, one color per
+HTTP method, code colors, fonts, radii and spacing. The play panel also exposes `::part(panel)`, `::part(header)`,
+`::part(timeline)` and `::part(play)` for structure.

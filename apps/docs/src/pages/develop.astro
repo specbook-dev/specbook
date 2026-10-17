@@ -1,0 +1,67 @@
+---
+import DemoStatus from '../components/DemoStatus.astro'
+import Next from '../components/Next.astro'
+import Snippet from '../components/Snippet.astro'
+import Page from '../layouts/Page.astro'
+---
+
+<Page
+  page="develop"
+  title="Develop"
+  description="Your spec becomes types and runnable requests. Write a request or a flow in TypeScript and try it as you write it."
+>
+  <section class="hero" style="padding-bottom: 24px">
+    <div class="wrap">
+      <span class="eyebrow">02 · Develop</span>
+      <h1 class="display">Your spec, as code you can run.</h1>
+      <p class="lede">
+        Specbook generates types and operations from your OpenAPI file. You write requests and flows against
+        them in TypeScript, with the editor checking every path, query and body, and run them as you write.
+      </p>
+    </div>
+  </section>
+
+  <section class="block" style="padding-top: 8px">
+    <div class="wrap">
+      <ol class="steps">
+        <li>
+          <strong>Add your spec.</strong> A file or an address; an address is downloaded and its source recorded.
+        </li>
+        <li><strong>Write a request.</strong> One call to one operation, and what makes it a pass.</li>
+        <li><strong>Chain them into a flow.</strong> What one step returns, the next one uses.</li>
+        <li><strong>Run</strong> them in <code>specbook dev</code>, in the terminal, or right here.</li>
+      </ol>
+      <Snippet file="snippets/install.sh" region="install" title="terminal" />
+
+      <h2 class="title">A request</h2>
+      <div class="prose">
+        <p>
+          One call to one operation. With no checks of its own it passes on a 2xx response; here it says what
+          "found" means.
+        </p>
+      </div>
+      <Snippet file="demo/requests/petstore/get-pet.req.ts" region="request" run="try:petstore/GetPetById" />
+
+      <h2 class="title">A flow</h2>
+      <div class="prose">
+        <p>
+          A flow strings requests together and is <strong>strongly typed</strong>: what a step captures has the
+          type the spec gives that response, so a misspelt field is a compile error, not a surprise at run time.
+        </p>
+      </div>
+      <Snippet file="demo/sequences/adopt-pet.seq.ts" region="flow" run="flow:adopt-pet" />
+      <p><DemoStatus /></p>
+
+      <h2 class="title">All of it, on a real API</h2>
+      <div class="prose">
+        <p>
+          The same build, for the four APIs of the example project: Stripe, GitHub, the Petstore and a GraphQL
+          one, 1,800 operations in all. It is what <code>specbook build</code> publishes.
+        </p>
+      </div>
+      <p><a class="btn primary" href="/demo/">Open the full build ↗</a></p>
+    </div>
+  </section>
+
+  <div class="wrap"><Next page="develop" /></div>
+</Page>

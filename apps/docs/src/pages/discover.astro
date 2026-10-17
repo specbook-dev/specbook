@@ -1,0 +1,133 @@
+---
+import Next from '../components/Next.astro'
+import Snippet from '../components/Snippet.astro'
+import Page from '../layouts/Page.astro'
+---
+
+<Page
+  page="discover"
+  title="Discover"
+  description="Open any OpenAPI file and use it: browse the operations, send real requests, see the response checked against the spec."
+>
+  <section class="hero" style="padding-bottom: 24px">
+    <div class="wrap">
+      <span class="eyebrow">01 · Discover</span>
+      <h1 class="display">Open any API and use it.</h1>
+      <p class="lede">
+        Give Specbook an OpenAPI file or its address. You get every operation, a form for its parameters, a
+        button that sends the request, and the response checked against the spec. No project, nothing to
+        install.
+      </p>
+    </div>
+  </section>
+
+  <section class="block" style="padding-top: 8px">
+    <div class="wrap">
+      <div class="demo">
+        <div class="demo-bar">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>The Petstore, open in the viewer</span>
+          <span class="grow"></span>
+          <a href="/viewer/?spec=/specs/petstore.json">Open it full size ↗</a>
+        </div>
+        <iframe
+          class="viewer"
+          title="The Petstore API in the Specbook viewer"
+          src="/viewer/?spec=/specs/petstore.json"
+          loading="lazy"></iframe>
+      </div>
+
+      <h2 class="title">Open yours</h2>
+      <form class="open" id="open-form">
+        <label for="spec">Address of an OpenAPI file</label>
+        <div class="row">
+          <input
+            id="spec"
+            name="spec"
+            type="url"
+            inputmode="url"
+            required
+            placeholder="https://petstore3.swagger.io/api/v3/openapi.json"
+            autocomplete="off"
+          />
+          <button type="submit" class="btn primary">Open</button>
+        </div>
+        <p class="hint">
+          It opens in the viewer, in your browser. The file is read there; it is not sent to us. An API
+          answers a call from a page only if it allows it (CORS), which many public ones do.
+        </p>
+      </form>
+
+      <div class="prose">
+        <h3>Share it</h3>
+        <p>
+          Anyone who opens this link gets your API open and runnable. The viewer takes the address of the spec
+          in <code>?spec=</code>.
+        </p>
+      </div>
+      <Snippet
+        file="snippets/discover.md"
+        region="badge"
+        title="README.md"
+      />
+
+      <div class="prose">
+        <h3>Or put it on your own page</h3>
+        <p>
+          The viewer is one script. On your origin there is no CORS and your visitor's cookies are sent.
+        </p>
+      </div>
+      <Snippet file="snippets/embed.html" region="viewer" title="docs.html" />
+    </div>
+  </section>
+
+  <div class="wrap"><Next page="discover" /></div>
+</Page>
+
+<style>
+  .viewer {
+    display: block;
+    width: 100%;
+    height: min(78vh, 760px);
+    border: 0;
+    background: var(--surface);
+  }
+  .open {
+    margin: 12px 0 40px;
+    max-width: 720px;
+  }
+  .open label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .open .row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .open input {
+    flex: 1 1 280px;
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--text);
+    font: 15px var(--mono);
+  }
+  .hint {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 10px 0 0;
+  }
+</style>
+
+<script>
+  const form = document.getElementById('open-form') as HTMLFormElement
+  form.addEventListener('submit', (e) => {
+    e.preventDefault()
+    const spec = new FormData(form).get('spec')
+    if (typeof spec === 'string' && spec) location.assign(`/viewer/?spec=${encodeURIComponent(spec)}`)
+  })
+</script>

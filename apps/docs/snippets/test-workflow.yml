@@ -1,0 +1,19 @@
+# #region workflow
+# .github/workflows/test.yml
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci
+      - run: npx specbook check
+      - run: npx specbook test --env staging --reporter list --reporter junit:reports/junit.xml
+        env:
+          PETSTORE_API_KEY: ${{ secrets.PETSTORE_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: reports, path: reports }
+# #endregion workflow
