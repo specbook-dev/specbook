@@ -146,6 +146,8 @@
   .list-col {
     min-height: 0;
     overflow: auto;
+    /* folding a group changes how tall the list is: keep the scrollbar's space, so the list does not widen and narrow */
+    scrollbar-gutter: stable;
     /* scrolling to the end of the list must not drag the whole page along */
     overscroll-behavior: contain;
     padding: var(--sb-space-3);
@@ -458,7 +460,11 @@
     padding: var(--sb-space-3) 0 0;
     border-top: 1px solid var(--sb-border);
   }
+  /* the tick says it passed; the sentence is muted, so a list of checks reads calmly and a failure stands out */
   .checks .ok {
+    color: var(--sb-text-muted);
+  }
+  .checks .ok .tick {
     color: var(--sb-success);
   }
   .checks .bad {

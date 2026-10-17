@@ -23,7 +23,7 @@ export const CARDS = [
   {
     slug: 'home',
     name: 'Specbook',
-    line: 'Storybook for APIs. Discover, develop, document, test and monitor from one definition.',
+    line: 'The Swagger UI alternative built for modern teams. Explore APIs, author executable flows once, publish live documentation instantly.',
   },
   ...found,
 ]
@@ -39,7 +39,7 @@ const html = (c) => `<!doctype html><meta charset="utf-8"><style>
   .brand { display: flex; align-items: center; gap: 20px; font-size: 34px; color: #b79cff; font-weight: 650; }
   .url { position: absolute; right: 90px; bottom: 44px; font-size: 26px; color: #8e94a6; }
 </style><body><div class="brand">${icon}<span>Specbook</span></div>
-  <h1>${c.slug === 'home' ? 'Same spec. Way more swagger.' : c.name}</h1><p>${c.line}</p>
+  <h1>${c.slug === 'home' ? 'API docs that come to life' : c.name}</h1><p>${c.line}</p>
 <div class="url">docs.specbook.dev</div></body>`
 
 if (import.meta.url === `file://${process.argv[1]}`) {

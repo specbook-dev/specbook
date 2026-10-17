@@ -54,8 +54,6 @@ const VIRTUAL_FAKER = 'virtual:specbook/faker'
 const RESOLVED_FAKER = `\0${VIRTUAL_FAKER}`
 const VIRTUAL_FAKER_LOCALE = 'virtual:specbook/faker-locale/'
 const RESOLVED_FAKER_LOCALE = `\0${VIRTUAL_FAKER_LOCALE}`
-const VIRTUAL_MANIFESTS = 'virtual:specbook/manifests'
-const RESOLVED_MANIFESTS = `\0${VIRTUAL_MANIFESTS}`
 const VIRTUAL_MANIFEST = 'virtual:specbook/manifest/'
 const RESOLVED_MANIFEST = `\0${VIRTUAL_MANIFEST}`
 const VIRTUAL_OPERATIONS = 'virtual:specbook/operations'
@@ -154,7 +152,6 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
   let isBuild = false
   let docHtml: string[] = []
   /** build only: parts of the registry that live in their own chunks, and the data files served as assets */
-  let manifestsCode = 'export {}'
   /** build: the manifest of each service, one module each */
   let manifestCode = new Map<string, string>()
   let operationsCode = 'export const operations = {}'
@@ -338,14 +335,6 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
       manifestCode = new Map(
         Object.entries(slimmed).map(([svc, m]) => [svc, `export default ${JSON.stringify(m)}`]),
       )
-      // the whole app fills `manifests` from all of them before it starts; an embed asks for the ones it needs
-      manifestsCode = `import { manifests } from 'virtual:specbook/registry'
-${Object.keys(slimmed)
-  .map((svc, i) => `import m${i} from ${JSON.stringify(`${VIRTUAL_MANIFEST}${svc}`)}`)
-  .join('\n')}
-Object.assign(manifests, { ${Object.keys(slimmed)
-        .map((svc, i) => `${JSON.stringify(svc)}: m${i}`)
-        .join(', ')} })`
       operationsCode = `export const operations = {\n${operationEntries.join(',\n')}\n}`
       const gen = join(root, outDir)
       bundlePlan = new Map()
@@ -586,7 +575,6 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
               // manifests are their own chunk (preloaded with the app, so no extra round trip), and
               // operation modules are grouped by tag instead of one chunk per operation
               manualChunks(id: string) {
-                if (id === RESOLVED_MANIFESTS) return 'manifests'
                 if (id.startsWith(RESOLVED_MANIFEST))
                   return `manifest-${id.slice(RESOLVED_MANIFEST.length)}`
                 return operationChunks.get(id)
@@ -600,7 +588,6 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
       if (id === VIRTUAL) return RESOLVED
       if (id === VIRTUAL_TYPES) return RESOLVED_TYPES
       if (id === VIRTUAL_FAKER) return RESOLVED_FAKER
-      if (id === VIRTUAL_MANIFESTS) return RESOLVED_MANIFESTS
       if (id.startsWith(VIRTUAL_MANIFEST)) return `\0${id}`
       if (id === VIRTUAL_OPERATIONS) return RESOLVED_OPERATIONS
       if (id.startsWith(VIRTUAL_FAKER_LOCALE)) return `\0${id}`
@@ -609,7 +596,6 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
     },
     async load(id) {
       if (id === RESOLVED) return registryCode()
-      if (id === RESOLVED_MANIFESTS) return manifestsCode
       if (id.startsWith(RESOLVED_MANIFEST))
         return manifestCode.get(id.slice(RESOLVED_MANIFEST.length)) ?? 'export default {}'
       if (id === RESOLVED_OPERATIONS) return operationsCode

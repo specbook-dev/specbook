@@ -1,29 +1,28 @@
-/** The five pages, in the order a visitor meets them: what each is for, in a line. */
+/** The pages after the landing page, in the order a visitor meets them. `tile` heads the page's tile on the landing page. */
 export const PAGES = [
-  {
-    slug: 'discover',
-    name: 'Discover',
-    line: 'Open any OpenAPI file and use it, with nothing to install.',
-  },
   {
     slug: 'develop',
     name: 'Develop',
-    line: 'Your spec becomes types and runnable requests, tried as you write them.',
+    line: 'Write requests and flows beside your spec. Run them as you write, then publish them for the whole team.',
+    tile: 'Develop',
   },
   {
     slug: 'document',
     name: 'Document',
-    line: 'The same requests are your API docs, on your own site, runnable in place.',
+    line: 'Markdown beside every operation, or enable Try it on any button on your existing documentation site.',
+    tile: 'Document',
   },
   {
     slug: 'test',
     name: 'Test',
-    line: 'The same request or flow, run by QA with a click and by CI on every change.',
+    line: 'QA runs your published flows with a single click, and CI runs the same checks on every change.',
+    tile: 'Test',
   },
   {
     slug: 'monitor',
     name: 'Monitor',
-    line: 'One file that runs anywhere with just node, against production, on a schedule.',
+    line: 'Compile the same tests into one file that runs with just node. Run it on a schedule in production.',
+    tile: 'Monitor',
   },
 ] as const
 

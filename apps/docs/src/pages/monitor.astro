@@ -1,83 +1,76 @@
 ---
-import DemoStatus from '../components/DemoStatus.astro'
+import cli from '../../../../packages/cli/package.json'
 import Next from '../components/Next.astro'
+import Replay from '../components/Replay'
 import Snippet from '../components/Snippet.astro'
+import Terminal from '../components/Terminal'
 import Page from '../layouts/Page.astro'
-import { bundleFacts } from '../lib/bundle'
-
-const bundle = bundleFacts()
+import { capture } from '../lib/captures'
 ---
 
 <Page
   page="monitor"
   title="Monitor"
-  description="One file that runs anywhere with just node: the same requests and flows, against production, on a schedule, read-only by default."
+  description="Compile the same tests into one file that runs with just node, and run it on a schedule in production."
 >
   <section class="hero" style="padding-bottom: 24px">
     <div class="wrap">
-      <span class="eyebrow">05 · Monitor</span>
+      <span class="eyebrow">04 · Monitor</span>
       <h1 class="display">One file. Just node.</h1>
       <p class="lede">
         <code>specbook bundle</code> compiles your requests and flows, their dependencies and the runner into a
-        single <code>.mjs</code>. Run it from any machine that has node, on a schedule, against production. No
-        install, no spec, no secrets inside.
+        single <code>.mjs</code> file. Run it on any machine with node, on a schedule in production. It needs no
+        install and no spec, and it holds no secrets.
       </p>
     </div>
   </section>
 
   <section class="block" style="padding-top: 8px">
     <div class="wrap">
-      <Snippet file="snippets/install.sh" region="monitor" title="terminal" />
-
-      <div class="demo">
-        <div class="demo-bar">
-          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span>specbook-tests.mjs</span>
-          <span class="grow"></span>
-          <DemoStatus />
-        </div>
-        <div class="demo-body">
-          {
-            bundle.ready ? (
-              <>
-                <p>
-                  <a class="btn primary" href="/downloads/specbook-tests.mjs" download>
-                    Download the demo's tests ({bundle.kb} KB)
-                  </a>
-                </p>
-                <p class="hash">
-                  <span>sha256</span>
-                  <code>{bundle.sha256}</code>
-                </p>
-                <p class="note">
-                  Check it with <code>sha256sum -c specbook-tests.mjs.sha256</code>. It is built from the same
-                  requests and flows as the rest of this site and runs with <code>--env mock</code>: its demo
-                  API answers inside a browser, so there is nothing for node to reach.
-                </p>
-              </>
-            ) : (
-              <p>The bundle is built with the site.</p>
-            )
-          }
-        </div>
-      </div>
-
-      <h2 class="title">Safe against production</h2>
+      <h2 class="title">Build one file</h2>
       <div class="prose">
         <p>
-          Runs send everything by default, so a developer can test flows that create and delete against a lower
-          environment. Against production pass <strong><code>--safe</code></strong>: any request that is not a
+          Compile the tests you want to watch. The file holds your requests and flows and the runner, and a{' '}
+          <code>.sha256</code> file beside it lets your pipeline verify the download.
+        </p>
+      </div>
+      <Snippet file="snippets/install.sh" region="monitor" title={false} />
+
+      <h2 class="title">Run it anywhere</h2>
+      <div class="prose">
+        <p>Node is all the machine needs. This recording runs the file against a staging address.</p>
+      </div>
+      <Replay client:visible capture={capture('bundle-run')} />
+
+      <h2 class="title">Know when it breaks</h2>
+      <div class="prose">
+        <p>
+          This is the same run in your browser. Choose what the demo API does, then press Run. When the API is
+          down every request errors and the run exits 1, which is what pages someone.
+        </p>
+      </div>
+      <Terminal client:visible tag="monitor" chaos={['calm', 'down', 'flaky', 'missing']} version={cli.version} />
+      <Replay client:visible capture={capture('test-down')} />
+
+      <h2 class="title">Keep production safe</h2>
+      <div class="prose">
+        <p>
+          By default a run sends everything, so you can test flows that create and delete against a lower
+          environment. Against production, pass <strong><code>--safe</code></strong>. Any request that is not a
           GET, HEAD or OPTIONS (or a GraphQL query) is refused before it is sent, so a monitor cannot change
           production data. Mark a POST that only reads with <code>safe: true</code>.
         </p>
         <p>
-          <code>--retries 1</code> runs a failed flow once more; one that then passes is reported as flaky and
-          exits 0. <code>--timeout</code> bounds each request, and the report says which of failed and errored
-          it was, so an API that is down reads differently from one that answered wrongly.
+          <code>--retries 1</code> runs a failed flow once more, and one that then passes is reported as flaky and
+          exits 0. <code>--timeout</code> limits each request. The report separates failed from errored, so an API
+          that is down reads differently from one that answered wrongly.
         </p>
       </div>
 
-      <h2 class="title">On a schedule</h2>
+      <h2 class="title">Run it on a schedule</h2>
+      <div class="prose">
+        <p>A scheduled workflow downloads the file, runs it and fails when a flow does.</p>
+      </div>
       <Snippet file="snippets/monitor-workflow.yml" region="workflow" title="monitor.yml" />
     </div>
   </section>
@@ -85,27 +78,3 @@ const bundle = bundleFacts()
   <div class="wrap"><Next page="monitor" /></div>
 </Page>
 
-<style>
-  .hash {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 10px;
-    margin: 0 0 10px;
-  }
-  .hash span {
-    font: 600 12px/1 var(--mono);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-  .hash code {
-    font: 13px var(--mono);
-    overflow-wrap: anywhere;
-  }
-  .note {
-    margin: 0;
-    color: var(--muted);
-    font-size: 14.5px;
-  }
-</style>

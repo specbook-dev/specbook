@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 624 436" width="624" height="436" role="img" aria-labelledby="t d">
+<title id="t">specbook test: a passing run, then a failing check</title>
+<desc id="d">A terminal runs specbook test. Every request passes. After the API changes, the run fails and shows the check that broke: expected "placed", received "delivered", exit code 1.</desc>
+<style>
+text{font:16px ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono","DejaVu Sans Mono",monospace;fill:#e6edf3;white-space:pre}
+.b{font-weight:700}.d{fill:#8b949e}.green{fill:#3fb950}.red{fill:#f85149}.yellow{fill:#d29922}.cyan{fill:#56d4dd}
+.r{opacity:0}
+@keyframes k0{0%,2.222%{opacity:0}2.278%,40.000%{opacity:1}40.056%,100%{opacity:0}}
+@keyframes k1{0%,6.778%{opacity:0}6.833%,40.000%{opacity:1}40.056%,100%{opacity:0}}
+@keyframes k2{0%,9.222%{opacity:0}9.278%,40.000%{opacity:1}40.056%,100%{opacity:0}}
+@keyframes k3{0%,10.444%{opacity:0}10.500%,40.000%{opacity:1}40.056%,100%{opacity:0}}
+@keyframes k4{0%,11.667%{opacity:0}11.722%,40.000%{opacity:1}40.056%,100%{opacity:0}}
+@keyframes k5{0%,12.889%{opacity:0}12.944%,40.000%{opacity:1}40.056%,100%{opacity:0}}
+@keyframes k6{0%,14.111%{opacity:0}14.167%,40.000%{opacity:1}40.056%,100%{opacity:0}}
+@keyframes k7{0%,15.333%{opacity:0}15.389%,40.000%{opacity:1}40.056%,100%{opacity:0}}
+@keyframes k8{0%,17.778%{opacity:0}17.833%,40.000%{opacity:1}40.056%,100%{opacity:0}}
+@keyframes k9{0%,19.000%{opacity:0}19.056%,40.000%{opacity:1}40.056%,100%{opacity:0}}
+@keyframes k10{0%,20.222%{opacity:0}20.278%,40.000%{opacity:1}40.056%,100%{opacity:0}}
+@keyframes k11{0%,42.222%{opacity:0}42.278%,92.222%{opacity:1}92.278%,100%{opacity:0}}
+@keyframes k12{0%,46.778%{opacity:0}46.833%,92.222%{opacity:1}92.278%,100%{opacity:0}}
+@keyframes k13{0%,48.000%{opacity:0}48.056%,92.222%{opacity:1}92.278%,100%{opacity:0}}
+@keyframes k14{0%,49.222%{opacity:0}49.278%,92.222%{opacity:1}92.278%,100%{opacity:0}}
+@keyframes k15{0%,50.444%{opacity:0}50.500%,92.222%{opacity:1}92.278%,100%{opacity:0}}
+@keyframes k16{0%,52.889%{opacity:0}52.944%,92.222%{opacity:1}92.278%,100%{opacity:0}}
+@keyframes k17{0%,54.111%{opacity:0}54.167%,92.222%{opacity:1}92.278%,100%{opacity:0}}
+@keyframes k18{0%,55.333%{opacity:0}55.389%,92.222%{opacity:1}92.278%,100%{opacity:0}}
+@keyframes k19{0%,56.556%{opacity:0}56.611%,92.222%{opacity:1}92.278%,100%{opacity:0}}
+@keyframes k20{0%,57.778%{opacity:0}57.833%,92.222%{opacity:1}92.278%,100%{opacity:0}}
+@keyframes k21{0%,60.222%{opacity:0}60.278%,92.222%{opacity:1}92.278%,100%{opacity:0}}
+@keyframes k22{0%,61.444%{opacity:0}61.500%,92.222%{opacity:1}92.278%,100%{opacity:0}}
+@keyframes k23{0%,62.667%{opacity:0}62.722%,92.222%{opacity:1}92.278%,100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.r{animation:none}.pass{display:none}.fail .r{opacity:1}}
+</style>
+<rect x="0.5" y="0.5" width="623" height="435" rx="10" fill="#0d1117" stroke="#30363d"/>
+<path d="M0.5 40V10.5a10 10 0 0 1 10-10h603a10 10 0 0 1 10 10V40z" fill="#161b22"/>
+<circle cx="24" cy="20" r="5.5" fill="#ff5f57"/><circle cx="42" cy="20" r="5.5" fill="#febc2e"/><circle cx="60" cy="20" r="5.5" fill="#28c840"/>
+<g class="pass">
+<text class="r" x="24" y="64" style="animation:k0 18s linear infinite" xml:space="preserve"><tspan>$ specbook test --env demo</tspan></text>
+<text class="r" x="24" y="88" style="animation:k1 18s linear infinite" xml:space="preserve"><tspan class="b">specbook test 0.2.0</tspan><tspan>  </tspan><tspan class="d">env demo  ·  9 tests  ·  main@3f9c2ab</tspan></text>
+<text class="r" x="24" y="136" style="animation:k2 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Get a country  </tspan><tspan class="d">POST /  200  11ms</tspan></text>
+<text class="r" x="24" y="160" style="animation:k3 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Add a pet  </tspan><tspan class="d">POST /pet  200  1ms</tspan></text>
+<text class="r" x="24" y="184" style="animation:k4 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Find pets by status  </tspan><tspan class="d">GET /pet/findByStatus  200  1ms</tspan></text>
+<text class="r" x="24" y="208" style="animation:k5 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Get an order  </tspan><tspan class="d">GET /store/order/5001  200  1ms</tspan></text>
+<text class="r" x="24" y="232" style="animation:k6 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Place an order  </tspan><tspan class="d">POST /store/order  200  1ms</tspan></text>
+<text class="r" x="24" y="256" style="animation:k7 18s linear infinite" xml:space="preserve"><tspan class="d">  …</tspan></text>
+<text class="r" x="24" y="304" style="animation:k8 18s linear infinite" xml:space="preserve"><tspan class="b"> Flows      </tspan><tspan> </tspan><tspan class="green">9 passed</tspan><tspan> </tspan><tspan class="d">(9)</tspan></text>
+<text class="r" x="24" y="328" style="animation:k9 18s linear infinite" xml:space="preserve"><tspan class="b"> Assertions </tspan><tspan> </tspan><tspan class="green">27 passed</tspan></text>
+<text class="r" x="24" y="352" style="animation:k10 18s linear infinite" xml:space="preserve"><tspan class="d">exit 0</tspan></text>
+</g>
+<g class="fail">
+<text class="r" x="24" y="64" style="animation:k11 18s linear infinite" xml:space="preserve"><tspan>$ specbook test --env demo</tspan></text>
+<text class="r" x="24" y="88" style="animation:k12 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Find pets by status  </tspan><tspan class="d">GET /pet/findByStatus  200  1ms</tspan></text>
+<text class="r" x="24" y="112" style="animation:k13 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="red">✗</tspan><tspan> Get an order  </tspan><tspan class="d">GET /store/order/5001  200  0ms</tspan></text>
+<text class="r" x="24" y="136" style="animation:k14 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Place an order  </tspan><tspan class="d">POST /store/order  200  1ms</tspan></text>
+<text class="r" x="24" y="160" style="animation:k15 18s linear infinite" xml:space="preserve"><tspan class="d">  …</tspan></text>
+<text class="r" x="24" y="208" style="animation:k16 18s linear infinite" xml:space="preserve"><tspan>    </tspan><tspan class="red">✗</tspan><tspan> still placed</tspan></text>
+<text class="r" x="24" y="232" style="animation:k17 18s linear infinite" xml:space="preserve"><tspan>      </tspan><tspan class="green">- Expected</tspan><tspan>  </tspan><tspan class="red">+ Received</tspan></text>
+<text class="r" x="24" y="256" style="animation:k18 18s linear infinite" xml:space="preserve"><tspan>      </tspan><tspan class="green">- "placed"</tspan></text>
+<text class="r" x="24" y="280" style="animation:k19 18s linear infinite" xml:space="preserve"><tspan>      </tspan><tspan class="red">+ "delivered"</tspan></text>
+<text class="r" x="24" y="304" style="animation:k20 18s linear infinite" xml:space="preserve"><tspan>      </tspan><tspan class="d">at requests/petstore/get-order.req.ts:14:16</tspan></text>
+<text class="r" x="24" y="352" style="animation:k21 18s linear infinite" xml:space="preserve"><tspan class="b"> Flows      </tspan><tspan> </tspan><tspan class="red">2 failed</tspan><tspan class="d"> | </tspan><tspan class="green">7 passed</tspan><tspan> </tspan><tspan class="d">(9)</tspan></text>
+<text class="r" x="24" y="376" style="animation:k22 18s linear infinite" xml:space="preserve"><tspan class="b"> Assertions </tspan><tspan> </tspan><tspan class="red">2 failed</tspan><tspan class="d"> | </tspan><tspan class="green">25 passed</tspan></text>
+<text class="r" x="24" y="400" style="animation:k23 18s linear infinite" xml:space="preserve"><tspan class="d">exit 1</tspan></text>
+</g>
+</svg>

@@ -12,7 +12,7 @@ interface Props {
   title?: string | false
   /** line numbers or ranges to highlight, like `{2,5-7}` */
   mark?: string
-  /** `flow:adopt-pet` or `try:petstore/GetPetById`: shows a Run button */
+  /** `flow:adopt-pet` or `try:requests/petstore/get-pet.req.ts` (the file shown, so its checks run): shows a Run button */
   run?: string
   /** preset flow inputs for the Run button */
   inputs?: Record<string, unknown>
@@ -39,12 +39,12 @@ const attr =
           type="button"
           class="run"
           {...{ [attr]: target }}
-          data-specbook-env="demo"
+          data-specbook-env="mock"
           data-specbook-inputs={inputs ? JSON.stringify(inputs) : undefined}
         >
           ▶ Run it
         </button>
-        <span class="muted">against the demo API, in this page</span>
+        <span class="muted">on mock data, in this page</span>
       </p>
     )
   }

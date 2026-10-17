@@ -90,6 +90,7 @@ export default defineConfig({
     'requests/search.req.ts': req('Search', "{ name: 'Search', safe: true, data: { q: 'x' } }"),
     'requests/flaky.req.ts': req('Flaky', "{ name: 'Flaky', tags: ['flaky'] }"),
     'requests/slow.req.ts': req('Slow', "{ name: 'Slow', tags: ['slow'], timeoutMs: 150 }"),
+    'requests/slow-default.req.ts': req('Slow', "{ name: 'Slow default', tags: ['slow-default'] }"),
     'sequences/pets.seq.ts': `import { sequence } from '@specbook/core'
 import get from '../requests/get-pet.req'
 import missing from '../requests/missing.req'
@@ -248,6 +249,27 @@ describe('specbook test', () => {
     const r = await run({ patterns: ['requests/slow.req.ts'] })
     expect(r.code).toBe(1)
     expect(r.out).toMatch(/FAIL[\s\S]*Slow/)
+  })
+
+  it('gives a request the time the project says, and --timeout says over that', async () => {
+    process.env.API_KEY = SECRET
+    const slow = { patterns: ['requests/slow-default.req.ts'] }
+    // the server takes 600 ms to answer: a project that allows 100 ms times it out, naming the time
+    project.config.timeoutMs = 100
+    try {
+      const short = await run(slow)
+      expect(short.code).toBe(1)
+      expect(short.out).toContain('Timed out after 100ms')
+      // the flag wins over the project, either way
+      expect((await run({ ...slow, timeoutMs: 3_000 })).code).toBe(0)
+      project.config.timeoutMs = 3_000
+      expect((await run(slow)).code).toBe(0)
+      expect((await run({ ...slow, timeoutMs: 100 })).out).toContain('Timed out after 100ms')
+      // and 0 waits for as long as it takes
+      expect((await run({ ...slow, timeoutMs: 0 })).code).toBe(0)
+    } finally {
+      delete project.config.timeoutMs
+    }
   })
 
   it('selects by tag, grep and shard, lists without running, and stops at --bail', async () => {

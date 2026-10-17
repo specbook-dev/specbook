@@ -1,7 +1,7 @@
 name: Release
 
 # Cut a GitHub release (tag v1.2.3) to publish the five packages at that version, attach the viewer zip
-# and deploy the viewer (ui.specbook.dev) and the demo (demo.specbook.dev).
+# and deploy the viewer (ui.specbook.dev), the demo (demo.specbook.dev) and the docs (docs.specbook.dev).
 on:
   release:
     types: [published]
@@ -88,6 +88,23 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm deploy:demo
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  deploy-docs:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm deploy:docs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

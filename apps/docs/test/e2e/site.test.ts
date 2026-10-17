@@ -11,15 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
  */
 
 const dist = resolve(import.meta.dirname, '../../dist')
-const PAGES = [
-  '/',
-  '/discover/',
-  '/develop/',
-  '/document/',
-  '/test/',
-  '/monitor/',
-  '/reference/embed/',
-]
+const PAGES = ['/', '/develop/', '/document/', '/test/', '/monitor/', '/reference/embed/']
 const types: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript',
@@ -137,6 +129,10 @@ async function open(context: BrowserContext, path: string) {
   return { page, problems }
 }
 
+/** What the page found out about the demo API: ready, or that this browser will not have its service worker. */
+const demoState = (page: Page) => () =>
+  page.evaluate(() => document.documentElement.dataset.demo as string | undefined)
+
 const violations = (page: Page) =>
   page.evaluate(() => (window as unknown as { __csp: string[] }).__csp)
 
@@ -152,6 +148,32 @@ describe('the built site', () => {
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       )
       expect(wide, `${path} scrolls sideways`).toBeLessThanOrEqual(0)
+      await page.close()
+    }
+    await context.close()
+  })
+
+  it('every page can be shared: a title, a description and a card image of the right size, on every kind of page', async () => {
+    const context = await browser.newContext()
+    for (const path of ['/', '/develop/', '/document/', '/test/', '/monitor/', '/reference/cli/']) {
+      const page = await context.newPage()
+      await page.goto(origin + path)
+      const tag = (name: string) =>
+        page
+          .locator(`meta[property="${name}"], meta[name="${name}"]`)
+          .first()
+          .getAttribute('content')
+      const where = (what: string) => `${path} ${what}`
+      expect(await tag('og:title'), where('og:title')).toBeTruthy()
+      expect(await tag('og:description'), where('og:description')).toBeTruthy()
+      // a link in a post is fetched from outside, so the picture's address names the site, not this test server
+      expect(await tag('og:image'), where('og:image')).toMatch(
+        /^https:\/\/docs\.specbook\.dev\/og\/[\w-]+\.png$/,
+      )
+      expect(await tag('og:image:width'), where('width')).toBe('1200')
+      expect(await tag('og:image:height'), where('height')).toBe('630')
+      expect((await tag('og:image:alt')) ?? '', where('alt')).not.toBe('')
+      expect(await tag('twitter:card'), where('twitter:card')).toBe('summary_large_image')
       await page.close()
     }
     await context.close()
@@ -173,13 +195,15 @@ describe('the built site', () => {
     await context.close()
   })
 
-  it('the service worker takes control and a request in the popover runs against the demo API', async () => {
+  it('the service worker takes control, and a request in the popover on the Document page answers from the spec', async () => {
     const context = await browser.newContext()
-    const { page, problems } = await open(context, '/test/')
-    const chip = page.locator('[data-demo-status]').first()
-    await expect.poll(() => chip.getAttribute('data-state'), { timeout: 30_000 }).toBe('ready')
+    const { page, problems } = await open(context, '/document/')
+    await expect.poll(demoState(page), { timeout: 30_000 }).toBe('ready')
 
-    await page.locator('button[data-specbook-try="petstore/FindPetsByStatus"]').click()
+    // a plain element marked to run gets a Play button beside it
+    await page
+      .locator('[data-specbook-try="requests/petstore/get-pet.req.ts"] specbook-play button')
+      .click()
     await page.locator('specbook-panel button[aria-label="Send"]').click()
     await expect
       .poll(() => page.locator('specbook-panel .response .state-badge').first().textContent(), {
@@ -193,12 +217,8 @@ describe('the built site', () => {
 
   it('a flow runs with its defaults', async () => {
     const context = await browser.newContext()
-    const { page } = await open(context, '/test/')
-    await expect
-      .poll(() => page.locator('[data-demo-status]').first().getAttribute('data-state'), {
-        timeout: 30_000,
-      })
-      .toBe('ready')
+    const { page } = await open(context, '/document/')
+    await expect.poll(demoState(page), { timeout: 30_000 }).toBe('ready')
     await page.locator('button[data-specbook-flow="new-pet"]').click()
     await page.getByRole('button', { name: 'Run with defaults' }).click()
     await expect
@@ -209,14 +229,190 @@ describe('the built site', () => {
     await context.close()
   })
 
-  it('without a service worker the page says so and the buttons are not left waiting', async () => {
-    const context = await browser.newContext({ serviceWorkers: 'block' })
-    const { page } = await open(context, '/test/')
-    const chip = page.locator('[data-demo-status]').first()
+  it('the terminal runs the demo: it passes, fails when the API is down, and calls a retried pass flaky', async () => {
+    const context = await browser.newContext()
+    const { page, problems } = await open(context, '/monitor/')
+    await expect.poll(demoState(page), { timeout: 30_000 }).toBe('ready')
+    const term = page.locator('.term-live').first()
+    // the island loads when it is on screen
+    await term.scrollIntoViewIfNeeded()
+    const output = term.locator('.term-out')
+    const run = async (label?: string) => {
+      if (label) await term.getByRole('button', { name: label }).click()
+      await term.getByRole('button', { name: /^Run/ }).click()
+      await expect.poll(() => output.textContent(), { timeout: 30_000 }).toMatch(/exit \d/)
+      return (await output.textContent()) ?? ''
+    }
+    const passing = await run()
+    expect(passing).toContain('specbook test')
+    expect(passing).toContain('✓')
+    expect(passing).toMatch(/exit 0/)
+    const down = await run('API down')
+    expect(down).toContain('✗')
+    expect(down).toMatch(/exit 1/)
+    const flaky = await run('Flaky')
+    expect(flaky).toMatch(/retrying/)
+    expect(flaky).toMatch(/exit 0/)
+    expect(await violations(page)).toEqual([])
+    // the browser logs the 500s the demo API answers on purpose; anything else is a problem
+    expect(problems.filter((p) => !/status of 500/.test(p))).toEqual([])
+    await context.close()
+  })
+
+  it('a recording of the real tool plays on the Test page', async () => {
+    const context = await browser.newContext()
+    const { page, problems } = await open(context, '/test/')
+    const replay = page
+      .locator('section.term', { hasText: 'specbook test' })
+      .filter({ has: page.getByRole('button', { name: 'Replay' }) })
+      .first()
+    await replay.scrollIntoViewIfNeeded()
     await expect
-      .poll(() => chip.getAttribute('data-state'), { timeout: 30_000 })
-      .toMatch(/unsupported|bypassed/)
-    expect(await chip.textContent()).not.toMatch(/Starting/)
+      .poll(() => replay.locator('.term-out').textContent(), { timeout: 20_000 })
+      .toMatch(/exit [01]/)
+    expect(await violations(page)).toEqual([])
+    expect(problems).toEqual([])
+    await context.close()
+  })
+
+  it("the landing page runs a request on mock data, calls nothing, and shows the request's checks", async () => {
+    const context = await browser.newContext()
+    const called: string[] = []
+    context.on('request', (r) => {
+      if (r.url().includes('swagger.io')) called.push(r.url())
+    })
+    const { page, problems } = await open(context, '/')
+    await page.locator('button[data-specbook-try="requests/petstore/get-pet.req.ts"]').click()
+    await page.locator('specbook-panel button[aria-label="Send"]').click()
+    await expect
+      .poll(() => page.locator('specbook-panel .response .state-badge').first().textContent(), {
+        timeout: 30_000,
+      })
+      .toMatch(/200/)
+    expect(called).toEqual([])
+    // the request's own checks are shown, not just the response
+    const panel = await page.evaluate(
+      () =>
+        document.querySelector('specbook-panel')?.shadowRoot?.querySelector('.sb-root')
+          ?.textContent,
+    )
+    expect(panel).toMatch(/Checks\s*2/)
+    // `petId` comes from the request's own init, so nothing is asked of the visitor, and mock needs no key
+    expect(panel).not.toMatch(/Needs a value/)
+    expect(await page.locator('specbook-panel .needs-vars').count()).toBe(0)
+    expect(await violations(page)).toEqual([])
+    expect(problems).toEqual([])
+    await context.close()
+  })
+
+  it('the landing flow passes on mock data with no network and no key', async () => {
+    const context = await browser.newContext()
+    const called: string[] = []
+    context.on('request', (r) => {
+      if (r.url().includes('swagger.io')) called.push(r.url())
+    })
+    const { page } = await open(context, '/')
+    await page.locator('button[data-specbook-flow="adopt-pet"]').click()
+    await page.getByRole('button', { name: 'Run with defaults' }).click()
+    await expect
+      .poll(() => page.locator('specbook-panel .seq-run .badge').first().textContent(), {
+        timeout: 30_000,
+      })
+      .toMatch(/Passed/)
+    expect(called).toEqual([])
+    await context.close()
+  })
+
+  it('switching the landing flow to live asks for the Petstore key, and a failing live server ends the run with its answer shown', async () => {
+    const context = await browser.newContext()
+    const orders: string[] = []
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }
+    await context.route('https://petstore3.swagger.io/**', (route) => {
+      const req = route.request()
+      if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors })
+      if (req.url().includes('/pet/findByStatus'))
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: cors,
+          body: JSON.stringify([{ id: 7, name: 'Rex', photoUrls: [], status: 'available' }]),
+        })
+      orders.push(req.postData() ?? '')
+      return route.fulfill({
+        status: 500,
+        contentType: 'text/html',
+        headers: cors,
+        body: '<h1>Internal Server Error</h1>',
+      })
+    })
+    const { page } = await open(context, '/')
+    await page.locator('button[data-specbook-flow="adopt-pet"]').click()
+    await page
+      .locator('specbook-panel select[aria-label="Environment"]:visible')
+      .selectOption('live')
+    // live is the real API: the secured step shows the key it will send, and nothing is sent until it has one
+    const bar = page.locator('specbook-panel .needs-vars')
+    await expect.poll(() => bar.textContent(), { timeout: 10_000 }).toMatch(/PETSTORE_API_KEY/)
+    await bar.locator('input').fill('any-value')
+    // committed when the field is left, as a person does by tabbing away
+    await bar.locator('input').press('Tab')
+    await page.getByRole('button', { name: 'Run with defaults' }).click()
+    // the run ends: the button is a Run button again, the summary says it failed, and the failing step can be opened
+    await expect
+      .poll(() => page.locator('specbook-panel .seq-run .badge').first().textContent(), {
+        timeout: 30_000,
+      })
+      .toMatch(/Failed|Error/)
+    expect(
+      await page.locator('specbook-panel .seq-run .btn.primary').first().textContent(),
+    ).not.toContain('Running')
+    expect(await page.locator('specbook-panel .panel-error').count()).toBe(0)
+    // the default pet is the first one found, not a pet numbered 0
+    expect(JSON.parse(orders[0] ?? '{}').petId).toBe(7)
+    await page.locator('specbook-panel .jhead', { hasText: 'Place order' }).click()
+    await expect
+      .poll(() => page.locator('specbook-panel .seq-right').first().textContent(), {
+        timeout: 10_000,
+      })
+      .toMatch(/500/)
+    await context.close()
+  })
+
+  it('Document: the docs tab of the popover shows the notes written beside the operation', async () => {
+    const context = await browser.newContext()
+    const { page, problems } = await open(context, '/document/')
+    await expect.poll(demoState(page), { timeout: 30_000 }).toBe('ready')
+    await page.getByRole('button', { name: 'Open the docs for Get a pet by id' }).click()
+    await page.locator('specbook-panel').getByText('Looks a pet up by its id').waitFor({
+      timeout: 30_000,
+    })
+    expect(await violations(page)).toEqual([])
+    expect(problems).toEqual([])
+    await context.close()
+  })
+
+  it('the portals list their APIs and operations', async () => {
+    // a portal whose manifests did not load opens with "0 APIs · 0 operations"
+    const context = await browser.newContext()
+    for (const path of ['/qa/', '/demo/']) {
+      const { page } = await open(context, path)
+      await page.locator('.group-head').first().waitFor({ timeout: 60_000 })
+      const text = await page.locator('body').innerText()
+      expect(text, path).not.toMatch(/\b0 APIs/)
+      expect(text, path).not.toMatch(/\b0 operations/)
+      await page.close()
+    }
+    await context.close()
+  })
+
+  it('the landing page buttons need no service worker: they answer from the spec', async () => {
+    const context = await browser.newContext({ serviceWorkers: 'block' })
+    const { page } = await open(context, '/')
+    await expect.poll(demoState(page), { timeout: 30_000 }).toMatch(/unsupported|bypassed/)
+    for (const sel of ['button[data-specbook-try]', 'button[data-specbook-flow]']) {
+      expect(await page.locator(sel).first().isDisabled(), sel).toBe(false)
+      expect(await page.locator(sel).first().getAttribute('title'), sel).toBeNull()
+    }
     await context.close()
   })
 })

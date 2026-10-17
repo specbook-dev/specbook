@@ -1,14 +1,18 @@
 # #region install
 npm install --save-dev @specbook/cli @specbook/core
-npx specbook init
-npx specbook add petstore --spec https://petstore3.swagger.io/api/v3/openapi.json
 # #endregion install
 
 # #region develop
-npx specbook dev                      # the docs and a play panel, as you write
-npx specbook test                     # every request and flow, against mock data
-npx specbook test --env staging       # the same, against a real environment
+npx specbook dev                      # try requests and flows in a play panel
+npx specbook test                     # run them all, against mock data
+npx specbook test --env staging       # run them all, against a real environment
 # #endregion develop
+
+# #region publish
+npx specbook build --minimal    # a portal with just your requests and flows, for QA
+npx specbook build              # your docs, plus a script that makes any button run a request
+npx specbook bundle             # your tests as one file that needs only node
+# #endregion publish
 
 # #region ci
 npx specbook test --env staging --reporter list --reporter junit:reports/junit.xml

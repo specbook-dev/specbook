@@ -1,7 +1,6 @@
-import type { OAuthSettings } from '@specbook/core'
+import { absoluteBase, type OAuthSettings } from '@specbook/core'
 import { useEffect, useState } from 'preact/hooks'
 import { expiryOf, noteExpiry } from '../oauth'
-import { absoluteBase } from '../routing'
 import { engine } from '../runtime'
 import { originOf, SECRET_PLACEHOLDER, secretStore } from '../secrets'
 import { env, envVarsVersion, version } from '../store'

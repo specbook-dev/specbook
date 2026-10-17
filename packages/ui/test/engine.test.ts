@@ -56,6 +56,39 @@ describe('ui engine', () => {
     expect(await engine.environmentNotes(0)).toEqual({})
   })
 
+  it("gives a live request the time the project says, and the runner's 30 seconds when it says nothing", async () => {
+    const real = globalThis.fetch
+    const asked: (number | undefined)[] = []
+    // an API that never answers: how long it waits is what is asked of it
+    globalThis.fetch = ((_url: unknown, init?: RequestInit) =>
+      new Promise((_, reject) => {
+        init?.signal?.addEventListener('abort', () =>
+          reject(new DOMException('This operation was aborted', 'AbortError')),
+        )
+      })) as typeof fetch
+    try {
+      const withTimeout = (timeoutMs?: number) =>
+        createEngine({
+          ...reg,
+          loadConfig: async () => ({
+            default: {
+              project: 'p',
+              vars: {},
+              ...(timeoutMs === undefined ? {} : { timeoutMs }),
+              services: { pets: { spec: 'x', baseUrl: { live: 'https://x.test' } } },
+            },
+          }),
+        })
+      const def = await engine.operationRequest('pets/GetPet', 0, { path: { petId: '7' } })
+      const r = await withTimeout(40).run(def, { env: 'live', version: 0 })
+      expect(r.steps[0]?.error).toContain('Timed out after 40ms')
+      asked.push(40)
+      expect(asked).toEqual([40])
+    } finally {
+      globalThis.fetch = real
+    }
+  })
+
   it('plays a generated operation against its example, with a forced mock status', async () => {
     const def = await engine.operationRequest('pets/GetPet', 0, { path: { petId: '7' } })
     const ok = await engine.run(def, { env: 'mock', version: 0 })

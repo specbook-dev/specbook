@@ -31,10 +31,16 @@ const NEW_ENVIRONMENT = '\u0000new-environment'
 // the hosted viewer is Specbook itself, so its header carries our mark unless the API brings a logo
 const ownMark = globalThis.__SPECBOOK_VIEWER__?.source ? markUrl : undefined
 
-// one API: its links leave the service out
-{
-  const names = Object.keys(registry.manifests)
-  setDefaultService(names.length === 1 ? names[0] : undefined)
+/**
+ * One API: its links leave the service out. The services' lists are fetched before the app first renders, not
+ * before its code loads, so this is read as the app first renders and not as the module loads. It also reads the
+ * route again from the address, so it runs once: on every render it would throw away the route's state.
+ */
+function useDefaultService() {
+  useState(() => {
+    const names = Object.keys(registry.manifests)
+    setDefaultService(names.length === 1 ? names[0] : undefined)
+  })
 }
 
 const fakerLocales = signal<string[]>([])
@@ -52,6 +58,7 @@ function usePanelHost() {
 }
 
 export function App() {
+  useDefaultService()
   const [variants, setVariants] = useState<Record<string, Variant[]>>({})
   const [sequences, setSequences] = useState<SequenceInfo[] | undefined>(undefined)
   const [menuOpen, setMenuOpen] = useState(false)

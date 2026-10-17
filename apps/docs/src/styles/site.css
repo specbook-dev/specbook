@@ -20,7 +20,7 @@
   --radius-sm: 8px;
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
-  --measure: 68ch;
+  --measure: 56rem;
   --wide: 1120px;
 }
 
@@ -38,6 +38,28 @@
   --ok: #0e9f63;
   --bad: #d6314b;
   --warn: #b7791f;
+}
+
+/* Moving from page to page: the browser keeps the header where it is and cross-fades the rest, instead of drawing the whole
+   page over again. A browser without this just loads the page as it always did. */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 140ms;
+}
+.top {
+  view-transition-name: site-header;
+}
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+}
+/* a scrollbar that comes and goes as a page loads must not move the page sideways */
+html {
+  scrollbar-gutter: stable;
 }
 
 * {
@@ -176,6 +198,18 @@ main.site-main {
 section.block {
   padding: 56px 0;
 }
+/* one gap between sections, not the first one's bottom plus the next one's top */
+section.block + section.block {
+  padding-top: 0;
+}
+/* steps within a section: room above each heading, so a snippet does not run into the next step */
+section.block .wrap > h2.title:not(:first-child) {
+  margin-top: 48px;
+}
+/* what ends a section must not add its own margin to the gap below it */
+section.block .wrap > :last-child {
+  margin-bottom: 0;
+}
 .eyebrow {
   display: inline-block;
   font: 600 12px / 1 var(--mono);
@@ -200,7 +234,7 @@ h2.title {
 }
 .lede {
   margin: 18px 0 0;
-  max-width: 58ch;
+  max-width: var(--measure);
   font-size: clamp(1.05rem, 2vw, 1.25rem);
   line-height: 1.55;
   color: var(--muted);
@@ -211,7 +245,33 @@ h2.title {
 }
 .prose p {
   margin: 0 0 1em;
+  text-wrap: pretty;
   color: color-mix(in srgb, var(--text) 86%, var(--muted));
+}
+.prose .more {
+  margin: 0;
+}
+.prose .more summary {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 0;
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+@media (pointer: coarse) {
+  .prose .more summary {
+    min-height: 44px;
+  }
+}
+.prose .more ul {
+  margin: 0.25em 0 0;
+  padding-left: 1.2em;
+  color: color-mix(in srgb, var(--text) 86%, var(--muted));
+}
+.prose .more li {
+  margin: 0 0 0.5em;
+  text-wrap: pretty;
 }
 .prose h3 {
   margin: 1.6em 0 0.5em;
@@ -286,11 +346,11 @@ h2.title {
 /* ---- tiles */
 .tiles {
   display: grid;
+  margin-top: 28px;
   gap: 14px;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(2, 1fr);
 }
 .tile {
-  grid-column: span 2;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -308,9 +368,6 @@ h2.title {
     transform 160ms ease,
     border-color 160ms ease,
     box-shadow 160ms ease;
-}
-.tile:nth-child(n + 4) {
-  grid-column: span 3;
 }
 .tile:hover {
   transform: translateY(-3px);
@@ -339,6 +396,12 @@ h2.title {
   color: var(--accent-strong);
   font-weight: 600;
   font-size: 14px;
+}
+/* wide enough: all four on one row, two by two below that, and one column on a phone */
+@media (min-width: 1100px) {
+  .tiles {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .tile {
@@ -394,19 +457,6 @@ h2.title {
   font: 600 12px / 1.4 var(--mono);
   color: var(--muted);
 }
-.chip i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--muted);
-}
-.chip[data-state="ready"] i {
-  background: var(--ok);
-}
-.chip[data-state="unsupported"] i,
-.chip[data-state="bypassed"] i {
-  background: var(--warn);
-}
 
 /* a request or flow you can run: a button that opens the play panel */
 .run,
@@ -422,6 +472,7 @@ h2.title {
   background: color-mix(in srgb, var(--accent) 14%, var(--surface));
   color: var(--accent-strong);
   font: 600 14.5px / 1 var(--font);
+  text-decoration: none;
   cursor: pointer;
 }
 .run:hover,
@@ -515,10 +566,6 @@ ol.steps li::before {
   .tiles {
     grid-template-columns: 1fr;
   }
-  .tile,
-  .tile:nth-child(n + 4) {
-    grid-column: auto;
-  }
   .top-in {
     gap: 12px;
   }
@@ -541,4 +588,111 @@ specbook-panel {
   --sb-text-on-accent: var(--accent-ink);
   --sb-font-sans: var(--font);
   --sb-font-mono: var(--mono);
+}
+
+/* ---- the terminal: output of a real run, in the colors a terminal shows */
+.term {
+  margin: 18px 0;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #0b0b10;
+  color: #d8dae3;
+}
+.term-bar,
+.term-chaos,
+.term-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+}
+.term-bar {
+  border-bottom: 1px solid #23232e;
+}
+.term-cmd {
+  font: 13px / 1.4 var(--mono);
+  color: #b9bccb;
+  overflow-wrap: anywhere;
+}
+.term-chaos {
+  border-bottom: 1px solid #23232e;
+}
+.term .chip.action {
+  color: #d8dae3;
+  background: #181822;
+  border-color: #3a3a4d;
+  cursor: pointer;
+}
+.term .chip.action:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.term .chip.action:disabled {
+  cursor: default;
+}
+.term-chaos .chip.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 24%, #181822);
+  color: #fff;
+}
+.term-note {
+  color: #9a9db0;
+  font-size: 13px;
+}
+.term-out {
+  margin: 0;
+  padding: 14px;
+  height: 340px;
+  overflow: auto;
+  font: 13px / 1.55 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.term-out {
+  scrollbar-width: thin;
+  scrollbar-color: #3a3a4d transparent;
+}
+.term-foot .btn {
+  min-width: 112px;
+  justify-content: center;
+}
+.term-out:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.a-b {
+  font-weight: 700;
+}
+.a-d {
+  opacity: 0.6;
+}
+.a-red {
+  color: #ff7a85;
+}
+.a-green {
+  color: #5fd38d;
+}
+.a-yellow {
+  color: #f1c75a;
+}
+.a-cyan {
+  color: #6fd0e6;
+}
+.term-foot {
+  border-top: 1px solid #23232e;
+}
+.term-chaos {
+  margin: 0;
+  min-width: 0;
+  border: 0;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

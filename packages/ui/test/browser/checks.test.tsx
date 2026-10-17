@@ -63,6 +63,15 @@ describe('failing checks', () => {
 
     expect(root.querySelectorAll('.check-fail')).toHaveLength(2)
     expect($('.checks .ok')?.textContent).toBe('✓ found')
+    // only the tick is green: the sentence is muted, as the panel's secondary text is
+    const tick = getComputedStyle($('.checks .ok .tick') as HTMLElement).color
+    const label = getComputedStyle($('.checks .ok') as HTMLElement).color
+    expect(tick).not.toBe(label)
+    const muted = document.createElement('span')
+    muted.style.color = 'var(--sb-text-muted)'
+    root.append(muted)
+    expect(label).toBe(getComputedStyle(muted).color)
+    muted.remove()
     const first = $('.check-fail') as HTMLElement
     expect(first.textContent).toContain('name is Rover')
     const text = (sel: string) =>

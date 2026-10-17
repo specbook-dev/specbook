@@ -1,5 +1,4 @@
 ---
-import DemoStatus from '../components/DemoStatus.astro'
 import Snippet from '../components/Snippet.astro'
 import Page from '../layouts/Page.astro'
 import { PAGES } from '../lib/pages'
@@ -8,46 +7,63 @@ import { PAGES } from '../lib/pages'
 <Page
   home
   title="Specbook: Storybook for APIs"
-  description="Write a request or a flow once. Discover it, develop against it, document it, test it and monitor it, all from the same definition."
+  description="The Swagger UI alternative built for modern teams. Explore APIs, author executable flows once, and publish live documentation instantly."
 >
-  <section class="hero">
+  <section class="hero" style="padding-bottom: 24px">
     <div class="wrap">
       <span class="eyebrow">Storybook for APIs</span>
-      <h1 class="display">One definition.<br />Five jobs.</h1>
+      <h1 class="display">API docs that come to life</h1>
       <p class="lede">
-        Write a request or a flow once. Specbook turns your OpenAPI spec into somewhere to discover it,
-        develop against it, document it, test it and monitor it.
+        The Swagger UI alternative built for modern teams. Explore APIs, author executable flows once, and
+        publish live documentation instantly. Share everything in a centralized portal and continuously verify
+        your endpoints in production.
       </p>
       <div class="hero-actions">
-        <a class="btn primary" href="#try">Run one now</a>
+        <a class="btn primary" href="#try">Try it now</a>
         <a class="btn" href="/develop/">Start with your spec</a>
       </div>
     </div>
   </section>
 
-  <section class="block" id="try">
+  <section class="block" id="try" style="padding-top: 8px">
     <div class="wrap">
-      <h2 class="title">This one is real.</h2>
+      <h2 class="title">See it in action</h2>
       <p class="lede" style="margin-top: 0">
-        The buttons below send real requests to a small API that is running in this page. Change what it
-        answers on the <a href="/test/">Test</a> and <a href="/monitor/">Monitor</a> pages.
+        Run a request from the Swagger Petstore right here, with nothing to set up. Specbook answers from the
+        spec's own examples and checks the response against it. Or run a flow that chains requests together:
+        find a pet, place an order, and check the order, all in one executable sequence.
       </p>
       <div class="demo">
         <div class="demo-bar">
           <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
           <span>get-pet.req.ts</span>
           <span class="grow"></span>
-          <DemoStatus />
         </div>
-        <div class="demo-body">
+        <div class="demo-body" data-specbook-env="mock">
           <Snippet file="demo/requests/petstore/get-pet.req.ts" region="request" title={false} />
           <p class="actions">
-            <button type="button" class="run" data-specbook-try="petstore/GetPetById" data-specbook-env="demo">
+            <button type="button" class="run" data-specbook-try="requests/petstore/get-pet.req.ts">
               ▶ Run this request
             </button>
-            <button type="button" class="run" data-specbook-flow="adopt-pet" data-specbook-env="demo">
+            <button type="button" class="run" data-specbook-flow="adopt-pet">
               ▶ Run a flow: adopt a pet
             </button>
+            <a class="run" href="https://demo.specbook.dev" target="_blank" rel="noopener">
+              Explore the full demo<span class="sr-only"> (opens in a new window)</span>
+              <svg class="icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+                <path
+                  d="M9 2h5v5M14 2 7.5 8.5M12 9.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"></path>
+              </svg>
+            </a>
+          </p>
+          <p class="note">
+            No server, no keys. Specbook mocks the API from your spec, just switch the environment to point to the
+            real one.
           </p>
         </div>
       </div>
@@ -56,13 +72,16 @@ import { PAGES } from '../lib/pages'
 
   <section class="block">
     <div class="wrap">
-      <h2 class="title">From one file to five uses.</h2>
+      <h2 class="title">Your API, start to finish</h2>
+      <p class="lede" style="margin-top: 0">
+        Build with it, document it, test it and watch it in production, all from the same requests and flows.
+      </p>
       <div class="tiles">
         {
           PAGES.map((p, i) => (
             <a class="tile" href={`/${p.slug}/`}>
               <span class="num">{String(i + 1).padStart(2, '0')}</span>
-              <h3>{p.name}</h3>
+              <h3>{p.tile}</h3>
               <p>{p.line}</p>
               <span class="go">Open →</span>
             </a>
@@ -71,19 +90,14 @@ import { PAGES } from '../lib/pages'
       </div>
     </div>
   </section>
-
-  <section class="block">
-    <div class="wrap">
-      <h2 class="title">Start in a minute.</h2>
-      <div class="prose">
-        <p>Needs Node 24. Point it at any OpenAPI file or address; the rest is generated.</p>
-      </div>
-      <Snippet file="snippets/install.sh" region="install" title="terminal" />
-    </div>
-  </section>
 </Page>
 
 <style>
+  .note {
+    margin: 14px 0 0;
+    font-size: 0.9rem;
+    color: var(--muted, inherit);
+  }
   .actions {
     display: flex;
     flex-wrap: wrap;

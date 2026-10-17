@@ -13,7 +13,7 @@ import { Body } from './Body'
 import { DraftCodeSample } from './CodeSample'
 import { type Draft, draftFrom, forStorage, previewUrl, requestParts } from './draft'
 import { useOperationNotes } from './fieldnotes'
-import { PaperPlane } from './icons'
+import { PaperPlane, StopSquare } from './icons'
 import { type Documented, ParamGrid } from './ParamGrid'
 import { RequestView } from './RequestView'
 import { ResponseView } from './ResponseView'
@@ -82,6 +82,8 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
   const key = `${service}/${op.id}`
   const panelRoot = useRef<HTMLDivElement>(null)
   const autoRan = useRef(false)
+  /** ends the request that is out: a person pressing Stop, so a request that never answers is not the end of the panel */
+  const stopper = useRef<AbortController | undefined>(undefined)
   const examples = engine.examplesOf(key)
   const [notice, setNotice] = useState<SavedExample | undefined>(() => takeSaved(key))
   const [sel, setSel] = useState(() => {
@@ -242,13 +244,17 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
 
   // placeholders nothing supplies: not in config or the environment's files. They stay listed while
   // you type, so the field you are filling does not disappear under you.
-  const needed = known ? placeholders.filter((n) => !known.includes(n)) : []
+  // a saved request brings the values of its own `init`: they are what a run uses, so nothing is missing
+  const own = Object.keys(saved?.def.input.init ?? {})
+  const needed = known ? placeholders.filter((n) => !known.includes(n) && !own.includes(n)) : []
   const unfilled = needed.filter((n) => (vars[n] ?? '') === '')
 
   const play = async (forceStatus?: number) => {
-    if (!draft) return
+    if (!draft || stopper.current) return
     setError(undefined)
     setRunning(true)
+    const stop = new AbortController()
+    stopper.current = stop
     try {
       const def = saved
         ? saved.def
@@ -261,12 +267,14 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
         seed: seed.value,
         vars: Object.fromEntries(Object.entries(vars).filter(([, v]) => v !== '')),
         fileDir: base?.dir,
+        signal: stop.signal,
       })
       setResult(ran)
       announcement.value = describeRun(ran)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
+      stopper.current = undefined
       setRunning(false)
       // what you sent a request to see is the response, so show it (the tab stays one click away)
       setTab('response')
@@ -365,12 +373,12 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
           <button
             type="button"
             class="btn primary send"
-            title="Send (⌘/Ctrl + Enter)"
-            aria-label="Send"
-            disabled={running || !draft}
-            onClick={() => play()}
+            title={running ? 'Stop' : 'Send (⌘/Ctrl + Enter)'}
+            aria-label={running ? 'Stop' : 'Send'}
+            disabled={!running && !draft}
+            onClick={() => (running ? stopper.current?.abort() : play())}
           >
-            {running ? '…' : <PaperPlane />}
+            {running ? <StopSquare /> : <PaperPlane />}
           </button>
         </div>
 

@@ -101,10 +101,6 @@ declare module 'virtual:specbook/registry' {
   export const loadConfig: (version: number) => Promise<{ default: any }>
 }
 
-declare module 'virtual:specbook/manifests' {
-  // a side effect only: it puts the manifest of every service into the registry's `manifests`
-}
-
 declare module 'virtual:specbook/types' {
   const types: { libs: Record<string, string>; sources: Record<string, string> }
   export default types

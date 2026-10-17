@@ -1,6 +1,6 @@
 // The site is the demo, so the demos are built from this repository and copied into it: the full example build at /demo/,
 // the QA portal (the demo project's minimal build, which also carries the play panel's `specbook.js`) at /qa/, the viewer
-// at /viewer/, the service worker that is the demo API at /sw.js, and the one-file test bundle under /downloads/. It also
+// at /viewer/ and the service worker that is the demo API at /sw.js. It also
 // writes the headers: a policy that allows exactly the scripts the build produced, found by reading them back.
 
 import { createHash } from 'node:crypto'
@@ -30,18 +30,6 @@ export const ARTIFACTS = [
     from: join(docs, 'demo/dist-sw/sw.js'),
     to: 'sw.js',
     build: 'pnpm --filter docs-demo build:sw',
-    file: true,
-  },
-  {
-    from: join(docs, 'demo/dist-bundle/specbook-tests.mjs'),
-    to: 'downloads/specbook-tests.mjs',
-    build: 'pnpm --filter docs-demo bundle',
-    file: true,
-  },
-  {
-    from: join(docs, 'demo/dist-bundle/specbook-tests.mjs.sha256'),
-    to: 'downloads/specbook-tests.mjs.sha256',
-    build: 'pnpm --filter docs-demo bundle',
     file: true,
   },
   {
@@ -87,12 +75,22 @@ export function inlineScriptHashes(html) {
   return [...hashes]
 }
 
+/** The same for `<style>` elements: Astro writes one small rule for its islands into every page that has one. */
+export function inlineStyleHashes(html) {
+  const hashes = new Set()
+  for (const m of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)) {
+    if (!m[1].trim()) continue
+    hashes.add(`'sha256-${createHash('sha256').update(m[1]).digest('base64')}'`)
+  }
+  return [...hashes]
+}
+
 /** The `_headers` file: one strict policy for the pages, a looser one for the copied apps that call other origins. */
-export function headersFile(scriptHashes) {
+export function headersFile(scriptHashes, styleHashes = []) {
   const base = [
     "default-src 'self'",
     `script-src 'self' ${scriptHashes.join(' ')}`.trim(),
-    "style-src 'self'",
+    `style-src 'self' ${styleHashes.join(' ')}`.trim(),
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",
@@ -103,9 +101,15 @@ export function headersFile(scriptHashes) {
     "form-action 'self'",
     "frame-ancestors 'self'",
   ]
-  const policy = [...base, "connect-src 'self'"].join('; ')
+  // the landing page runs its example against the public Petstore, which answers any origin
+  const policy = [...base, "connect-src 'self' https://petstore3.swagger.io"].join('; ')
   // the viewer opens any address a visitor gives it, and the demo and QA portal can run against a real API
-  const open = [...base, 'connect-src *'].join('; ')
+  // and they are the apps' own pages, which the viewer's production policy lets set inline styles
+  const open = [
+    ...base.filter((d) => !d.startsWith('style-src')),
+    "style-src 'self' 'unsafe-inline'",
+    'connect-src *',
+  ].join('; ')
   const common = [
     'X-Content-Type-Options: nosniff',
     'Referrer-Policy: strict-origin-when-cross-origin',
@@ -127,13 +131,12 @@ export function headersFile(scriptHashes) {
     rule('/qa/specbook.js', ['Cache-Control: no-cache']),
     rule('/demo/specbook.js', ['Cache-Control: no-cache']),
     rule('/sw.js', ['Cache-Control: no-cache', 'Content-Type: text/javascript; charset=utf-8']),
-    rule('/downloads/*', ['Cache-Control: no-cache', 'Content-Disposition: attachment']),
     rule('/pagefind/*', ['Cache-Control: public, max-age=3600']),
   ].join('\n')
 }
 
 /** Pages that moved, so a link to the old place still lands. */
-export const REDIRECTS = '/testing-and-monitoring /test/ 301\n'
+export const REDIRECTS = '/testing-and-monitoring /test/ 301\n/discover / 301\n'
 
 export function artifacts() {
   return {
@@ -180,12 +183,15 @@ export function artifacts() {
           await cp(a.from, to, { recursive: true })
         }
         const hashes = new Set()
+        const styles = new Set()
         for (const f of await htmlFiles(out)) {
           // the copied apps have their own pages and their own policy
           if (/[\\/](demo|qa|viewer)[\\/]/.test(f.slice(out.length))) continue
-          for (const h of inlineScriptHashes(await readFile(f, 'utf8'))) hashes.add(h)
+          const html = await readFile(f, 'utf8')
+          for (const h of inlineScriptHashes(html)) hashes.add(h)
+          for (const h of inlineStyleHashes(html)) styles.add(h)
         }
-        await writeFile(join(out, '_headers'), headersFile([...hashes]))
+        await writeFile(join(out, '_headers'), headersFile([...hashes], [...styles]))
         await writeFile(join(out, '_redirects'), REDIRECTS)
       },
     },

@@ -26,6 +26,7 @@ import {
   formatGithub,
   formatList,
   githubSummary,
+  headerLine,
   installFaker,
   MissingSecretsError,
   maskDeep,
@@ -36,13 +37,14 @@ import {
   redactEvent,
   redactResults,
   resolveSecrets,
-  runRequest,
-  runSequence,
+  retryLine,
+  runSuite,
   type Sequence,
   type SpecbookConfig,
   type Transport,
   testExitCode,
   toJUnit,
+  withoutLocations,
 } from '@specbook/core'
 import { readDotenv } from './project'
 import { cliVersion } from './version'
@@ -141,7 +143,6 @@ export interface TestCommandOptions {
   notify?: string
 }
 
-const DEFAULT_TIMEOUT_MS = 30_000
 const KINDS = ['list', 'json', 'junit', 'github', 'ndjson'] as const
 type Kind = (typeof KINDS)[number]
 
@@ -244,22 +245,15 @@ function missingSecretsMessage(e: MissingSecretsError, env: string, files: boole
 }
 
 /** A transport for the environment: mock responses for `mock`, else the addresses its variables give. */
-function transportFor(
-  ctx: TestContext,
-  env: string,
-  vars: Record<string, unknown>,
-  defaultTimeoutMs: number,
-): Transport {
+function transportFor(ctx: TestContext, env: string, vars: Record<string, unknown>): Transport {
   if (env === 'mock') return createMockTransport({ loader: ctx.mock as MockLoader })
-  const fetchT = createFetchTransport({
+  return createFetchTransport({
     baseUrl: (service) => {
       const url = baseUrlFor(ctx.config, service, env, vars)
       if (!url) throw new Error(`No baseUrl for service "${service}" in env "${env}"`)
       return url
     },
   })
-  return (req: PreparedRequest, signal) =>
-    fetchT({ ...req, timeoutMs: req.timeoutMs ?? defaultTimeoutMs }, signal)
 }
 
 /** The origin each service's calls go to in `env`, for traces and the report; services with no address are left out. */
@@ -359,17 +353,6 @@ export async function runTests(ctx: TestContext, o: TestCommandOptions): Promise
   }
 }
 
-/** A bundle's assertions point into the bundled file, which tells a reader nothing. */
-function withoutLocations(results: RunResult[]): RunResult[] {
-  const strip = (steps: RunResult['steps']): RunResult['steps'] =>
-    steps.map((s) => ({
-      ...s,
-      assertions: s.assertions.map((a) => ({ ...a, location: undefined })),
-      ...(s.children ? { children: strip(s.children) } : {}),
-    }))
-  return results.map((r) => ({ ...r, steps: strip(r.steps) }))
-}
-
 async function execute(
   ctx: TestContext,
   o: TestCommandOptions,
@@ -385,7 +368,7 @@ async function execute(
     Object.entries(o.vars).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)]),
   )
   const vars = environmentScope(config, o.env, { ...fileVars, ...given })
-  const transport = transportFor(ctx, o.env, vars, o.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+  const transport = transportFor(ctx, o.env, vars)
   const origins = originsFor(config, o.env, vars)
   const faker = await ctx.loadFaker()
   const git = { ...(ctx.git ?? gitInfo(ctx.root)) }
@@ -442,82 +425,47 @@ async function execute(
         : '',
     ].filter(Boolean)
     process.stdout.write(
-      `${colors.bold(`specbook test ${cliVersion()}`)}  ${colors.dim(
-        [
-          `env ${o.env}`,
-          `${picked.length}${picked.length < total ? `/${total}` : ''} tests`,
-          ...where,
-        ].join('  ·  '),
-      )}\n\n`,
+      headerLine(
+        { version: cliVersion(), env: o.env, picked: picked.length, total, where },
+        colors,
+      ),
     )
   }
 
-  const controller = new AbortController()
-  const deadline = o.globalTimeoutMs
-    ? setTimeout(() => controller.abort(), o.globalTimeoutMs)
-    : undefined
-  const results: RunResult[] = []
-  const attemptsAllowed = 1 + Math.max(0, o.retries ?? 0)
-  let failures = 0
-  let notRun = 0
-  let stopped = ''
-  for (const [i, t] of picked.entries()) {
-    if (controller.signal.aborted) {
-      notRun = picked.length - i
-      stopped = `stopped: the global timeout of ${o.globalTimeoutMs}ms passed`
-      break
-    }
-    let result: RunResult | undefined
-    let attempt = 0
-    while (attempt < attemptsAllowed) {
-      attempt++
+  const { results, notRun, stopped } = await runSuite(picked, {
+    run: {
+      env: o.env,
+      vars,
+      overrides: o.vars,
+      inputs: o.inputs,
+      transport,
+      secrets,
+      auth: authOf(config),
+      serviceAuth: serviceAuthOf(config),
+      locale: o.locale,
+      seed: o.seed,
+      onEvent,
+      example: ctx.examples.example,
+      readFile: ctx.examples.readFile,
+      readOnly: o.safe === true,
+      implicitStatusCheck: true,
+      // the flag, else the project's own, else the runner's 30 seconds
+      timeoutMs: o.timeoutMs ?? config.timeoutMs,
+    },
+    retries: o.retries,
+    bail: o.bail,
+    globalTimeoutMs: o.globalTimeoutMs,
+    beforeAttempt: () => {
       if (faker) installFaker(faker, config.faker, { locale: o.locale, seed: o.seed })
-      const opts = {
-        env: o.env,
-        vars,
-        overrides: o.vars,
-        inputs: o.inputs,
-        transport,
-        secrets,
-        auth: authOf(config),
-        serviceAuth: serviceAuthOf(config),
-        locale: o.locale,
-        seed: o.seed,
-        onEvent,
-        signal: controller.signal,
-        example: ctx.examples.example,
-        readFile: ctx.examples.readFile,
-        readOnly: o.safe === true,
-        implicitStatusCheck: true,
-      }
-      result =
-        t.run.kind === 'sequence' ? await runSequence(t.run, opts) : await runRequest(t.run, opts)
-      if (result.status === 'pass' || controller.signal.aborted) break
-      if (attempt < attemptsAllowed) {
-        const note = `${colors.yellow('↻')} retrying ${t.title} (attempt ${attempt + 1} of ${attemptsAllowed})`
-        if (streaming) process.stdout.write(`  ${note}\n`)
-        if (ndjson && !ndjson.path)
-          process.stdout.write(
-            `${JSON.stringify({ ts: new Date().toISOString(), type: 'retry', flow: t.title, attempt: attempt + 1 })}\n`,
-          )
-      }
-    }
-    const final = result as RunResult
-    results.push({
-      ...final,
-      file: t.file,
-      attempts: attempt,
-      flaky: final.status === 'pass' && attempt > 1,
-      tags: final.tags.length ? final.tags : t.tags,
-    })
-    if (final.status !== 'pass') failures++
-    if (o.bail && failures >= o.bail && i < picked.length - 1) {
-      notRun = picked.length - i - 1
-      stopped = `stopped after ${failures} failed ${failures === 1 ? 'flow' : 'flows'} (--bail)`
-      break
-    }
-  }
-  if (deadline) clearTimeout(deadline)
+    },
+    onRetry: (t, attempt, allowed) => {
+      if (streaming) process.stdout.write(retryLine(colors, t.title, attempt, allowed))
+      if (ndjson && !ndjson.path)
+        process.stdout.write(
+          `${JSON.stringify({ ts: new Date().toISOString(), type: 'retry', flow: t.title, attempt })}\n`,
+        )
+    },
+  })
   const finishedAt = new Date()
 
   const meta = {

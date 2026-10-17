@@ -68,6 +68,11 @@ export interface SpecbookConfig<E extends string = string> {
   auth?: Record<string, AuthProfile>
   secretProviders?: SecretProvider[]
   faker?: FakerConfig
+  /**
+   * How long a request waits for an answer, in milliseconds, in a run from the command line or a browser. A request's own
+   * `timeoutMs` wins, and `specbook test --timeout` wins over this. 0 waits for as long as it takes. Default: 30 seconds.
+   */
+  timeoutMs?: number
   codegen?: { outDir?: string; importPrefix?: string }
   branding?: BrandingConfig
 }

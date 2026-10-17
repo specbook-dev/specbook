@@ -1,5 +1,5 @@
 import type { RunResult, StepResult } from '@specbook/core'
-import { useEffect, useMemo, useState } from 'preact/hooks'
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { EnvBadge } from '../components/EnvBadge'
 import { defaultFor, type FieldSpec, specFromControl } from '../components/Fields'
 import type { SequenceInfo } from '../engine'
@@ -10,6 +10,7 @@ import { Failure } from './Checks'
 import { ControlsGrid } from './ControlsGrid'
 import { SecretsBar } from './SecretsBar'
 import { StepExchange } from './StepExchange'
+import { short, show } from './short'
 import { useSequenceNotes } from './stepnotes'
 
 /** `Check items #2` belongs to the step `Check items`. */
@@ -25,10 +26,6 @@ const ICON = {
   running: '…',
   paused: '⏸',
   pending: '',
-}
-const short = (v: unknown) => {
-  const s = typeof v === 'string' ? v : JSON.stringify(v)
-  return s.length > 28 ? `${s.slice(0, 27)}…` : s
 }
 
 /** |timeline|request|: the journey on the left, the selected step's exchange on the right. */
@@ -122,7 +119,20 @@ export function SequencePanel({
     : planned.map((n) => ({ name: n }))
   const current = rows[picked]?.step
 
+  /** ends the run that is going: what is out is stopped, and nothing after it starts */
+  const stopper = useRef<AbortController | undefined>(undefined)
+  const [stopped, setStopped] = useState(false)
+  const stop = () => {
+    setStopped(true)
+    stopper.current?.abort()
+    // a run waiting for a choice is released, and then finds it is stopped
+    pause?.resolve(choice)
+  }
+
   const run = async (options: { inputs?: Record<string, unknown>; headless?: boolean } = {}) => {
+    const ctl = new AbortController()
+    stopper.current = ctl
+    setStopped(false)
     setRunning(true)
     setResult(undefined)
     setError(undefined)
@@ -136,6 +146,7 @@ export function SequencePanel({
         inputs: options.inputs ?? inputs,
         locale: locale.value,
         seed: seed.value,
+        signal: ctl.signal,
         onEvent: (e) => {
           if (e.type === 'step:start') setLive((l) => ({ ...l, [e.name]: 'running' }))
           if (e.type === 'step:end') setLive((l) => ({ ...l, [e.name]: e.status }))
@@ -167,6 +178,7 @@ export function SequencePanel({
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
+      stopper.current = undefined
       setRunning(false)
       setPause(undefined)
     }
@@ -183,6 +195,11 @@ export function SequencePanel({
           <button type="button" class="btn primary" disabled={running} onClick={() => run()}>
             {running ? 'Running…' : '▶ Run'}
           </button>
+          {running && (
+            <button type="button" class="btn" onClick={stop}>
+              Stop
+            </button>
+          )}
           {hasInputs && (
             <button
               type="button"
@@ -202,8 +219,14 @@ export function SequencePanel({
           {result && (
             <span class={`badge ${overall}`}>
               {ICON[overall as 'pass']}{' '}
-              {overall === 'pass' ? 'Passed' : overall === 'fail' ? 'Failed' : 'Error'} ·{' '}
-              {result.totals.passed}/{result.totals.steps} steps · {result.durationMs}ms
+              {overall === 'pass'
+                ? 'Passed'
+                : stopped
+                  ? 'Stopped'
+                  : overall === 'fail'
+                    ? 'Failed'
+                    : 'Error'}{' '}
+              · {result.totals.passed}/{result.totals.steps} steps · {result.durationMs}ms
             </span>
           )}
         </div>
@@ -252,7 +275,7 @@ export function SequencePanel({
                     ))}
                   {step &&
                     Object.entries(step.captured).map(([k, v]) => (
-                      <span class="cap make" title={JSON.stringify(v)}>
+                      <span class="cap make" title={show(v)}>
                         → {k} <b>{short(v)}</b>
                       </span>
                     ))}
@@ -261,7 +284,11 @@ export function SequencePanel({
                     <Failure a={a} />
                   ))}
                   {status === 'skipped' && (
-                    <div class="muted">Skipped: an earlier step did not pass.</div>
+                    <div class="muted">
+                      {stopped
+                        ? 'Skipped: you stopped the run.'
+                        : 'Skipped: an earlier step did not pass.'}
+                    </div>
                   )}
                   {pause && live[row.name] === 'paused' && (
                     <div class="pause">

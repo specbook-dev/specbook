@@ -1,6 +1,6 @@
 # apps/docs
 
-The documentation site, docs.specbook.dev: five pages (Discover, Develop, Document, Test, Monitor) whose demos run in the
+The documentation site, docs.specbook.dev: a landing page and four more (Develop, Document, Test, Monitor) whose demos run in the
 page, plus a Starlight Reference section. Every block of code is read from a file that CI compiles and runs.
 
 ```bash
@@ -14,7 +14,7 @@ pnpm --filter docs dev
 - `snippets/` holds the code that has no other home (install commands, workflows, theme CSS). A page names a file and a
   `#region`; a name that does not exist fails the build.
 - `integrations/artifacts.mjs` copies the example's full build to `/demo/`, the demo's minimal build to `/qa/` (its
-  `specbook.js` is the play popover on every page), the viewer to `/viewer/`, the service worker and the bundle, and writes
+  `specbook.js` is the play popover on every page), the viewer to `/viewer/`, and the service worker, and writes
   `_headers`.
 - `scripts/check-site.mjs` fails the build near Cloudflare Pages' limits (files, file size, total, home page scripts).
 - `scripts/og.mjs` renders `public/og/*.png`; commit them after changing a page's name or line.

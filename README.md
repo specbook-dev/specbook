@@ -38,6 +38,18 @@ read in your browser; nothing is uploaded.
 - **Embed it.** Serve the viewer from your API's docs route: it runs on your origin, so no CORS, and your
   visitors' cookies are sent.
 
+## Test and monitor from the terminal
+
+The same requests and flows run with `specbook test`, in CI and against production. When the API changes, the check
+that broke is shown with what was expected and what came back, and the exit code is 1.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/cli-dark.svg" />
+    <img src=".github/cli-light.svg" alt="specbook test runs: every request passes. After the API changes, one check fails: expected the order status placed, received delivered, and the exit code is 1." width="720" />
+  </picture>
+</p>
+
 ## Embed the viewer
 
 ```html

@@ -61,8 +61,9 @@
         "example#build:docs",
         "docs-demo#build:qa",
         "docs-demo#build:sw",
-        "docs-demo#bundle",
-        "@specbook/ui#build:viewer"
+        "@specbook/ui#build:viewer",
+        "docs-demo#generate",
+        "docs-demo#capture"
       ],
       "outputs": ["dist/**"]
     },
@@ -75,10 +76,14 @@
       "outputs": [".generated/**"]
     },
     "docs#typecheck": {
-      "dependsOn": ["^build", "docs-demo#generate"]
+      "dependsOn": ["^build", "docs-demo#generate", "docs-demo#capture"]
     },
     "docs#test": {
-      "dependsOn": ["^build", "docs-demo#generate"]
+      "dependsOn": ["^build", "docs-demo#generate", "docs-demo#capture"]
+    },
+    "docs-demo#capture": {
+      "dependsOn": ["^build", "docs-demo#generate", "docs-demo#bundle"],
+      "outputs": ["captures/**"]
     }
   }
 }

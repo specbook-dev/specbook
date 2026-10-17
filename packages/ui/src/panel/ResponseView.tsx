@@ -8,6 +8,7 @@ import { Checks } from './Checks'
 import { FieldDoc } from './FieldDoc'
 import { PaperPlane } from './icons'
 import { queryString } from './RequestView'
+import { show } from './short'
 
 interface Props {
   step?: StepResult
@@ -18,7 +19,7 @@ interface Props {
   hideRequest?: boolean
 }
 
-const pretty = (v: unknown) => JSON.stringify(v, null, 2)
+const pretty = (v: unknown) => show(v, 2)
 const size = (n: number) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`)
 
 export function ResponseView({ step, error, schemas, defs, hideRequest }: Props) {
@@ -26,10 +27,14 @@ export function ResponseView({ step, error, schemas, defs, hideRequest }: Props)
   const [line, setLine] = useState(0)
   const response = step?.response
   const schema = response ? (schemas?.[String(response.status)] ?? schemas?.default) : undefined
-  const issues = useMemo(
-    () => (response && schema ? validate(response.body, schema, defs, { reportExtra: true }) : []),
-    [response, schema, defs],
-  )
+  const issues = useMemo(() => {
+    try {
+      return response && schema ? validate(response.body, schema, defs, { reportExtra: true }) : []
+    } catch {
+      // an answer the schema check cannot make sense of is shown as it came, without the check
+      return []
+    }
+  }, [response, schema, defs])
   const text =
     response === undefined || response.body === undefined || response.body === ''
       ? ''

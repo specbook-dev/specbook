@@ -74,6 +74,29 @@ describe('docs and play panel', () => {
   }
   const waitFor = (fn: () => void) => vi.waitFor(fn, { timeout: 15_000 })
 
+  it('folds the flows and the requests, each from its own title, and opens them again', async () => {
+    await mount()
+    const title = (kind: 'flow' | 'req') =>
+      $<HTMLButtonElement>(`.flows-title:has(.method.${kind})`) as HTMLButtonElement
+    // the list keeps its scrollbar's space whether or not it has one, so folding does not make it jump
+    expect(getComputedStyle($('.list-col') as Element).scrollbarGutter).toContain('stable')
+    expect(root.querySelectorAll('.flow-row').length).toBe(5)
+    expect(title('flow').getAttribute('aria-expanded')).toBe('true')
+    title('flow').click()
+    await waitFor(() => expect(root.querySelectorAll('.flow-row').length).toBe(0))
+    expect(title('flow').getAttribute('aria-expanded')).toBe('false')
+    // the requests are a section of their own, and fold on their own
+    const requests = root.querySelectorAll('.req-row').length
+    if (requests > 0) {
+      title('req').click()
+      await waitFor(() => expect(root.querySelectorAll('.req-row').length).toBe(0))
+      title('req').click()
+      await waitFor(() => expect(root.querySelectorAll('.req-row').length).toBe(requests))
+    }
+    title('flow').click()
+    await waitFor(() => expect(root.querySelectorAll('.flow-row').length).toBe(5))
+  })
+
   it('is a list of APIs and flows, and ⌘K jumps straight into the panel', async () => {
     await mount()
     expect(root.querySelectorAll('.flow-row').length).toBe(5)

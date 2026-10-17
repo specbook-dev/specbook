@@ -65,7 +65,9 @@ export function Checks({ assertions }: { assertions: AssertionResult[] }) {
     <ul class="checks">
       {assertions.map((a) =>
         a.pass ? (
-          <li class="ok">✓ {a.label}</li>
+          <li class="ok">
+            <span class="tick">✓</span> {a.label}
+          </li>
         ) : (
           <li class="bad">
             <Failure a={a} />

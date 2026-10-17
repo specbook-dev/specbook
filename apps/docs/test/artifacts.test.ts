@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { headersFile, inlineScriptHashes } from '../integrations/artifacts.mjs'
+import {
+  headersFile,
+  inlineScriptHashes,
+  inlineStyleHashes,
+  REDIRECTS,
+} from '../integrations/artifacts.mjs'
 
 describe('the headers the site is served with', () => {
   it('allows exactly the inline scripts the build produced, found by reading them back', () => {
@@ -9,6 +14,14 @@ describe('the headers the site is served with', () => {
     expect(hashes.every((h: string) => /^'sha256-[A-Za-z0-9+/]+=*'$/.test(h))).toBe(true)
     // the same script on two pages is allowed once
     expect(new Set(inlineScriptHashes(html + html)).size).toBe(2)
+  })
+
+  it('allows the small style element Astro writes for its islands, by hash and nothing broader', () => {
+    const hashes = inlineStyleHashes(
+      '<style>astro-island{display:contents}</style><style></style><link rel="stylesheet" href="/a.css">',
+    )
+    expect(hashes).toHaveLength(1)
+    expect(headersFile([], hashes)).toContain(`style-src 'self' ${hashes[0]};`)
   })
 
   it('is strict for the pages and open only where an app calls other origins', () => {
@@ -23,6 +36,7 @@ describe('the headers the site is served with', () => {
       const rule = text.slice(text.indexOf(`${app}\n`))
       expect(rule.slice(0, rule.indexOf('\n\n'))).toContain('! Content-Security-Policy')
       expect(rule.slice(0, rule.indexOf('\n\n'))).toContain('connect-src *')
+      expect(rule.slice(0, rule.indexOf('\n\n'))).toContain("style-src 'self' 'unsafe-inline'")
     }
   })
 
@@ -31,6 +45,10 @@ describe('the headers the site is served with', () => {
     expect(text).toMatch(/\/sw\.js\n\s+Cache-Control: no-cache/)
     expect(text).toMatch(/\/qa\/specbook\.js\n\s+Cache-Control: no-cache/)
     expect(text).toMatch(/\/_astro\/\*\n\s+Cache-Control: public, max-age=31536000, immutable/)
-    expect(text).toMatch(/\/downloads\/\*[\s\S]*Content-Disposition: attachment/)
+  })
+
+  it('sends the old addresses to where their content went', () => {
+    expect(REDIRECTS).toContain('/testing-and-monitoring /test/ 301')
+    expect(REDIRECTS).toContain('/discover / 301')
   })
 })
