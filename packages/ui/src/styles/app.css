@@ -146,6 +146,8 @@
   .list-col {
     min-height: 0;
     overflow: auto;
+    /* folding a group changes how tall the list is: keep the scrollbar's space, so the list does not widen and narrow */
+    scrollbar-gutter: stable;
     /* scrolling to the end of the list must not drag the whole page along */
     overscroll-behavior: contain;
     padding: var(--sb-space-3);

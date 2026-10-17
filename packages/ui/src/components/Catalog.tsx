@@ -80,6 +80,13 @@ export function CatalogList({ entries, services }: { entries: Entry[]; services:
   // what the user chose per group; groups they haven't touched follow the default
   const [chosen, setChosen] = useState<Map<string, boolean>>(new Map())
   const { q, single, svc, shownOps, shownFlows, shownReqs } = useCatalog(entries, services)
+  // the flows and the requests are each a section that folds, open until the person closes it
+  const sectionOpen = (name: string) => chosen.get(`section:${name}`) ?? true
+  const toggleSection = (name: string) => {
+    const n = new Map(chosen)
+    n.set(`section:${name}`, !sectionOpen(name))
+    setChosen(n)
+  }
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -199,75 +206,89 @@ export function CatalogList({ entries, services }: { entries: Entry[]; services:
 
       {flowGroups.length > 0 && (
         <section class="flows" aria-label="Flows">
-          <div class="flows-title">
+          <button
+            type="button"
+            class="flows-title"
+            aria-expanded={sectionOpen('flows')}
+            onClick={() => toggleSection('flows')}
+          >
+            <span class="caret">{sectionOpen('flows') ? '▾' : '▸'}</span>
             <span class="method flow">FLOW</span>
-            <span class="muted small">Multi-step sequences you can run end to end</span>
+            <span class="muted small">Multi-step flows you can run end to end</span>
             <span class="count">{shownFlows.length}</span>
-          </div>
-          {flowGroups.map(([name, rows]) => {
-            const key = `flows:${name}`
-            const solo = flowGroups.length === 1
-            const expanded = solo || (chosen.get(key) ?? true)
-            return (
-              <div class="flow-group" key={key}>
-                {!solo && (
-                  <button
-                    type="button"
-                    class="group-head flow-head"
-                    aria-expanded={expanded}
-                    onClick={() => {
-                      const n = new Map(chosen)
-                      n.set(key, !expanded)
-                      setChosen(n)
-                    }}
-                  >
-                    <span class="caret">{expanded ? '▾' : '▸'}</span> {name}{' '}
-                    <span class="count">{rows.length}</span>
-                  </button>
-                )}
-                {expanded &&
-                  rows.map((e) => (
+          </button>
+          {sectionOpen('flows') &&
+            flowGroups.map(([name, rows]) => {
+              const key = `flows:${name}`
+              const solo = flowGroups.length === 1
+              const expanded = solo || (chosen.get(key) ?? true)
+              return (
+                <div class="flow-group" key={key}>
+                  {!solo && (
                     <button
                       type="button"
-                      class={`op-row flow-row ${isActive(e) ? 'active' : ''}`}
-                      onClick={() => go(e.route)}
+                      class="group-head flow-head"
+                      aria-expanded={expanded}
+                      onClick={() => {
+                        const n = new Map(chosen)
+                        n.set(key, !expanded)
+                        setChosen(n)
+                      }}
                     >
-                      <span class="flow-play" aria-hidden="true">
-                        ▶
-                      </span>
-                      <span class="op-title">{e.title}</span>
+                      <span class="caret">{expanded ? '▾' : '▸'}</span> {name}{' '}
+                      <span class="count">{rows.length}</span>
                     </button>
-                  ))}
-              </div>
-            )
-          })}
+                  )}
+                  {expanded &&
+                    rows.map((e) => (
+                      <button
+                        type="button"
+                        class={`op-row flow-row ${isActive(e) ? 'active' : ''}`}
+                        onClick={() => go(e.route)}
+                      >
+                        <span class="flow-play" aria-hidden="true">
+                          ▶
+                        </span>
+                        <span class="op-title">{e.title}</span>
+                      </button>
+                    ))}
+                </div>
+              )
+            })}
         </section>
       )}
 
       {shownReqs.length > 0 && (
         <section class="flows requests" aria-label="Requests">
-          <div class="flows-title">
+          <button
+            type="button"
+            class="flows-title"
+            aria-expanded={sectionOpen('requests')}
+            onClick={() => toggleSection('requests')}
+          >
+            <span class="caret">{sectionOpen('requests') ? '▾' : '▸'}</span>
             <span class="method req">REQ</span>
-            <span class="muted small">Saved requests you can run and check</span>
+            <span class="muted small">Requests you can run and check</span>
             <span class="count">{shownReqs.length}</span>
-          </div>
-          {shownReqs.map((e) => (
-            <button
-              type="button"
-              class={`op-row req-row ${isActive(e) ? 'active' : ''}`}
-              onClick={() => go(e.route)}
-              title={`${e.method} ${e.path}`}
-            >
-              <span class={`method ${e.method}`}>{e.method}</span>
-              <span class="op-title">
-                {e.title}
-                {(e.tags ?? []).map((t) => (
-                  <span class="chip req-tag">{t}</span>
-                ))}
-              </span>
-              <span class="op-path">{e.path}</span>
-            </button>
-          ))}
+          </button>
+          {sectionOpen('requests') &&
+            shownReqs.map((e) => (
+              <button
+                type="button"
+                class={`op-row req-row ${isActive(e) ? 'active' : ''}`}
+                onClick={() => go(e.route)}
+                title={`${e.method} ${e.path}`}
+              >
+                <span class={`method ${e.method}`}>{e.method}</span>
+                <span class="op-title">
+                  {e.title}
+                  {(e.tags ?? []).map((t) => (
+                    <span class="chip req-tag">{t}</span>
+                  ))}
+                </span>
+                <span class="op-path">{e.path}</span>
+              </button>
+            ))}
         </section>
       )}
 

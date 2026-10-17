@@ -377,6 +377,31 @@
     gap: var(--sb-space-2);
     padding: 8px;
   }
+  button.flows-title {
+    width: 100%;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  @media (pointer: coarse) {
+    button.flows-title {
+      min-height: 44px;
+    }
+  }
+  button.flows-title:hover {
+    background: var(--sb-surface-raised);
+  }
+  button.flows-title:focus-visible {
+    outline: 2px solid var(--sb-focus-ring);
+    outline-offset: -2px;
+  }
+  .flows-title .caret {
+    width: 1em;
+    color: var(--sb-text-muted);
+  }
   .flows-title .count {
     margin-left: auto;
     font-size: 12px;
