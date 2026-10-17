@@ -1,1 +1,0 @@
-export{base as default}from"./faker-K9coXZQL.js";

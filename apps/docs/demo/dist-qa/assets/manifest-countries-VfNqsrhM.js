@@ -1,1 +1,0 @@
-import{t as e}from"./rolldown-runtime-DK3Fl9T5.js";var t=e({default:()=>n}),n={service:`countries`,title:`Countries GraphQL API`,version:`1.0.0`,servers:[`https://countries.trevorblades.com`],tags:[`graphql`],operations:[{id:`Query`,method:`POST`,path:`/`,summary:`Run a GraphQL query`,tags:[`graphql`],statuses:[200]}]};export{t};
