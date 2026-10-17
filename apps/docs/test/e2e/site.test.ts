@@ -179,6 +179,39 @@ describe('the built site', () => {
     await context.close()
   })
 
+  it('on a phone every link in the header is reachable: the five links have a row of their own', async () => {
+    for (const width of [320, 360, 390, 430]) {
+      const context = await browser.newContext({ viewport: { width, height: 700 } })
+      const page = await context.newPage()
+      await page.goto(`${origin}/`)
+      const m = await page.evaluate(() => {
+        const box = (sel: string) => document.querySelector(sel)?.getBoundingClientRect()
+        const nav = document.querySelector('.nav') as HTMLElement
+        const links = [...nav.querySelectorAll('a')].map((a) => a.getBoundingClientRect())
+        return {
+          page: document.documentElement.scrollWidth,
+          brandBottom: box('.brand')?.bottom ?? 0,
+          navTop: nav.getBoundingClientRect().top,
+          count: links.length,
+          // how far the last link reaches past the viewport, if the row is not scrolled
+          overshoot: Math.max(...links.map((r) => r.right)) - innerWidth,
+          scrolls: nav.scrollWidth > nav.clientWidth,
+          header: box('.top')?.height ?? 0,
+        }
+      })
+      expect(m.page, `${width}: the page does not scroll sideways`).toBeLessThanOrEqual(width)
+      expect(m.navTop, `${width}: the links are on a row below the logo`).toBeGreaterThanOrEqual(
+        m.brandBottom - 1,
+      )
+      expect(m.count).toBe(5)
+      // wide enough for all five: none is cut off. Narrower: the row scrolls, and the first links show
+      if (width >= 375) expect(m.overshoot, `${width}: all five fit`).toBeLessThanOrEqual(0)
+      else expect(m.scrolls, `${width}: the row scrolls`).toBe(true)
+      expect(m.header, `${width}: the header stays slim`).toBeLessThan(110)
+      await context.close()
+    }
+  })
+
   it('has a search index covering the pages', async () => {
     const entry = JSON.parse(await readFile(join(dist, 'pagefind/pagefind-entry.json'), 'utf8'))
     const pages = Object.values<{ page_count: number }>(entry.languages).reduce(
