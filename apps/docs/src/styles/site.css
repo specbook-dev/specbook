@@ -180,6 +180,10 @@ section.block {
 section.block + section.block {
   padding-top: 0;
 }
+/* what ends a section must not add its own margin to the gap below it */
+section.block .wrap > :last-child {
+  margin-bottom: 0;
+}
 .eyebrow {
   display: inline-block;
   font: 600 12px / 1 var(--mono);
