@@ -109,17 +109,3 @@ export function routingTransport(o: {
 
 /** Re-exported for the credentials prompt. */
 export { SECRET_PLACEHOLDER }
-
-/** How long a request in the browser waits for an answer when it does not say: as long as the command line does. */
-export const DEFAULT_TIMEOUT_MS = 30_000
-
-/**
- * A request that sets no time of its own gets one. Without it an API that takes the connection and never answers leaves the
- * panel on "Running…" for good, with nothing to read and nothing to click.
- */
-export function withDefaultTimeout(
-  transport: Transport,
-  ms: number = DEFAULT_TIMEOUT_MS,
-): Transport {
-  return (req, signal) => transport({ ...req, timeoutMs: req.timeoutMs ?? ms }, signal)
-}

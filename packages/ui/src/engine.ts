@@ -32,7 +32,7 @@ import {
 } from '@specbook/core'
 import type { EnvironmentStore } from './custom-environments'
 import { type ExtensionBridge, extensionTransport } from './extension'
-import { routingTransport, withDefaultTimeout, withPageSecrets } from './routing'
+import { routingTransport, withPageSecrets } from './routing'
 import { originOf, type SecretStore, secretStore } from './secrets'
 
 /**
@@ -430,7 +430,7 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
       baseOf: safeBase,
       pageOrigin,
     })
-    return withDefaultTimeout(routed)
+    return routed
 
     function originFor(service: string) {
       return originOf(safeBase(service))
@@ -634,6 +634,8 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
       onEvent: i.onEvent,
       onInput: i.onInput,
       signal: i.signal,
+      // the project's own, else the runner's default
+      timeoutMs: c.timeoutMs,
       example: (op: { service: string; id: string }, name: string) =>
         loadExample(`${op.service}/${op.id}`, name, i.version),
       readFile: (path: string, dir?: string) => readFile(path, dir ?? i.fileDir),
