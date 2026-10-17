@@ -20,6 +20,7 @@
     "version:check": "node scripts/version.mjs",
     "test:pack": "node scripts/smoke-pack.mjs",
     "deploy:demo": "pnpm --filter example run deploy",
+    "deploy:docs": "pnpm build:site && pnpm --filter docs run deploy",
     "test:embed": "turbo run test:embed",
     "test:sw": "turbo run test:sw",
     "build:site": "turbo run build:site --filter=docs",

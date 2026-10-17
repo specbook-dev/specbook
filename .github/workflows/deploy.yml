@@ -1,14 +1,14 @@
 name: Deploy
 
-# Redeploys the viewer and/or the demo without cutting a release (a copy fix, a Cloudflare setting).
+# Redeploys the viewer, the demo and/or the docs without cutting a release (a copy fix, a Cloudflare setting).
 on:
   workflow_dispatch:
     inputs:
       target:
         description: What to deploy
         type: choice
-        options: [both, ui, demo]
-        default: both
+        options: [all, ui, demo, docs]
+        default: all
 
 permissions:
   contents: read
@@ -26,13 +26,18 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - if: inputs.target != 'demo'
+      - if: inputs.target == 'all' || inputs.target == 'ui'
         run: pnpm deploy:site
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - if: inputs.target != 'ui'
+      - if: inputs.target == 'all' || inputs.target == 'demo'
         run: pnpm deploy:demo
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - if: inputs.target == 'all' || inputs.target == 'docs'
+        run: pnpm deploy:docs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
