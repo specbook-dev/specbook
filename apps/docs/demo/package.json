@@ -1,0 +1,28 @@
+{
+  "name": "docs-demo",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#api/*": "./.generated/*/index.ts"
+  },
+  "scripts": {
+    "generate": "specbook generate",
+    "typecheck": "specbook generate && tsc --noEmit && tsc --noEmit -p tsconfig.sw.json",
+    "test": "specbook generate && specbook test --env mock && vitest run --exclude server/sw.test.ts",
+    "build:sw": "node scripts/build-sw.mjs",
+    "test:sw": "vitest run server/sw.test.ts"
+  },
+  "dependencies": {
+    "@specbook/core": "workspace:*",
+    "@faker-js/faker": "9.3.0",
+    "hono": "4.12.32"
+  },
+  "devDependencies": {
+    "@specbook/cli": "workspace:*",
+    "@hono/node-server": "2.0.11",
+    "@types/node": "24.19.2",
+    "esbuild": "0.27.7",
+    "playwright": "1.64.0"
+  }
+}

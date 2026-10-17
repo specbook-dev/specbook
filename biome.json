@@ -9,7 +9,12 @@
       "!**/dist-site",
       "!**/.generated",
       "!**/node_modules",
-      "!**/docs",
+      "!docs",
+      "!**/dist-sw",
+      "!**/dist-qa",
+      "!**/dist-bundle",
+      "!**/captures",
+      "!**/.astro",
       "!**/openapi",
       "!**/.turbo"
     ]

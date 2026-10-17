@@ -20,7 +20,8 @@
     "version:check": "node scripts/version.mjs",
     "test:pack": "node scripts/smoke-pack.mjs",
     "deploy:demo": "pnpm --filter example run deploy",
-    "test:embed": "turbo run test:embed"
+    "test:embed": "turbo run test:embed",
+    "test:sw": "turbo run test:sw"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

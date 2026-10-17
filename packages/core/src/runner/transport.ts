@@ -63,7 +63,13 @@ export function createFetchTransport(opts: FetchTransportOptions): Transport {
     }
 
     const ctl = new AbortController()
-    const timer = req.timeoutMs ? setTimeout(() => ctl.abort(), req.timeoutMs) : undefined
+    let timedOut = false
+    const timer = req.timeoutMs
+      ? setTimeout(() => {
+          timedOut = true
+          ctl.abort()
+        }, req.timeoutMs)
+      : undefined
     signal?.addEventListener('abort', () => ctl.abort())
     try {
       const res = await f(buildUrl(opts.baseUrl(req.service), req), {
@@ -87,6 +93,10 @@ export function createFetchTransport(opts: FetchTransportOptions): Transport {
         }
       }
       return { status: res.status, headers: outHeaders, text, body: parsed }
+    } catch (e) {
+      // an abort that the request's own timeout caused says so, not "This operation was aborted"
+      if (timedOut) throw new Error(`Timed out after ${req.timeoutMs}ms: no answer from the API.`)
+      throw e
     } finally {
       if (timer) clearTimeout(timer)
     }

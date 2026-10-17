@@ -61,6 +61,9 @@ jobs:
       # the embed on a page with a strict Content-Security-Policy, built from a small project
       - run: scripts/ci-retry.sh 180 pnpm test:embed
         timeout-minutes: 10
+      # the demo API as a service worker, in a browser
+      - run: scripts/ci-retry.sh 180 pnpm test:sw
+        timeout-minutes: 10
       - run: pnpm test:slow
       # the packages as npm would serve them, installed outside the workspace
       - run: pnpm test:pack
