@@ -23,7 +23,8 @@ links you can share. Serve it from your API's own docs route and it runs on your
 to configure.
 
 **Try it:** [ui.specbook.dev](https://ui.specbook.dev). Paste the address of a spec, or drop the file. It is
-read in your browser; nothing is uploaded.
+read in your browser; nothing is uploaded. **Docs:** [docs.specbook.dev](https://docs.specbook.dev), where the
+examples run in the page.
 
 - **Mock from the first request.** Responses are generated from the spec and follow what you send: posted
   fields come back, query filters shape lists, path parameters become ids.
@@ -32,7 +33,7 @@ read in your browser; nothing is uploaded.
 - **Sign in.** OAuth 2.0 and OpenID Connect APIs get a Sign in button (PKCE, no client secret); the token stays
   in the tab. [How to set it up](#sign-in-to-oauth-apis).
 - **Test and monitor.** The same requests and flows run in CI and against production, with no spec needed, and QA
-  can run them from a published portal. [How](docs/testing-and-monitoring.md).
+  can run them from a published portal. [How](docs/testing-and-monitoring.md), or on the [docs site](https://docs.specbook.dev/test/).
 - **Flows.** Chain requests, capture values from one response into the next, and assert on the way.
 - **Share a view.** A link opens the same operation for someone else, for any spec served from a public address.
 - **Embed it.** Serve the viewer from your API's docs route: it runs on your origin, so no CORS, and your
@@ -41,7 +42,8 @@ read in your browser; nothing is uploaded.
 ## Test and monitor from the terminal
 
 The same requests and flows run with `specbook test`, in CI and against production. When the API changes, the check
-that broke is shown with what was expected and what came back, and the exit code is 1.
+that broke is shown with what was expected and what came back, and the exit code is 1. More in
+[Testing and monitoring](docs/testing-and-monitoring.md).
 
 <p align="center">
   <picture>
@@ -81,7 +83,7 @@ attestation. Check it and unpack it:
 
 ```sh
 sha256sum -c SHA256SUMS
-unzip specbook-viewer-0.1.0.zip -d public/specbook
+unzip specbook-viewer-<version>.zip -d public/specbook
 ```
 
 **From npm.** The same folder ships in the `@specbook/ui` package as `dist-viewer/`:
@@ -196,6 +198,20 @@ export default withMock(
 
 In the UI, **Respond with** picks a status for any request in the `mock` environment.
 
+### Timeouts and stopping a run
+
+A request waits 30 seconds for an answer. Set `timeoutMs` in the config to change that for the project, in the CLI and
+in the browser; `0` waits as long as it takes. `specbook test --timeout <ms>` overrides it for one run. A request that
+times out says so ("Timed out after 30000ms: no answer from the API."). In the UI a run that is waiting can be ended
+with **Stop**: on a flow it sits beside **Run**, and on a request it takes the place of **Send**.
+
+```ts
+export default defineConfig({
+  timeoutMs: 60_000, // this API can be slow
+  // ...
+})
+```
+
 ### Config, variables and secrets
 
 A document opened in the viewer or with `specbook preview` gets an environment for each entry in its `servers`
@@ -266,7 +282,7 @@ A heading made of one code span (`` ## `name` ``) attaches the text under it to 
 
 A Play button appears beside a plain element; a button or link that carries the attribute opens the panel itself. The panel
 is a dialog on a desktop and a sheet from the bottom on a phone, follows the page's light or dark theme, and keeps what a
-visitor types out of the page's storage. Other attributes: `data-specbook-example`, `-tab="docs"`, `-env`, `-theme`, and
+visitor types out of the page's storage. Other attributes: `data-specbook-example`, `-tab="docs"`, `-env` (an environment's name, such as `mock`), `-theme`, and
 `-auto-run` (never against production). It works under `script-src 'self'` with no eval; the code editors use inline
 `style` attributes, so a strict policy also needs `style-src-attr 'unsafe-inline'`.
 
@@ -283,6 +299,11 @@ pnpm test            # unit tests
 pnpm test:browser    # the UI in a real browser
 pnpm test:viewer     # the built viewer and landing page
 pnpm test:slow       # a full site build, checking what the bundle contains
+pnpm test:embed      # the play panel on a page with a strict Content-Security-Policy
+pnpm test:sw         # the demo API as a service worker, in a browser
+pnpm test:pack       # the packed packages install and run
+pnpm build:site      # the docs site (docs.specbook.dev)
+pnpm test:site       # the built docs site, driven in a browser
 pnpm test:oauth      # sign-in against a real Keycloak (Docker); not part of CI, see below
 ```
 
@@ -308,6 +329,8 @@ pnpm exec specbook dev
 | `packages/vite` | the Vite plugin and the dev server's proxy |
 | `packages/ui` | the app, the viewer, the landing page and the site assembly |
 | `apps/example` | a project to try it on, and the fixtures for the tests |
+| `apps/docs` | the docs site, [docs.specbook.dev](https://docs.specbook.dev) (Astro and Starlight) |
+| `apps/docs/demo` | the docs site's demo project, and its API: a Hono app that runs as a service worker |
 
 ## Contributing
 

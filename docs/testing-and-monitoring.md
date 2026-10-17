@@ -1,5 +1,8 @@
 # Testing and monitoring
 
+The same material, with examples you can run, is on the docs site: [Test](https://docs.specbook.dev/test/) and
+[Monitor](https://docs.specbook.dev/monitor/).
+
 A developer explores one or more APIs and writes a request or a flow once.
 
 - A **request** is one call to one operation. It passes when the call works (a 2xx response), and you can add
@@ -133,7 +136,8 @@ its form fields.
 - In automation nobody is asked. `specbook test` and a bundle give every input its default, so the example orders
   the first pet it finds (`default: 0`) and a quantity of 1. `--input quantity=3 --input petId=1002` overrides them
   when you want a particular case. A flow therefore needs defaults that make sense unattended; a `c.select` whose
-  default is the first item is the usual one.
+  default is the first item is the usual one. (A default that is not one of the options means the first option, so
+  `default: 0` over ids picks the first pet; over text options a number is an index.)
 
 ### Generated values
 
@@ -175,8 +179,9 @@ npx specbook test --tag smoke          # by tag; requests carry tags too
 npx specbook test --grep pet --list    # what would run, without running it
 ```
 
-`mock` is for development: it answers from the examples that `specbook generate` writes, which your machine has.
-Every other environment calls the real API.
+`mock` is for development: it answers from the examples that `specbook generate` writes, which your machine has, with
+the request's own values filled in. When a check needs data an example does not have, wrap the request in `withMock`
+(see Mocks in the README). Every other environment calls the real API.
 
 ### The specs
 
@@ -204,15 +209,15 @@ npx specbook build                     # the full API reference, for developers
 `--minimal` publishes the operations your requests and flows use, with those requests and flows, and leaves the rest
 of the API out, so the site is small and does not list every endpoint. Put the folder on any static host.
 
-QA opens the portal, picks a request or a flow, chooses an environment and presses Run. A failed check opens on its
-own, with what was expected and what came back. **New environment…** copies an environment, for pointing a copy at a
+QA opens the portal, picks a request or a flow, chooses an environment and presses Run. A run that is waiting on a slow
+API can be ended with **Stop**. A failed check opens on its own, with what was expected and what came back. **New environment…** copies an environment, for pointing a copy at a
 branch deployment. Credentials are typed once per tab and kept per API origin; they are never part of the site.
 
 Before you publish:
 
 - The addresses in your config and the values in `.specbook/environments/<env>.env` are visible to anyone who can
   open the portal. Secrets are not, because they are never built in.
-- A browser can call a live API only if the API allows it (CORS), or through the browser extension.
+- A browser can call a live API only if the API allows it (CORS). A browser extension for the rest is planned.
 - A flow that spans services works: each step goes to its own service's address and uses its own credentials.
 
 ## CI
@@ -243,18 +248,24 @@ store is all it needs. Under GitHub Actions the failures are also annotated on t
 ### Reading a failure
 
 ```
- FAIL  requests/petstore/get-pet.req.ts › Get a pet  [staging] 84ms
-    ✗ status is 2xx
+ FAIL  requests/petstore/get-order.req.ts › Get an order  [staging] 84ms
+    ✗ still placed
       - Expected  + Received
-      - status 2xx
-      + status 404 Not Found
-    Request   GET https://staging.petstore.example/api/v3/pet/1
+      - "placed"
+      + "delivered"
+      at requests/petstore/get-order.req.ts:14:16
+          12 |       if (res.status === 200) {
+          13 |         assert.is(res.data.id, Number(vars.orderId), 'same order')
+        > 14 |         assert.is(res.data.status, 'placed', 'still placed')
+             |                ^
+          15 |       }
+          16 |     },
+    Request   GET https://staging.petstore.example/api/v3/store/order/5001
       x-api-key: ***
-    Response  404 Not Found  84ms
+    Response  200 OK  84ms
       content-type: application/json
-      x-request-id: 5f1c…
-      { "message": "Pet not found" }
-    Re-run: specbook test requests/petstore/get-pet.req.ts --env staging --grep "Get a pet"
+      { "id": 5001, "petId": 1, "status": "delivered", "complete": false }
+    Re-run: specbook test requests/petstore/get-order.req.ts --env staging --grep "Get an order"
 ```
 
 The portal shows the same expected-and-received diff. The request and response are shown with credentials removed
@@ -327,7 +338,7 @@ before it is sent, so a monitor cannot change production data. Mark a POST that 
 request. Logging in through an auth profile is always allowed.
 
 - `--retries 1` runs a failed flow once more; one that then passes is flaky, exits 0 and is still reported.
-- `--timeout` is per request (30 s by default); `--global-timeout` stops the whole run.
+- `--timeout` is per request (the config's `timeoutMs`, else 30 s; `0` waits); `--global-timeout` stops the whole run.
 - `--bail 1` stops at the first failed flow.
 - `--notify` posts a summary to a webhook when something fails.
 - The JSON report records the environment, versions, git commit, CI run, timings and each service's address (its
@@ -342,5 +353,5 @@ request. Logging in through an auth profile is always allowed.
 - **A spec is missing in CI.** Commit it, or fetch it with `specbook add` / a pinned download before `specbook test`.
 - **The bundle will not compile.** The message names the import. Put the package behind `--external`, or replace it.
 - **A portal call fails with a network error.** The API probably does not allow calls from the portal's address
-  (CORS). Serve the portal from the API's own origin, or use the browser extension.
+  (CORS). Serve the portal from the API's own origin.
 - **A flow passes on retry.** It is flaky: look at the trace of its first attempt with `--trace always`.
