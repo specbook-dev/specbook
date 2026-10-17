@@ -7,7 +7,7 @@
     "dev": "astro dev",
     "build:site": "astro build && node scripts/check-site.mjs dist",
     "preview": "astro preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "astro sync && tsc --noEmit",
     "test": "vitest run --exclude test/e2e",
     "test:site": "vitest run --config vitest.e2e.config.ts",
     "readme:cli": "node scripts/readme-cli.mjs",
