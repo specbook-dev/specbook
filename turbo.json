@@ -61,7 +61,6 @@
         "example#build:docs",
         "docs-demo#build:qa",
         "docs-demo#build:sw",
-        "docs-demo#bundle",
         "@specbook/ui#build:viewer",
         "docs-demo#generate",
         "docs-demo#capture"

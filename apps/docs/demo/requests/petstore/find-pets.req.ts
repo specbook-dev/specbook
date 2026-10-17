@@ -3,7 +3,7 @@ import { FindPetsByStatus } from '#api/petstore'
 // #region request
 export default FindPetsByStatus.request({
   name: 'Find pets by status',
-  tags: ['smoke'],
+  tags: ['smoke', 'monitor'],
   query: { status: '{{status}}' },
   init: { status: 'available' },
   // keep the pets the response lists: a flow can pick one of them

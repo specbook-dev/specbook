@@ -2,7 +2,8 @@
 // The demo API runs on a port of this machine, the CLI is the built one, and a recording whose exit code is not the one
 // expected fails the script, so a page can never show output the tool no longer produces.
 import { spawn } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -14,7 +15,8 @@ const out = join(root, 'captures')
 const SITE = 'https://docs.specbook.dev'
 
 // the demo API, as the service worker serves it, on a port here
-const work = await mkdtemp(join(tmpdir(), 'sb-capture-'))
+// the real path: on macOS the temp folder is a link, and the tool prints the place it resolves to
+const work = await realpath(await mkdtemp(join(tmpdir(), 'sb-capture-')))
 await build({
   entryPoints: [join(root, 'server/node.ts')],
   outfile: join(work, 'node.mjs'),
@@ -35,6 +37,18 @@ const chaos = (patch) =>
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(patch),
   })
+// the Petstore's spec, served from here, so `specbook add <address>` is recorded the way it is run
+const specServer = createServer(async (req, res) => {
+  if (req.url === '/api/v3/openapi.json') {
+    res.setHeader('content-type', 'application/json')
+    res.end(await readFile(join(root, 'openapi/petstore.json')))
+  } else {
+    res.statusCode = 404
+    res.end()
+  }
+})
+await new Promise((ok) => specServer.listen(0, '127.0.0.1', ok))
+const specOrigin = `http://127.0.0.1:${specServer.address().port}`
 const reset = () => fetch(`${demo.origin}/api/_demo/reset`, { method: 'POST' })
 
 /** What a page must not show: this machine's paths and port. */
@@ -75,6 +89,8 @@ function record({ name, command, args, cwd, expect, home = cwd, env = {}, site =
         [home, '~/my-api'],
         [root, '~/my-api'],
         [work, '~'],
+        // the spec server below stands in for the public Petstore
+        [specOrigin, 'https://petstore3.swagger.io'],
       ]
       const masked = chunks.map((c) => ({ t: c.t, data: mask(c.data, dirs, site) }))
       await writeFile(
@@ -147,21 +163,40 @@ try {
       resolve(root, `../../../packages/${pkg}`),
       join(project, `node_modules/@specbook/${pkg}`),
     )
-  const spec = join(root, 'openapi/petstore.json')
   const setup = [
     ['init', 'specbook init', [cli, 'init']],
     [
       'add',
-      'specbook add petstore --spec ./openapi/petstore.json',
-      [cli, 'add', 'petstore', '--spec', './openapi/petstore.json'],
+      'specbook add petstore --spec https://petstore3.swagger.io/api/v3/openapi.json',
+      [cli, 'add', 'petstore', '--spec', `${specOrigin}/api/v3/openapi.json`],
     ],
-    ['generate', 'specbook generate', [cli, 'generate']],
   ]
-  await mkdir(join(project, 'openapi'), { recursive: true })
-  await writeFile(join(project, 'openapi/petstore.json'), await readFile(spec))
   for (const [name, command, args] of setup)
     await record({ name: `develop-${name}`, command, args, cwd: project, expect: 0 })
+
+  // one window for the commands: each is typed after the last has finished, as it would be
+  const parts = []
+  for (const [name] of setup) {
+    parts.push(JSON.parse(await readFile(join(out, `develop-${name}.json`), 'utf8')))
+    await rm(join(out, `develop-${name}.json`))
+  }
+  const chunks = []
+  let at = 0
+  for (const [i, part] of parts.entries()) {
+    if (i > 0) {
+      chunks.push({ t: at + 500, data: `\n\u001b[2m$ ${part.command}\u001b[22m\n` })
+      at += 500
+    }
+    for (const c of part.chunks) chunks.push({ t: at + c.t, data: c.data })
+    at += part.chunks.at(-1)?.t ?? 0
+  }
+  await writeFile(
+    join(out, 'develop-setup.json'),
+    `${JSON.stringify({ name: 'develop-setup', command: parts[0].command, exit: 0, chunks })}\n`,
+  )
+  console.log(`develop-setup: ${parts.length} commands, ${chunks.length} chunks`)
 } finally {
   await demo.close()
+  await new Promise((ok) => specServer.close(ok))
   await rm(work, { recursive: true, force: true })
 }

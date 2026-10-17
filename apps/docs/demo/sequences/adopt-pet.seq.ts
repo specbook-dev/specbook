@@ -13,8 +13,8 @@ export default sequence({
     quantity: c.number({ default: 1, min: 1, description: 'How many of the chosen pet to order.' }),
   },
 })
-  .step('Find available pets', findPets) // captures `pets` from the response
-  // QA picks a pet in the portal; automation is not asked and takes the default, the first one
+  .step('Find available pets', findPets) // keeps the pets the response lists
+  // QA picks a pet in the portal. An automated run is not asked and takes the first one
   .input('Choose a pet', (ctx) => ({
     petId: c.select(ctx.captured.pets, {
       label: (p) => `${p.name} (#${p.id})`,
@@ -22,6 +22,6 @@ export default sequence({
       default: 0,
     }),
   }))
-  .step('Place order', placeOrder) // sends { petId, quantity }
-  .step('Verify order', getOrder) // the order number the last step kept is already in place
+  .step('Place order', placeOrder) // sends the chosen petId and the quantity
+  .step('Verify order', getOrder) // the order id from the last step is already filled in
 // #endregion flow
