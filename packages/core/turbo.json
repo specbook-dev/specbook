@@ -1,0 +1,10 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      // this package's build only type-checks (tsc --noEmit), so it writes no files
+      "outputs": []
+    }
+  }
+}
