@@ -285,6 +285,52 @@ describe('the built site', () => {
     await context.close()
   })
 
+  it('a flow on the landing page finishes and shows its response when the live server answers an error', async () => {
+    const context = await browser.newContext()
+    const orders: string[] = []
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }
+    await context.route('https://petstore3.swagger.io/**', (route) => {
+      const req = route.request()
+      if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors })
+      if (req.url().includes('/pet/findByStatus'))
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: cors,
+          body: JSON.stringify([{ id: 7, name: 'Rex', photoUrls: [], status: 'available' }]),
+        })
+      orders.push(req.postData() ?? '')
+      return route.fulfill({
+        status: 500,
+        contentType: 'text/html',
+        headers: cors,
+        body: '<h1>Internal Server Error</h1>',
+      })
+    })
+    const { page } = await open(context, '/')
+    await page.locator('button[data-specbook-flow="adopt-pet"]').click()
+    await page.getByRole('button', { name: 'Run with defaults' }).click()
+    // the run ends: the button is a Run button again, the summary says it failed, and the failing step can be opened
+    await expect
+      .poll(() => page.locator('specbook-panel .seq-run .badge').first().textContent(), {
+        timeout: 30_000,
+      })
+      .toMatch(/Failed|Error/)
+    expect(
+      await page.locator('specbook-panel .seq-run .btn.primary').first().textContent(),
+    ).not.toContain('Running')
+    expect(await page.locator('specbook-panel .panel-error').count()).toBe(0)
+    // the default pet is the first one found, not a pet numbered 0
+    expect(JSON.parse(orders[0] ?? '{}').petId).toBe(7)
+    await page.locator('specbook-panel .jhead', { hasText: 'Place order' }).click()
+    await expect
+      .poll(() => page.locator('specbook-panel .seq-right').first().textContent(), {
+        timeout: 10_000,
+      })
+      .toMatch(/500/)
+    await context.close()
+  })
+
   it('Document: the docs tab of the popover shows the notes written beside the operation', async () => {
     const context = await browser.newContext()
     const { page, problems } = await open(context, '/document/')
