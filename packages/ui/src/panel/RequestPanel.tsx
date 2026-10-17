@@ -242,7 +242,9 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
 
   // placeholders nothing supplies: not in config or the environment's files. They stay listed while
   // you type, so the field you are filling does not disappear under you.
-  const needed = known ? placeholders.filter((n) => !known.includes(n)) : []
+  // a saved request brings the values of its own `init`: they are what a run uses, so nothing is missing
+  const own = Object.keys(saved?.def.input.init ?? {})
+  const needed = known ? placeholders.filter((n) => !known.includes(n) && !own.includes(n)) : []
   const unfilled = needed.filter((n) => (vars[n] ?? '') === '')
 
   const play = async (forceStatus?: number) => {
