@@ -4,8 +4,9 @@ import { fieldDoc, withNote } from '../fielddoc'
 import { type Defs, type JsonSchema, linePaths, pathString } from '../schema'
 import { BodyEditor } from './BodyEditor'
 import { FieldDoc } from './FieldDoc'
+import { show } from './short'
 
-const pretty = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v, null, 2))
+const pretty = (v: unknown) => (typeof v === 'string' ? v : show(v, 2))
 
 /** Repeated keys for arrays, as the transport sends them. */
 export function queryString(query: Record<string, string | string[]>) {

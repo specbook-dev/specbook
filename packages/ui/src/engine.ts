@@ -32,7 +32,7 @@ import {
 } from '@specbook/core'
 import type { EnvironmentStore } from './custom-environments'
 import { type ExtensionBridge, extensionTransport } from './extension'
-import { routingTransport, withPageSecrets } from './routing'
+import { routingTransport, withDefaultTimeout, withPageSecrets } from './routing'
 import { originOf, type SecretStore, secretStore } from './secrets'
 
 /**
@@ -430,7 +430,7 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
       baseOf: safeBase,
       pageOrigin,
     })
-    return routed
+    return withDefaultTimeout(routed)
 
     function originFor(service: string) {
       return originOf(safeBase(service))

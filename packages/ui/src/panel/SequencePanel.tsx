@@ -10,6 +10,7 @@ import { Failure } from './Checks'
 import { ControlsGrid } from './ControlsGrid'
 import { SecretsBar } from './SecretsBar'
 import { StepExchange } from './StepExchange'
+import { short, show } from './short'
 import { useSequenceNotes } from './stepnotes'
 
 /** `Check items #2` belongs to the step `Check items`. */
@@ -25,10 +26,6 @@ const ICON = {
   running: '…',
   paused: '⏸',
   pending: '',
-}
-const short = (v: unknown) => {
-  const s = typeof v === 'string' ? v : JSON.stringify(v)
-  return s.length > 28 ? `${s.slice(0, 27)}…` : s
 }
 
 /** |timeline|request|: the journey on the left, the selected step's exchange on the right. */
@@ -252,7 +249,7 @@ export function SequencePanel({
                     ))}
                   {step &&
                     Object.entries(step.captured).map(([k, v]) => (
-                      <span class="cap make" title={JSON.stringify(v)}>
+                      <span class="cap make" title={show(v)}>
                         → {k} <b>{short(v)}</b>
                       </span>
                     ))}

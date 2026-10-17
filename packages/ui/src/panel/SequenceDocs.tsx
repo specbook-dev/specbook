@@ -2,6 +2,7 @@ import { useMemo } from 'preact/hooks'
 import { defaultFor, type FieldSpec, specFromControl } from '../components/Fields'
 import type { SequenceInfo } from '../engine'
 import { go } from '../nav'
+import { show } from './short'
 import { useSequenceNotes } from './stepnotes'
 
 const KIND: Record<string, string> = {
@@ -11,7 +12,7 @@ const KIND: Record<string, string> = {
   check: 'check',
 }
 
-const show = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v))
+const showValue = (v: unknown) => (typeof v === 'string' ? v : show(v))
 
 /**
  * What a sequence does, as documentation: its description (markdown), an optional markdown page from
@@ -64,7 +65,7 @@ export function SequenceDocs({ info }: { info: SequenceInfo }) {
                     <span class="chip">{p.spec.kind}</span>
                   </td>
                   <td>
-                    <code>{show(p.initial)}</code>
+                    <code>{showValue(p.initial)}</code>
                   </td>
                   <td>{p.spec.description}</td>
                 </tr>

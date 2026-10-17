@@ -2,6 +2,7 @@ import type { ComponentChildren } from 'preact'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'preact/hooks'
 import { env, environmentNote, environments } from '../store'
 import { announcement } from './announce'
+import { ErrorBoundary } from './ErrorBoundary'
 
 let panelIds = 0
 
@@ -217,7 +218,9 @@ export function Panel({
             ×
           </button>
         </header>
-        <div class={`panel-body ${flush ? 'flush' : ''}`}>{children}</div>
+        <div class={`panel-body ${flush ? 'flush' : ''}`}>
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </div>
         <div class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
           {announcement.value}
         </div>
