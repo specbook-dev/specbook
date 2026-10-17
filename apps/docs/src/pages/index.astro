@@ -77,11 +77,27 @@ import { PAGES } from '../lib/pages'
 
   <section class="block">
     <div class="wrap">
-      <h2 class="title">Start in a minute.</h2>
+      <h2 class="title">Every API in one place</h2>
+      <p class="lede" style="margin-top: 0">
+        Here is the whole portal, built from one project: the Petstore, Stripe, GitHub and a GraphQL API, with the
+        requests and flows written for them. Open an operation, press Run, switch the environment.
+      </p>
+      <p class="actions" style="margin-top: 20px"><a class="btn primary" href="/demo/">Open the portal →</a></p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <h2 class="title">Start in a minute</h2>
       <div class="prose">
         <p>Needs Node 24. Point it at any OpenAPI file or address; the rest is generated.</p>
       </div>
       <Snippet file="snippets/install.sh" region="install" title="terminal" />
+      <div class="prose">
+        <p>Then write requests and flows, and run them as you go, in the terminal or against a real environment:</p>
+      </div>
+      <Snippet file="snippets/install.sh" region="develop" title="terminal" />
+      <p class="actions"><a class="btn primary" href="/develop/">The whole workflow →</a></p>
     </div>
   </section>
 </Page>
