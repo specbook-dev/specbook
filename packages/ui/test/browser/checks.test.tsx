@@ -63,6 +63,9 @@ describe('failing checks', () => {
 
     expect(root.querySelectorAll('.check-fail')).toHaveLength(2)
     expect($('.checks .ok')?.textContent).toBe('✓ found')
+    // only the tick is green: the sentence keeps the panel's own text color
+    const tick = getComputedStyle($('.checks .ok .tick') as HTMLElement).color
+    expect(tick).not.toBe(getComputedStyle($('.checks .ok') as HTMLElement).color)
     const first = $('.check-fail') as HTMLElement
     expect(first.textContent).toContain('name is Rover')
     const text = (sel: string) =>
