@@ -26,6 +26,7 @@ import {
   formatGithub,
   formatList,
   githubSummary,
+  headerLine,
   installFaker,
   MissingSecretsError,
   maskDeep,
@@ -36,8 +37,8 @@ import {
   redactEvent,
   redactResults,
   resolveSecrets,
-  runRequest,
-  runSequence,
+  retryLine,
+  runSuite,
   type Sequence,
   type SpecbookConfig,
   type Transport,
@@ -442,82 +443,45 @@ async function execute(
         : '',
     ].filter(Boolean)
     process.stdout.write(
-      `${colors.bold(`specbook test ${cliVersion()}`)}  ${colors.dim(
-        [
-          `env ${o.env}`,
-          `${picked.length}${picked.length < total ? `/${total}` : ''} tests`,
-          ...where,
-        ].join('  ·  '),
-      )}\n\n`,
+      headerLine(
+        { version: cliVersion(), env: o.env, picked: picked.length, total, where },
+        colors,
+      ),
     )
   }
 
-  const controller = new AbortController()
-  const deadline = o.globalTimeoutMs
-    ? setTimeout(() => controller.abort(), o.globalTimeoutMs)
-    : undefined
-  const results: RunResult[] = []
-  const attemptsAllowed = 1 + Math.max(0, o.retries ?? 0)
-  let failures = 0
-  let notRun = 0
-  let stopped = ''
-  for (const [i, t] of picked.entries()) {
-    if (controller.signal.aborted) {
-      notRun = picked.length - i
-      stopped = `stopped: the global timeout of ${o.globalTimeoutMs}ms passed`
-      break
-    }
-    let result: RunResult | undefined
-    let attempt = 0
-    while (attempt < attemptsAllowed) {
-      attempt++
+  const { results, notRun, stopped } = await runSuite(picked, {
+    run: {
+      env: o.env,
+      vars,
+      overrides: o.vars,
+      inputs: o.inputs,
+      transport,
+      secrets,
+      auth: authOf(config),
+      serviceAuth: serviceAuthOf(config),
+      locale: o.locale,
+      seed: o.seed,
+      onEvent,
+      example: ctx.examples.example,
+      readFile: ctx.examples.readFile,
+      readOnly: o.safe === true,
+      implicitStatusCheck: true,
+    },
+    retries: o.retries,
+    bail: o.bail,
+    globalTimeoutMs: o.globalTimeoutMs,
+    beforeAttempt: () => {
       if (faker) installFaker(faker, config.faker, { locale: o.locale, seed: o.seed })
-      const opts = {
-        env: o.env,
-        vars,
-        overrides: o.vars,
-        inputs: o.inputs,
-        transport,
-        secrets,
-        auth: authOf(config),
-        serviceAuth: serviceAuthOf(config),
-        locale: o.locale,
-        seed: o.seed,
-        onEvent,
-        signal: controller.signal,
-        example: ctx.examples.example,
-        readFile: ctx.examples.readFile,
-        readOnly: o.safe === true,
-        implicitStatusCheck: true,
-      }
-      result =
-        t.run.kind === 'sequence' ? await runSequence(t.run, opts) : await runRequest(t.run, opts)
-      if (result.status === 'pass' || controller.signal.aborted) break
-      if (attempt < attemptsAllowed) {
-        const note = `${colors.yellow('↻')} retrying ${t.title} (attempt ${attempt + 1} of ${attemptsAllowed})`
-        if (streaming) process.stdout.write(`  ${note}\n`)
-        if (ndjson && !ndjson.path)
-          process.stdout.write(
-            `${JSON.stringify({ ts: new Date().toISOString(), type: 'retry', flow: t.title, attempt: attempt + 1 })}\n`,
-          )
-      }
-    }
-    const final = result as RunResult
-    results.push({
-      ...final,
-      file: t.file,
-      attempts: attempt,
-      flaky: final.status === 'pass' && attempt > 1,
-      tags: final.tags.length ? final.tags : t.tags,
-    })
-    if (final.status !== 'pass') failures++
-    if (o.bail && failures >= o.bail && i < picked.length - 1) {
-      notRun = picked.length - i - 1
-      stopped = `stopped after ${failures} failed ${failures === 1 ? 'flow' : 'flows'} (--bail)`
-      break
-    }
-  }
-  if (deadline) clearTimeout(deadline)
+    },
+    onRetry: (t, attempt, allowed) => {
+      if (streaming) process.stdout.write(retryLine(colors, t.title, attempt, allowed))
+      if (ndjson && !ndjson.path)
+        process.stdout.write(
+          `${JSON.stringify({ ts: new Date().toISOString(), type: 'retry', flow: t.title, attempt })}\n`,
+        )
+    },
+  })
   const finishedAt = new Date()
 
   const meta = {
