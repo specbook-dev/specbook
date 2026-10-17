@@ -21,7 +21,7 @@ export default defineConfig({
     starlight({
       title: 'Specbook',
       description:
-        'Storybook for APIs: discover, develop, document, test and monitor from one definition.',
+        'The Swagger UI alternative built for modern teams: explore APIs, author executable flows once, publish live documentation.',
       disable404Route: true,
       pagefind: true,
       social: [

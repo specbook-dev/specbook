@@ -1,5 +1,4 @@
 ---
-import DemoStatus from '../components/DemoStatus.astro'
 import Snippet from '../components/Snippet.astro'
 import Page from '../layouts/Page.astro'
 import { PAGES } from '../lib/pages'
@@ -8,15 +7,16 @@ import { PAGES } from '../lib/pages'
 <Page
   home
   title="Specbook: Storybook for APIs"
-  description="Write a request or a flow once. Specbook carries it through the life of your API: discovery, development, documentation, QA and production monitoring."
+  description="The Swagger UI alternative built for modern teams. Explore APIs, author executable flows once, and publish live documentation instantly."
 >
   <section class="hero">
     <div class="wrap">
       <span class="eyebrow">Storybook for APIs</span>
-      <h1 class="display">One definition.<br />Every stage of your API.</h1>
+      <h1 class="display">API docs that come to life</h1>
       <p class="lede">
-        Write a request or a flow once. Specbook turns your OpenAPI spec into somewhere to discover your API,
-        build against it, document it, test it in QA and watch it in production.
+        The Swagger UI alternative built for modern teams. Explore APIs, author executable flows once, and
+        publish live documentation instantly. Share everything in a centralized portal and continuously verify
+        your endpoints in production.
       </p>
       <div class="hero-actions">
         <a class="btn primary" href="#try">Run one now</a>
@@ -27,25 +27,25 @@ import { PAGES } from '../lib/pages'
 
   <section class="block" id="try">
     <div class="wrap">
-      <h2 class="title">This one is real.</h2>
+      <h2 class="title">Try it right here</h2>
       <p class="lede" style="margin-top: 0">
-        The buttons below send real requests to a small API that is running in this page. Change what it
-        answers on the <a href="/test/">Test</a> and <a href="/monitor/">Monitor</a> pages.
+        This is a real request. Press Run to send it to the public Swagger Petstore and see the response checked
+        against the spec. Or run a flow, which chains requests: find a pet, order it,
+        check the order.
       </p>
       <div class="demo">
         <div class="demo-bar">
           <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
           <span>get-pet.req.ts</span>
           <span class="grow"></span>
-          <DemoStatus />
         </div>
         <div class="demo-body">
           <Snippet file="demo/requests/petstore/get-pet.req.ts" region="request" title={false} />
           <p class="actions">
-            <button type="button" class="run" data-specbook-try="petstore/GetPetById" data-specbook-env="demo">
+            <button type="button" class="run" data-specbook-try="petstore/GetPetById" data-specbook-env="live">
               ▶ Run this request
             </button>
-            <button type="button" class="run" data-specbook-flow="adopt-pet" data-specbook-env="demo">
+            <button type="button" class="run" data-specbook-flow="adopt-pet" data-specbook-env="live">
               ▶ Run a flow: adopt a pet
             </button>
           </p>

@@ -259,6 +259,33 @@ describe('the built site', () => {
     await context.close()
   })
 
+  it('the landing page runs a request against the public Petstore, which the policy allows', async () => {
+    const context = await browser.newContext()
+    const called: string[] = []
+    // the real server is not needed to prove the page may call it: answer in its place
+    await context.route('https://petstore3.swagger.io/**', (route) => {
+      called.push(route.request().url())
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ id: 1, name: 'Pet1', photoUrls: [], status: 'available' }),
+      })
+    })
+    const { page, problems } = await open(context, '/')
+    await page.locator('button[data-specbook-try="petstore/GetPetById"]').click()
+    await page.locator('specbook-panel button[aria-label="Send"]').click()
+    await expect
+      .poll(() => page.locator('specbook-panel .response .state-badge').first().textContent(), {
+        timeout: 30_000,
+      })
+      .toMatch(/200/)
+    expect(called[0]).toContain('/api/v3/pet/1')
+    expect(await violations(page)).toEqual([])
+    expect(problems).toEqual([])
+    await context.close()
+  })
+
   it('Discover: the viewer shows the Petstore, and the form opens an address in it', async () => {
     const context = await browser.newContext()
     const { page, problems } = await open(context, '/discover/')

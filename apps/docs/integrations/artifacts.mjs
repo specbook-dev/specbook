@@ -113,7 +113,8 @@ export function headersFile(scriptHashes, styleHashes = []) {
     "form-action 'self'",
     "frame-ancestors 'self'",
   ]
-  const policy = [...base, "connect-src 'self'"].join('; ')
+  // the landing page runs its example against the public Petstore, which answers any origin
+  const policy = [...base, "connect-src 'self' https://petstore3.swagger.io"].join('; ')
   // the viewer opens any address a visitor gives it, and the demo and QA portal can run against a real API
   // and they are the apps' own pages, which the viewer's production policy lets set inline styles
   const open = [
