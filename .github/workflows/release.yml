@@ -1,7 +1,7 @@
 name: Release
 
 # Cut a GitHub release (tag v1.2.3) to publish the five packages at that version, attach the viewer zip
-# and deploy the viewer (ui.specbook.dev) the demo (demo.specbook.dev) and the docs (docs.specbook.dev).
+# and deploy the viewer (ui.specbook.dev), the demo (demo.specbook.dev) and the docs (docs.specbook.dev).
 on:
   release:
     types: [published]
