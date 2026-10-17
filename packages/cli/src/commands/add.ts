@@ -5,7 +5,7 @@ import { generateToDisk, withPlainSpec } from '@specbook/codegen'
 import { openApiServers, type ServerEntry } from '@specbook/core'
 import { ensureEnvironmentsDir, readEnvironment, varsFile, writeEnvKey } from '@specbook/vite'
 import type { Project } from '../project'
-import { fetchSpec, isUrl } from './spec-source'
+import { fetchSpec, isUrl, sizeOf } from './spec-source'
 
 /** `petstore` → `petstoreUrl`, `my-api` → `myApiUrl`: the variable a service's address is kept in. */
 export const addressVariable = (service: string) =>
@@ -33,7 +33,7 @@ export async function addCommand(
     const got = await fetchSpec(project, service, spec)
     specAbs = got.file
     console.log(
-      `✓ downloaded ${spec} → ${relative(process.cwd(), got.file)} (${(got.entry.bytes / 1e6).toFixed(1)} MB, sha256 ${got.entry.sha256.slice(0, 12)})`,
+      `✓ downloaded ${spec} → ${relative(process.cwd(), got.file)} (${sizeOf(got.entry.bytes)}, sha256 ${got.entry.sha256.slice(0, 12)})`,
     )
   }
   const specRel = `./${relative(project.root, specAbs).split('\\').join('/')}`
@@ -42,7 +42,8 @@ export async function addCommand(
   try {
     servers = openApiServers(
       (await withPlainSpec(specAbs, (plain) => SwaggerParser.parse(plain as string))) as any,
-      specAbs,
+      // a server like `/api/v3` is relative to where the document came from, which is the address, not the downloaded file
+      isUrl(spec) ? spec : specAbs,
     ).servers
   } catch {
     /* an unreadable spec fails at generate, with a better message */
@@ -58,7 +59,8 @@ export async function addCommand(
   const m = /services\s*:\s*\{\s*\n/.exec(text)
   if (m) {
     text = text.slice(0, m.index + m[0].length) + entry + text.slice(m.index + m[0].length)
-    const have = new RegExp(`\\b${variable}\\s*:`).test(text)
+    // set on a line of its own or inside braces: the commented example `init` writes does not count
+    const have = new RegExp(`(^|[{,])[ \\t]*${variable}\\s*:`, 'm').test(text)
     const vars = /\bvars\s*:\s*\{[ \t]*\n?/.exec(text)
     if (have) {
       console.log(`  "${variable}" is already in the config; left as it is`)

@@ -7,7 +7,8 @@ import { gzipSync } from 'node:zlib'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { addCommand } from '../src/commands/add'
 import { generateServices } from '../src/commands/ensure'
-import { fetchSpec, readSources, refreshCommand } from '../src/commands/spec-source'
+import { initCommand } from '../src/commands/init'
+import { fetchSpec, readSources, refreshCommand, sizeOf } from '../src/commands/spec-source'
 import { createLoader } from '../src/load'
 import { loadProject } from '../src/project'
 
@@ -169,4 +170,57 @@ describe('a compressed document', () => {
       }
     })
   }, 60_000)
+})
+
+describe('specbook add, the address of the API', () => {
+  it('a server that is relative to the document resolves against where the document came from', async () => {
+    const doc = JSON.parse(petstore)
+    doc.servers = [{ url: '/api/v3' }]
+    served.set('/relative.json', JSON.stringify(doc))
+    const lines: string[] = []
+    await withProject(async (dir, p) => {
+      const log = vi.spyOn(console, 'log').mockImplementation((m) => void lines.push(String(m)))
+      await addCommand(p, 'rel', `${base}/relative.json`)
+      log.mockRestore()
+      expect(await readFile(join(dir, '.specbook/specbook.config.ts'), 'utf8')).toContain(
+        `relUrl: '${base}/api/v3'`,
+      )
+    })
+    expect(lines.join('\n')).not.toMatch(/lists no server/)
+  }, 60_000)
+
+  it('the example variable that `init` writes as a comment is not taken for one that is set', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sb-init-'))
+    await writeFile(join(dir, 'package.json'), '{"name":"x","private":true,"type":"module"}\n')
+    await symlink(join(example, 'node_modules'), join(dir, 'node_modules'))
+    const lines: string[] = []
+    const log = vi.spyOn(console, 'log').mockImplementation((m) => void lines.push(String(m)))
+    const cwd = vi.spyOn(process, 'cwd').mockReturnValue(dir)
+    try {
+      await initCommand(dir)
+      const { project: p, loader } = await reload(dir)
+      try {
+        const doc = JSON.parse(petstore)
+        doc.servers = [{ url: 'https://api.example.test/v3' }]
+        served.set('/with-server.json', JSON.stringify(doc))
+        await addCommand(p, 'petstore', `${base}/with-server.json`)
+      } finally {
+        await loader.close()
+      }
+      const cfg = await readFile(join(dir, '.specbook/specbook.config.ts'), 'utf8')
+      expect(cfg).toMatch(/^\s+petstoreUrl: 'https:\/\/api\.example\.test\/v3',$/m)
+      expect(lines.join('\n')).not.toMatch(/already in the config/)
+    } finally {
+      log.mockRestore()
+      cwd.mockRestore()
+    }
+  }, 60_000)
+})
+
+describe('the size of a download', () => {
+  it('is read in KB until it is a megabyte', () => {
+    expect(sizeOf(26_000)).toBe('26 KB')
+    expect(sizeOf(40)).toBe('1 KB')
+    expect(sizeOf(8_317_513)).toBe('8.3 MB')
+  })
 })

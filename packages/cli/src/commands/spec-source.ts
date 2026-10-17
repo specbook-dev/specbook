@@ -10,6 +10,10 @@ import type { Loader } from '../load'
 import type { Project } from '../project'
 import { generateServices } from './ensure'
 
+/** `26 KB`, `8.3 MB`: what a person reads, not `0.0 MB` for a small document. */
+export const sizeOf = (bytes: number) =>
+  bytes < 1e6 ? `${Math.max(1, Math.round(bytes / 1e3))} KB` : `${(bytes / 1e6).toFixed(1)} MB`
+
 export const SOURCES_FILE = 'sources.json'
 
 /** What a downloaded document is recorded as: enough to fetch it again and to see that it changed. */
@@ -145,7 +149,7 @@ export async function refreshCommand(
       sources[basename(file)] = { url: entry.url, sha256: sha256(body), bytes: body.length }
       await writeSources(dirname(file), sources)
       console.log(
-        `✓ ${name}: updated, sha256 ${short(entry.sha256)} → ${short(sha256(body))} (${(body.length / 1e6).toFixed(1)} MB)`,
+        `✓ ${name}: updated, sha256 ${short(entry.sha256)} → ${short(sha256(body))} (${sizeOf(body.length)})`,
       )
       changed.push(name)
     } catch (e) {
