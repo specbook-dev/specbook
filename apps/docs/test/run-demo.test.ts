@@ -46,6 +46,11 @@ describe('the page runner', () => {
     expect(ansiToHtml(out)).toContain('class="a-green"')
   })
 
+  it('a tag picks the runs that carry it, as --tag does', async () => {
+    const { out } = await run({ tag: 'monitor' })
+    expect(out).toContain('2/3 tests')
+  })
+
   it('grep picks runs by title', async () => {
     const { out } = await run({ grep: 'adopt' })
     expect(out).toContain('1/3 tests')

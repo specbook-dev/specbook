@@ -75,6 +75,11 @@ export default function Replay({ capture, title }: { capture: Capture; title?: s
         .join('')
     : ''
   const done = shown >= capture.chunks.length
+  // the box is as tall as the whole recording from the start, so nothing below it moves while it plays
+  const lines = `${capture.command}\n${capture.chunks.map((c) => c.data).join('')}\nexit`.split(
+    '\n',
+  ).length
+  const height = Math.min(lines, 18) * 20.2 + 28
   return (
     <section class="term" ref={seen} aria-label={`Recorded output of ${capture.command}`}>
       <div class="term-bar">
@@ -91,6 +96,7 @@ export default function Replay({ capture, title }: { capture: Capture; title?: s
       </div>
       <pre
         class="term-out"
+        style={{ height: `${Math.round(height)}px` }}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling region has to be reachable by keyboard
         tabIndex={0}
         dangerouslySetInnerHTML={{

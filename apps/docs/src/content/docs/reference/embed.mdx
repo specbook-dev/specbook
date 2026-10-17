@@ -7,43 +7,44 @@ import Snippet from '../../../components/Snippet.astro'
 
 ## The play panel
 
-`specbook build` writes `specbook.js` beside your docs. Load it on a page of your own and mark what should run:
+`specbook build` writes `specbook.js` next to your docs. Load it on any page and mark what should run:
 
 <Snippet file="snippets/embed.html" region="embed" title="docs.html" />
 
-A Play button appears beside a plain element; a button or link that carries the attribute opens the panel
-itself. The panel is a dialog on a desktop and a sheet from the bottom on a phone, follows the page's light or
-dark theme, and keeps what a visitor types out of the page's storage.
+A plain element gets a Play button beside it. A button or link that carries the attribute opens the panel itself.
 
-| Attribute | Meaning |
+| Attribute | What it does |
 | --- | --- |
-| `data-specbook-try="service/Operation"` | Opens a request. A bare `Operation` works when the build has one service, and a saved request's file (`requests/petstore/find-pets.req.ts`) opens that request. |
-| `data-specbook-flow="id"` | Opens a flow. |
+| `data-specbook-try="service/Operation"` | Opens a request. A bare `Operation` works when the build has one service. A request file such as `requests/petstore/find-pets.req.ts` opens that saved request, with its checks. |
+| `data-specbook-flow="id"` | Opens a flow by its id. |
 | `data-specbook-example="name"` | Starts from a named example. |
-| `data-specbook-inputs='{"quantity":2}'` | Presets a flow's inputs, over their defaults. |
-| `data-specbook-env="demo"` | The environment. On an element or on any ancestor, so a page can set it once. |
+| `data-specbook-inputs='{"quantity":2}'` | Sets a flow's inputs, over their defaults. |
+| `data-specbook-env="demo"` | Chooses the environment. Set it on an element or on any ancestor, so a page can set it once. |
 | `data-specbook-tab="docs"` | Opens on the Docs tab instead of Try. |
-| `data-specbook-auto-run` | Runs as soon as it opens. Never against production. |
-| `data-specbook-theme="light"` | Pins the theme; `host` (the default) follows the page, `auto` the system. |
+| `data-specbook-auto-run` | Runs as soon as the panel opens. Never against production. |
+| `data-specbook-theme="light"` | Pins the theme. `host` (the default) follows the page, and `auto` follows the visitor's system. |
 
-The script also dispatches `specbook:open` and `specbook:close` on the trigger, and exports `open` and `close`.
+The panel is a dialog on a desktop and a sheet from the bottom on a phone. It follows the page's light or dark
+theme and keeps what a visitor types out of the page's storage. The script also fires `specbook:open` and
+`specbook:close` on the trigger, and exports `open` and `close`.
 
-## Under a strict Content-Security-Policy
+## Content-Security-Policy
 
-It works under `script-src 'self'` with no eval and no inline `<style>`. The code editors use inline `style`
-attributes, so a strict policy also needs `style-src-attr 'unsafe-inline'`.
+The script works under `script-src 'self'`, with no eval and no inline `<style>` element. The code editors set
+inline `style` attributes, so a strict policy also needs `style-src-attr 'unsafe-inline'`.
 
 ## The whole viewer
 
-The viewer opens any OpenAPI address in a page. On your origin there is no CORS and your visitor's cookies are sent.
+The viewer opens any OpenAPI address inside your page. On your own origin there is no CORS, and your visitor's
+cookies are sent.
 
 <Snippet file="snippets/embed.html" region="viewer" title="docs.html" />
 
-`spec` may be relative; `baseUrl` supplies the API address when the document has none.
+`spec` may be a relative address, and `baseUrl` sets the API address when the document has none.
 
 | Situation | What to do |
 | --- | --- |
-| It is your API | Embed the viewer in your docs route. It runs on your origin: no CORS, cookies sent. |
-| Your policy will not load a third-party script | Self-host the viewer: the built folder ships in `@specbook/ui` as `dist-viewer/`. |
-| You want the hosted viewer inside your page | An iframe of `ui.specbook.dev` works, but it is cross-origin, so the API still has to allow it. |
-| It is someone else's API | It works when that API allows browser calls. |
+| It is your API | Embed the viewer in your docs route. It runs on your origin, so there is no CORS and cookies are sent. |
+| Your policy blocks third-party scripts | Self-host the viewer. The built folder ships in `@specbook/ui` as `dist-viewer/`. |
+| You want the hosted viewer in your page | An iframe of `ui.specbook.dev` works, but it is cross-origin, so the API must allow it. |
+| It is someone else's API | It works when that API allows calls from a browser. |

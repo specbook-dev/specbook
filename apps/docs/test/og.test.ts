@@ -7,7 +7,6 @@ describe('link previews', () => {
   it('has a card for the home page and each of the five pages, as a real 1200x630 PNG', () => {
     expect(CARDS.map((c: { slug: string }) => c.slug)).toEqual([
       'home',
-      'discover',
       'develop',
       'document',
       'test',

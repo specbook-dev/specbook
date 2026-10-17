@@ -1,5 +1,4 @@
 ---
-import DemoStatus from '../components/DemoStatus.astro'
 import Next from '../components/Next.astro'
 import Snippet from '../components/Snippet.astro'
 import Page from '../layouts/Page.astro'
@@ -8,75 +7,27 @@ import Page from '../layouts/Page.astro'
 <Page
   page="document"
   title="Document"
-  description="The same requests are your API docs, on your own site: notes beside each operation, your branding, and a Try it button that runs in place."
+  description="Markdown beside every operation, or Try it on any button of your existing documentation site, in your own theme."
 >
   <section class="hero" style="padding-bottom: 24px">
     <div class="wrap">
-      <span class="eyebrow">03 · Document</span>
+      <span class="eyebrow">02 · Document</span>
       <h1 class="display">Docs that run.</h1>
       <p class="lede">
-        The requests you wrote are the examples. Put them in your own docs site and every one gets a Try it
-        that sends a real request, in a panel over your page, in your theme.
+        Write markdown beside every operation, or add Try it to any button on your existing documentation site.
+        Readers send real requests without leaving the page, in your theme.
       </p>
     </div>
   </section>
 
   <section class="block" style="padding-top: 8px">
     <div class="wrap">
-      <h2 class="title">Mark what should run</h2>
+      <h2 class="title">Write notes beside each operation</h2>
       <div class="prose">
         <p>
-          One script and a data attribute. A plain element gets a Play button beside it; a button or link that
-          carries the attribute opens the panel itself.
-        </p>
-      </div>
-      <Snippet file="snippets/embed.html" region="embed" title="docs.html" />
-
-      <div class="demo">
-        <div class="demo-bar">
-          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span>On this page, it does this</span>
-          <span class="grow"></span>
-          <DemoStatus reset={false} />
-        </div>
-        <div class="demo-body prose" style="max-width: none">
-          <p data-specbook-try="petstore/GetPetById" data-specbook-env="demo">
-            Fetch a pet by its id, and see the response checked against the spec.
-          </p>
-          <p>
-            <button type="button" data-specbook-flow="new-pet" data-specbook-env="demo">
-              Register a pet with a generated name
-            </button>
-            , or
-            <button
-              type="button"
-              data-specbook-flow="adopt-pet"
-              data-specbook-env="demo"
-              data-specbook-inputs='{"quantity":2}'
-            >
-              adopt two
-            </button>.
-          </p>
-        </div>
-      </div>
-
-      <h2 class="title">It looks like your site</h2>
-      <div class="prose">
-        <p>
-          The panel is isolated from your page, so your styles cannot break it and it cannot break yours. It
-          wears your colors, follows your light or dark theme as it changes, and keeps what a visitor types out of
-          your storage.
-        </p>
-      </div>
-      <Snippet file="snippets/theme.css" region="theme" title="site.css" />
-
-      <h2 class="title">Notes beside the operations</h2>
-      <div class="prose">
-        <p>
-          Markdown next to what it describes becomes the documentation: <code>sequences/&lt;name&gt;.seq.md</code>
-          for a flow, <code>requests/&lt;service&gt;/&lt;Operation&gt;/README.md</code> for an operation. A heading
-          made of one code span, like <code>## `status`</code>, attaches the text under it to that field. The
-          <a href="/reference/embed/">reference</a> has the details.
+          Put a markdown file next to what it describes. A <code>README.md</code> in an operation's folder
+          documents that operation, and <code>&lt;name&gt;.seq.md</code> documents the flow beside it. A heading
+          made of one code span, like <code>## `petId`</code>, attaches its text to that field.
         </p>
       </div>
       <Snippet file="demo/requests/petstore/GetPetById/README.md" region="notes" title="requests/petstore/GetPetById/README.md" />
@@ -93,6 +44,49 @@ import Page from '../layouts/Page.astro'
           </p>
         </div>
       </div>
+
+      <h2 class="title">Make any example runnable</h2>
+      <div class="prose">
+        <p>
+          Load one script on your documentation site and add a data attribute. A plain element gets a Play
+          button beside it, and a button or link that carries the attribute opens the panel itself.
+        </p>
+      </div>
+      <Snippet file="snippets/embed.html" region="embed" title="docs.html" />
+      <div class="demo">
+        <div class="demo-bar">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>On this page, it does this</span>
+        </div>
+        <div class="demo-body prose" style="max-width: none">
+          <p data-specbook-try="requests/petstore/get-pet.req.ts" data-specbook-env="demo">
+            Fetch a pet by its id and see the response checked against the spec.
+          </p>
+          <p style="display: flex; flex-wrap: wrap; gap: 12px">
+            <button type="button" data-specbook-flow="new-pet" data-specbook-env="demo">
+              Register a pet with a generated name
+            </button>
+            <button
+              type="button"
+              data-specbook-flow="adopt-pet"
+              data-specbook-env="demo"
+              data-specbook-inputs='{"quantity":2}'
+            >
+              Adopt two pets
+            </button>
+          </p>
+        </div>
+      </div>
+
+      <h2 class="title">It looks like your site</h2>
+      <div class="prose">
+        <p>
+          The panel is isolated from your page, so neither can break the other. It uses your colors, follows your
+          light or dark theme as it changes, and keeps what a visitor types out of your storage. Every attribute
+          and variable is in the <a href="/reference/embed/">reference</a>.
+        </p>
+      </div>
+      <Snippet file="snippets/theme.css" region="theme" title="site.css" />
     </div>
   </section>
 

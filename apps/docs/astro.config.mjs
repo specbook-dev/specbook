@@ -16,7 +16,12 @@ export default defineConfig({
     // every script and style is a file, so the site's policy needs no 'unsafe-inline' for them
     inlineStylesheets: 'never',
   },
-  vite: { build: { assetsInlineLimit: 0 } },
+  vite: {
+    build: { assetsInlineLimit: 0 },
+    // the terminal runs the real runner, which asserts with uvu. Left to be found while the page loads, the dev server
+    // rebuilds its dependencies mid-load and the terminal fails to start; named here, it does not.
+    optimizeDeps: { include: ['@specbook/core > uvu/assert'] },
+  },
   integrations: [
     starlight({
       title: 'Specbook',

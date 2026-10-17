@@ -12,7 +12,7 @@ interface Props {
   title?: string | false
   /** line numbers or ranges to highlight, like `{2,5-7}` */
   mark?: string
-  /** `flow:adopt-pet` or `try:petstore/GetPetById`: shows a Run button */
+  /** `flow:adopt-pet` or `try:requests/petstore/get-pet.req.ts` (the file shown, so its checks run): shows a Run button */
   run?: string
   /** preset flow inputs for the Run button */
   inputs?: Record<string, unknown>

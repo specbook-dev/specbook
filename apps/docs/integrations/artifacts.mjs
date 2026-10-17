@@ -1,6 +1,6 @@
 // The site is the demo, so the demos are built from this repository and copied into it: the full example build at /demo/,
 // the QA portal (the demo project's minimal build, which also carries the play panel's `specbook.js`) at /qa/, the viewer
-// at /viewer/, the service worker that is the demo API at /sw.js, and the one-file test bundle under /downloads/. It also
+// at /viewer/ and the service worker that is the demo API at /sw.js. It also
 // writes the headers: a policy that allows exactly the scripts the build produced, found by reading them back.
 
 import { createHash } from 'node:crypto'
@@ -30,18 +30,6 @@ export const ARTIFACTS = [
     from: join(docs, 'demo/dist-sw/sw.js'),
     to: 'sw.js',
     build: 'pnpm --filter docs-demo build:sw',
-    file: true,
-  },
-  {
-    from: join(docs, 'demo/dist-bundle/specbook-tests.mjs'),
-    to: 'downloads/specbook-tests.mjs',
-    build: 'pnpm --filter docs-demo bundle',
-    file: true,
-  },
-  {
-    from: join(docs, 'demo/dist-bundle/specbook-tests.mjs.sha256'),
-    to: 'downloads/specbook-tests.mjs.sha256',
-    build: 'pnpm --filter docs-demo bundle',
     file: true,
   },
   {
@@ -143,13 +131,12 @@ export function headersFile(scriptHashes, styleHashes = []) {
     rule('/qa/specbook.js', ['Cache-Control: no-cache']),
     rule('/demo/specbook.js', ['Cache-Control: no-cache']),
     rule('/sw.js', ['Cache-Control: no-cache', 'Content-Type: text/javascript; charset=utf-8']),
-    rule('/downloads/*', ['Cache-Control: no-cache', 'Content-Disposition: attachment']),
     rule('/pagefind/*', ['Cache-Control: public, max-age=3600']),
   ].join('\n')
 }
 
 /** Pages that moved, so a link to the old place still lands. */
-export const REDIRECTS = '/testing-and-monitoring /test/ 301\n'
+export const REDIRECTS = '/testing-and-monitoring /test/ 301\n/discover / 301\n'
 
 export function artifacts() {
   return {

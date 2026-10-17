@@ -1,10 +1,7 @@
 ---
-import cli from '../../../../packages/cli/package.json'
-import DemoStatus from '../components/DemoStatus.astro'
 import Next from '../components/Next.astro'
 import Replay from '../components/Replay'
 import Snippet from '../components/Snippet.astro'
-import Terminal from '../components/Terminal'
 import Page from '../layouts/Page.astro'
 import { capture } from '../lib/captures'
 ---
@@ -12,86 +9,88 @@ import { capture } from '../lib/captures'
 <Page
   page="test"
   title="Test"
-  description="The same request or flow, run by QA with a click and by CI on every change, with the same checks and the same readable failures."
+  description="Publish your flows for QA to run with one click, then run the same checks in CI on every change."
 >
   <section class="hero" style="padding-bottom: 24px">
     <div class="wrap">
-      <span class="eyebrow">04 · Test</span>
-      <h1 class="display">The same file. QA clicks it, CI runs it.</h1>
+      <span class="eyebrow">03 · Test</span>
+      <h1 class="display">QA clicks it. CI runs it.</h1>
       <p class="lede">
-        A request says what a pass is. A flow says that something a user does works: "can book an order".
-        QA runs them from a published portal; CI runs them on every change, with the same checks.
+        A request tests an API operation. A flow tests what users actually do, like booking an order.
+      </p>
+      <p class="lede" style="margin-top: 12px">
+        Publish your flows for QA to run with one click, then run the same checks in CI on every change.
       </p>
     </div>
   </section>
 
   <section class="block" style="padding-top: 8px">
     <div class="wrap">
-      <h2 class="title">Assertions say what worked</h2>
+      <h2 class="title">Assert what matters</h2>
       <div class="prose">
         <p>
-          A request with no <code>assert</code> passes on a 2xx response. Write one and it is judged by that
-          alone. The helpers are
-          <a href="https://github.com/lukeed/uvu/blob/master/docs/api.assert.md">uvu/assert</a>; every check runs
-          and is reported, passing or failing, with what was expected and what came back.
+          By default, a request passes on any 2xx response. Add <code>assert</code> checks when you need more,
+          and the response is judged entirely by them.
+        </p>
+        <p>
+          Use the familiar{' '}
+          <a href="https://github.com/lukeed/uvu/blob/master/docs/api.assert.md">uvu/assert</a> helpers. Every
+          check runs, and every result tells you what was expected and what actually came back.
         </p>
       </div>
-      <Snippet file="demo/requests/petstore/find-pets.req.ts" region="request" run="try:petstore/FindPetsByStatus" />
+      <Snippet file="demo/requests/petstore/find-pets.req.ts" region="request" />
 
-      <h2 class="title">Flows have inputs</h2>
+      <h2 class="title">Let QA change the inputs</h2>
       <div class="prose">
         <p>
-          A flow has <strong>inputs</strong>, like a GitHub workflow's inputs or Storybook's controls. In the
-          portal they are controls you change before you press Run; on the command line they are
-          <code>--input name=value</code>. Inputs carry defaults, so a flow runs unattended in CI.
+          A flow has <strong>inputs</strong>, like a GitHub workflow's inputs or Storybook's controls. QA changes
+          them in a form before pressing Run, and CI takes the defaults or passes{' '}
+          <code>--input name=value</code>.
         </p>
         <p>
-          An input can start from generated data. QA gets a realistic name without typing one, can press
-          Generate for another, or press <strong>Run with defaults</strong> to skip every question.
+          An input can start from generated data. QA gets a realistic name without typing one, can press Generate
+          for another, or press <strong>Run with defaults</strong> to skip every question.
         </p>
       </div>
-      <Snippet file="demo/sequences/new-pet.seq.ts" region="flow" run="flow:new-pet" />
-      <p><DemoStatus /></p>
+      <Snippet file="demo/sequences/new-pet.seq.ts" region="flow" />
 
-      <h2 class="title">QA: a portal that is only what you test</h2>
+      <h2 class="title">Give QA a portal</h2>
       <div class="prose">
         <p>
-          <code>specbook build --minimal</code> publishes the operations your requests and flows use, and leaves
-          the rest of the API out. QA opens it, picks a request or a flow, chooses an environment and presses Run.
+          <code>specbook build --minimal</code> publishes only the operations your requests and flows use. QA
+          opens the portal, picks a request or a flow, chooses an environment and presses Run.
         </p>
       </div>
       <p><a class="btn primary" href="/qa/">Open the QA portal ↗</a></p>
 
-      <h2 class="title">A failure you can read</h2>
+      <h2 class="title">See exactly what failed</h2>
       <div class="prose">
         <p>
-          When the API answers with something other than what the request expects, the run says which check, what
-          was expected, what came back, the line of your file, and the exchange that led to it. Below the order has
+          When the API answers with something your checks did not expect, the run shows which check failed, what
+          was expected, what came back, the line of your file and the request that led to it. Here an order has
           changed under a check that expected it to be placed.
         </p>
       </div>
       <Replay client:visible capture={capture('test-fail')} />
       <div class="prose">
         <p>
-          A flow that fails once and passes when run again is not hidden. With <code>--retries 1</code> it passes,
-          is called flaky in the summary, and the exit code stays 0.
+          A flow that fails once and passes on a retry is not hidden. With <code>--retries 1</code> it passes, is
+          marked flaky in the summary and exits 0.
         </p>
       </div>
       <Replay client:visible capture={capture('test-flaky')} />
 
-      <h2 class="title">CI: the same checks on every change</h2>
+      <h2 class="title">Run it in CI too</h2>
       <div class="prose">
-        <p>
-          This is the runner CI uses, on the page. Choose what the demo API does and press Run.
-        </p>
+        <p>Add one workflow and CI runs your checks on every change.</p>
       </div>
-      <Terminal client:visible files={['find-pets', 'adopt-pet']} chaos={['calm', 'down', 'wrong', 'flaky']} version={cli.version} />
       <Snippet file="snippets/test-workflow.yml" region="workflow" title="test.yml" />
       <div class="prose">
         <p>
-          Secrets are environment variables named in the config, so a CI secret store is all it needs. Under
-          GitHub Actions the failures are annotated on the change, with a summary on the run. The exit code is 0
-          (passed), 1 (a flow failed or errored), 2 (it could not run) or 3 (usage).
+          Secrets are environment variables named in the config, so your CI's secret store is all it needs. On
+          GitHub Actions, failures are annotated on the change and summarised on the run. The exit code is 0 when
+          everything passed, 1 when a flow failed or errored, 2 when the run could not start and 3 for a usage
+          error.
         </p>
       </div>
     </div>

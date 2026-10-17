@@ -3,16 +3,16 @@ title: Configuration
 description: What the config file holds.
 ---
 
-`.specbook/specbook.config.ts`:
+`.specbook/specbook.config.ts` holds:
 
-| Key | |
+| Key | What it holds |
 | --- | --- |
 | `project` | The project's name. |
 | `vars` | Defaults for every environment, such as each API's address. |
-| `environments` | Per-environment `vars`, and a `risk` of `production` or `sandbox` where the name does not say. |
-| `services` | `{ spec, baseUrl, auth }` per API; `baseUrl` is a template like `'{{petstoreUrl}}'`. |
+| `environments` | Variables for one environment, and a `risk` of `production` or `sandbox` where the name does not say. |
+| `services` | `{ spec, baseUrl, auth }` for each API. `baseUrl` is a template like `'{{petstoreUrl}}'`. |
 | `auth` | Profiles that apply a credential, such as headers built from `{{secrets.NAME}}`, or an OAuth flow. |
 | `secrets` | The secrets the project uses, by name. |
-| `faker` | `{ locales, default }`: the locales generated values can use. |
-| `branding` | Name, title, tagline, logo, accent colors and links for a published site. |
-| `codegen` | `outDir` and `importPrefix`, if the defaults (`.generated`, `#api`) do not suit. |
+| `faker` | `{ locales, default }`, the locales generated values can use. |
+| `branding` | The name, title, tagline, logo, accent colors and links of a published site. |
+| `codegen` | `outDir` and `importPrefix`, if the defaults (`.generated` and `#api`) do not suit. |

@@ -11,15 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
  */
 
 const dist = resolve(import.meta.dirname, '../../dist')
-const PAGES = [
-  '/',
-  '/discover/',
-  '/develop/',
-  '/document/',
-  '/test/',
-  '/monitor/',
-  '/reference/embed/',
-]
+const PAGES = ['/', '/develop/', '/document/', '/test/', '/monitor/', '/reference/embed/']
 const types: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript',
@@ -137,6 +129,10 @@ async function open(context: BrowserContext, path: string) {
   return { page, problems }
 }
 
+/** What the page found out about the demo API: ready, or that this browser will not have its service worker. */
+const demoState = (page: Page) => () =>
+  page.evaluate(() => document.documentElement.dataset.demo as string | undefined)
+
 const violations = (page: Page) =>
   page.evaluate(() => (window as unknown as { __csp: string[] }).__csp)
 
@@ -175,11 +171,13 @@ describe('the built site', () => {
 
   it('the service worker takes control and a request in the popover runs against the demo API', async () => {
     const context = await browser.newContext()
-    const { page, problems } = await open(context, '/test/')
-    const chip = page.locator('[data-demo-status]').first()
-    await expect.poll(() => chip.getAttribute('data-state'), { timeout: 30_000 }).toBe('ready')
+    const { page, problems } = await open(context, '/document/')
+    await expect.poll(demoState(page), { timeout: 30_000 }).toBe('ready')
 
-    await page.locator('button[data-specbook-try="petstore/FindPetsByStatus"]').click()
+    // a plain element marked to run gets a Play button beside it
+    await page
+      .locator('[data-specbook-try="requests/petstore/get-pet.req.ts"] specbook-play button')
+      .click()
     await page.locator('specbook-panel button[aria-label="Send"]').click()
     await expect
       .poll(() => page.locator('specbook-panel .response .state-badge').first().textContent(), {
@@ -193,12 +191,8 @@ describe('the built site', () => {
 
   it('a flow runs with its defaults', async () => {
     const context = await browser.newContext()
-    const { page } = await open(context, '/test/')
-    await expect
-      .poll(() => page.locator('[data-demo-status]').first().getAttribute('data-state'), {
-        timeout: 30_000,
-      })
-      .toBe('ready')
+    const { page } = await open(context, '/document/')
+    await expect.poll(demoState(page), { timeout: 30_000 }).toBe('ready')
     await page.locator('button[data-specbook-flow="new-pet"]').click()
     await page.getByRole('button', { name: 'Run with defaults' }).click()
     await expect
@@ -211,12 +205,8 @@ describe('the built site', () => {
 
   it('the terminal runs the demo: it passes, fails when the API is down, and calls a retried pass flaky', async () => {
     const context = await browser.newContext()
-    const { page, problems } = await open(context, '/test/')
-    await expect
-      .poll(() => page.locator('[data-demo-status]').first().getAttribute('data-state'), {
-        timeout: 30_000,
-      })
-      .toBe('ready')
+    const { page, problems } = await open(context, '/monitor/')
+    await expect.poll(demoState(page), { timeout: 30_000 }).toBe('ready')
     const term = page.locator('.term-live').first()
     // the island loads when it is on screen
     await term.scrollIntoViewIfNeeded()
@@ -273,7 +263,7 @@ describe('the built site', () => {
       })
     })
     const { page, problems } = await open(context, '/')
-    await page.locator('button[data-specbook-try="petstore/GetPetById"]').click()
+    await page.locator('button[data-specbook-try="requests/petstore/get-pet.req.ts"]').click()
     await page.locator('specbook-panel button[aria-label="Send"]').click()
     await expect
       .poll(() => page.locator('specbook-panel .response .state-badge').first().textContent(), {
@@ -281,25 +271,16 @@ describe('the built site', () => {
       })
       .toMatch(/200/)
     expect(called[0]).toContain('/api/v3/pet/1')
+    // the request's own checks are shown, not just the response
+    const panel = await page.evaluate(
+      () =>
+        document.querySelector('specbook-panel')?.shadowRoot?.querySelector('.sb-root')
+          ?.textContent,
+    )
+    expect(panel).toMatch(/Checks\s*2/)
+    // `petId` comes from the request's own init, so nothing is asked of the visitor
+    expect(panel).not.toMatch(/Needs a value/)
     expect(await violations(page)).toEqual([])
-    expect(problems).toEqual([])
-    await context.close()
-  })
-
-  it('Discover: the viewer shows the Petstore, and the form opens an address in it', async () => {
-    const context = await browser.newContext()
-    const { page, problems } = await open(context, '/discover/')
-    const frame = page.frameLocator('iframe.viewer')
-    await page.locator('iframe.viewer').scrollIntoViewIfNeeded()
-    await frame
-      .getByText(/pets? by status/i)
-      .first()
-      .waitFor({
-        timeout: 30_000,
-      })
-    await page.fill('#spec', 'https://example.com/openapi.json')
-    await page.getByRole('button', { name: 'Open', exact: true }).click()
-    await page.waitForURL(/\/viewer\/\?spec=https%3A%2F%2Fexample\.com%2Fopenapi\.json/)
     expect(problems).toEqual([])
     await context.close()
   })
@@ -307,11 +288,7 @@ describe('the built site', () => {
   it('Document: the docs tab of the popover shows the notes written beside the operation', async () => {
     const context = await browser.newContext()
     const { page, problems } = await open(context, '/document/')
-    await expect
-      .poll(() => page.locator('[data-demo-status]').first().getAttribute('data-state'), {
-        timeout: 30_000,
-      })
-      .toBe('ready')
+    await expect.poll(demoState(page), { timeout: 30_000 }).toBe('ready')
     await page.getByRole('button', { name: 'Open the docs for Get a pet by id' }).click()
     await page.locator('specbook-panel').getByText('Looks a pet up by its id').waitFor({
       timeout: 30_000,
@@ -321,14 +298,38 @@ describe('the built site', () => {
     await context.close()
   })
 
-  it('without a service worker the page says so and the buttons are not left waiting', async () => {
+  it('the portals list their APIs and operations', async () => {
+    // a portal whose manifests did not load opens with "0 APIs · 0 operations"
+    const context = await browser.newContext()
+    for (const path of ['/qa/', '/demo/']) {
+      const { page } = await open(context, path)
+      await page.locator('.group-head').first().waitFor({ timeout: 60_000 })
+      const text = await page.locator('body').innerText()
+      expect(text, path).not.toMatch(/\b0 APIs/)
+      expect(text, path).not.toMatch(/\b0 operations/)
+      await page.close()
+    }
+    await context.close()
+  })
+
+  it('the landing page buttons need no service worker: they call the public Petstore', async () => {
     const context = await browser.newContext({ serviceWorkers: 'block' })
-    const { page } = await open(context, '/test/')
-    const chip = page.locator('[data-demo-status]').first()
-    await expect
-      .poll(() => chip.getAttribute('data-state'), { timeout: 30_000 })
-      .toMatch(/unsupported|bypassed/)
-    expect(await chip.textContent()).not.toMatch(/Starting/)
+    const { page } = await open(context, '/')
+    await expect.poll(demoState(page), { timeout: 30_000 }).toMatch(/unsupported|bypassed/)
+    for (const sel of ['button[data-specbook-try]', 'button[data-specbook-flow]']) {
+      expect(await page.locator(sel).first().isDisabled(), sel).toBe(false)
+      expect(await page.locator(sel).first().getAttribute('title'), sel).toBeNull()
+    }
+    await context.close()
+  })
+
+  it('without a service worker the page still lets a demo button be pressed, and the panel shows the failure', async () => {
+    const context = await browser.newContext({ serviceWorkers: 'block' })
+    const { page } = await open(context, '/document/')
+    await expect.poll(demoState(page), { timeout: 30_000 }).toMatch(/unsupported|bypassed/)
+    const button = page.locator('button[data-specbook-flow="new-pet"]')
+    expect(await button.isDisabled()).toBe(false)
+    expect(await button.getAttribute('title')).toMatch(/service worker|reload/i)
     await context.close()
   })
 })

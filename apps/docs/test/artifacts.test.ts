@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { headersFile, inlineScriptHashes, inlineStyleHashes } from '../integrations/artifacts.mjs'
+import {
+  headersFile,
+  inlineScriptHashes,
+  inlineStyleHashes,
+  REDIRECTS,
+} from '../integrations/artifacts.mjs'
 
 describe('the headers the site is served with', () => {
   it('allows exactly the inline scripts the build produced, found by reading them back', () => {
@@ -40,6 +45,10 @@ describe('the headers the site is served with', () => {
     expect(text).toMatch(/\/sw\.js\n\s+Cache-Control: no-cache/)
     expect(text).toMatch(/\/qa\/specbook\.js\n\s+Cache-Control: no-cache/)
     expect(text).toMatch(/\/_astro\/\*\n\s+Cache-Control: public, max-age=31536000, immutable/)
-    expect(text).toMatch(/\/downloads\/\*[\s\S]*Content-Disposition: attachment/)
+  })
+
+  it('sends the old addresses to where their content went', () => {
+    expect(REDIRECTS).toContain('/testing-and-monitoring /test/ 301')
+    expect(REDIRECTS).toContain('/discover / 301')
   })
 })

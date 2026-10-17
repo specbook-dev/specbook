@@ -45,8 +45,13 @@ export interface TerminalProps {
   /** which conditions to offer, in order; the first is the default */
   chaos?: ChaosId[]
   grep?: string
+  /** only runs with this tag, as `--tag` does */
+  tag?: string
   version: string
 }
+
+/** How long each piece of output stays before the next, so a retry can be seen to happen. */
+const PACE_MS = 90
 
 const stem = (path: string) =>
   path
@@ -54,7 +59,13 @@ const stem = (path: string) =>
     .pop()
     ?.replace(/\.(req|seq)\.ts$/, '') ?? path
 
-export default function Terminal({ files = [], chaos = ['calm'], grep, version }: TerminalProps) {
+export default function Terminal({
+  files = [],
+  chaos = ['calm'],
+  grep,
+  tag,
+  version,
+}: TerminalProps) {
   const [mode, setMode] = useState<ChaosId>(chaos[0] ?? 'calm')
   const [out, setOut] = useState('')
   const [running, setRunning] = useState(false)
@@ -73,6 +84,7 @@ export default function Terminal({ files = [], chaos = ['calm'], grep, version }
   const retries = CHAOS[mode].retries
   const command = [
     'specbook test --env demo',
+    tag ? `--tag ${tag}` : '',
     grep ? `--grep "${grep}"` : '',
     retries ? `--retries ${retries}` : '',
   ]
@@ -83,9 +95,11 @@ export default function Terminal({ files = [], chaos = ['calm'], grep, version }
     setRunning(true)
     let text = `\u001b[2m$ ${command}\u001b[22m\n`
     setOut(text)
+    // the run takes a few milliseconds, so what it prints is held and shown a line at a time: a failed try, the retry and
+    // the pass would otherwise arrive in one frame, and look like a flash
+    const printed: string[] = []
     const write = (s: string) => {
-      text += s
-      setOut(text)
+      printed.push(s)
     }
     try {
       await setChaos({ ...calm(), ...CHAOS[mode].patch })
@@ -104,6 +118,7 @@ export default function Terminal({ files = [], chaos = ['calm'], grep, version }
         envText,
         retries,
         grep,
+        tag,
         fetch: (input, init) => fetch(input, init),
         pageHref: location.href,
         version,
@@ -114,8 +129,14 @@ export default function Terminal({ files = [], chaos = ['calm'], grep, version }
       write(`\n\u001b[31m${e instanceof Error ? e.message : String(e)}\u001b[39m\n`)
     } finally {
       await setChaos(calm()).catch(() => {})
-      setRunning(false)
     }
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+    for (const chunk of printed) {
+      text += chunk
+      setOut(text)
+      if (!still && chunk.trim()) await new Promise((done) => setTimeout(done, PACE_MS))
+    }
+    setRunning(false)
   }
 
   const blocked = ready !== 'ready'

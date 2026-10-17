@@ -32,6 +32,8 @@ export interface DemoRun {
   retries?: number
   /** only runs whose title contains this, case-insensitively */
   grep?: string
+  /** only runs that carry this tag */
+  tag?: string
   fetch: typeof fetch
   pageHref: string
   /** shown in the header line */
@@ -61,7 +63,9 @@ export async function runDemo(o: DemoRun): Promise<number> {
     ),
   )
   const grep = o.grep?.toLowerCase()
-  const picked = grep ? all.filter((t) => t.title.toLowerCase().includes(grep)) : all
+  const picked = all
+    .filter((t) => !grep || t.title.toLowerCase().includes(grep))
+    .filter((t) => !o.tag || t.tags.includes(o.tag))
   const vars = environmentScope(o.config, o.env, parseDotenv(o.envText))
   const base = (service: string) => {
     const url = baseUrlFor(o.config, service, o.env, vars)
