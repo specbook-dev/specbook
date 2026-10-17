@@ -1,7 +1,9 @@
 ---
+import cli from '../../../../packages/cli/package.json'
 import DemoStatus from '../components/DemoStatus.astro'
 import Next from '../components/Next.astro'
 import Snippet from '../components/Snippet.astro'
+import Terminal from '../components/Terminal'
 import Page from '../layouts/Page.astro'
 import { bundleFacts } from '../lib/bundle'
 
@@ -61,6 +63,14 @@ const bundle = bundleFacts()
           }
         </div>
       </div>
+
+      <div class="prose">
+        <p>
+          The download runs on a schedule and reports in the terminal. Here is the same run, with the demo API in
+          the state you choose:
+        </p>
+      </div>
+      <Terminal client:visible chaos={['calm', 'down', 'flaky', 'missing']} version={cli.version} />
 
       <h2 class="title">Safe against production</h2>
       <div class="prose">

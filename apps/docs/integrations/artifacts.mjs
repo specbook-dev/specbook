@@ -87,12 +87,22 @@ export function inlineScriptHashes(html) {
   return [...hashes]
 }
 
+/** The same for `<style>` elements: Astro writes one small rule for its islands into every page that has one. */
+export function inlineStyleHashes(html) {
+  const hashes = new Set()
+  for (const m of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)) {
+    if (!m[1].trim()) continue
+    hashes.add(`'sha256-${createHash('sha256').update(m[1]).digest('base64')}'`)
+  }
+  return [...hashes]
+}
+
 /** The `_headers` file: one strict policy for the pages, a looser one for the copied apps that call other origins. */
-export function headersFile(scriptHashes) {
+export function headersFile(scriptHashes, styleHashes = []) {
   const base = [
     "default-src 'self'",
     `script-src 'self' ${scriptHashes.join(' ')}`.trim(),
-    "style-src 'self'",
+    `style-src 'self' ${styleHashes.join(' ')}`.trim(),
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",
@@ -180,12 +190,15 @@ export function artifacts() {
           await cp(a.from, to, { recursive: true })
         }
         const hashes = new Set()
+        const styles = new Set()
         for (const f of await htmlFiles(out)) {
           // the copied apps have their own pages and their own policy
           if (/[\\/](demo|qa|viewer)[\\/]/.test(f.slice(out.length))) continue
-          for (const h of inlineScriptHashes(await readFile(f, 'utf8'))) hashes.add(h)
+          const html = await readFile(f, 'utf8')
+          for (const h of inlineScriptHashes(html)) hashes.add(h)
+          for (const h of inlineStyleHashes(html)) styles.add(h)
         }
-        await writeFile(join(out, '_headers'), headersFile([...hashes]))
+        await writeFile(join(out, '_headers'), headersFile([...hashes], [...styles]))
         await writeFile(join(out, '_redirects'), REDIRECTS)
       },
     },

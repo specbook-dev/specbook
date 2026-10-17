@@ -109,3 +109,14 @@ export function headerLine(
 /** What a retry looks like in a terminal. */
 export const retryLine = (colors: Colors, title: string, attempt: number, allowed: number) =>
   `  ${colors.yellow('↻')} retrying ${title} (attempt ${attempt} of ${allowed})\n`
+
+/** A bundle's assertions point into the bundled file, which tells a reader nothing. */
+export function withoutLocations(results: RunResult[]): RunResult[] {
+  const strip = (steps: RunResult['steps']): RunResult['steps'] =>
+    steps.map((s) => ({
+      ...s,
+      assertions: s.assertions.map((a) => ({ ...a, location: undefined })),
+      ...(s.children ? { children: strip(s.children) } : {}),
+    }))
+  return results.map((r) => ({ ...r, steps: strip(r.steps) }))
+}

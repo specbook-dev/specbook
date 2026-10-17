@@ -542,3 +542,76 @@ specbook-panel {
   --sb-font-sans: var(--font);
   --sb-font-mono: var(--mono);
 }
+
+/* ---- the terminal: output of a real run, in the colors a terminal shows */
+.term {
+  margin: 18px 0;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #0b0b10;
+  color: #d8dae3;
+}
+.term-bar,
+.term-chaos,
+.term-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+}
+.term-bar {
+  border-bottom: 1px solid #23232e;
+}
+.term-cmd {
+  font: 13px / 1.4 var(--mono);
+  color: #b9bccb;
+  overflow-wrap: anywhere;
+}
+.term-chaos {
+  border-bottom: 1px solid #23232e;
+}
+.term-chaos .chip.on {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+.term-note {
+  color: #9a9db0;
+  font-size: 13px;
+}
+.term-out {
+  margin: 0;
+  padding: 14px;
+  height: 340px;
+  overflow: auto;
+  font: 13px / 1.55 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.term-out:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.a-b {
+  font-weight: 700;
+}
+.a-d {
+  opacity: 0.6;
+}
+.a-red {
+  color: #ff7a85;
+}
+.a-green {
+  color: #5fd38d;
+}
+.a-yellow {
+  color: #f1c75a;
+}
+.a-cyan {
+  color: #6fd0e6;
+}
+.term-foot {
+  border-top: 1px solid #23232e;
+}

@@ -209,6 +209,40 @@ describe('the built site', () => {
     await context.close()
   })
 
+  it('the terminal runs the demo: it passes, fails when the API is down, and calls a retried pass flaky', async () => {
+    const context = await browser.newContext()
+    const { page, problems } = await open(context, '/test/')
+    await expect
+      .poll(() => page.locator('[data-demo-status]').first().getAttribute('data-state'), {
+        timeout: 30_000,
+      })
+      .toBe('ready')
+    const term = page.locator('.term').first()
+    // the island loads when it is on screen
+    await term.scrollIntoViewIfNeeded()
+    const output = term.locator('.term-out')
+    const run = async (label?: string) => {
+      if (label) await term.getByRole('radio', { name: label }).click()
+      await term.getByRole('button', { name: /^Run/ }).click()
+      await expect.poll(() => output.textContent(), { timeout: 30_000 }).toMatch(/exit \d/)
+      return (await output.textContent()) ?? ''
+    }
+    const passing = await run()
+    expect(passing).toContain('specbook test')
+    expect(passing).toContain('✓')
+    expect(passing).toMatch(/exit 0/)
+    const down = await run('API down')
+    expect(down).toContain('✗')
+    expect(down).toMatch(/exit 1/)
+    const flaky = await run('Flaky')
+    expect(flaky).toMatch(/retrying/)
+    expect(flaky).toMatch(/exit 0/)
+    expect(await violations(page)).toEqual([])
+    // the browser logs the 500s the demo API answers on purpose; anything else is a problem
+    expect(problems.filter((p) => !/status of 500/.test(p))).toEqual([])
+    await context.close()
+  })
+
   it('without a service worker the page says so and the buttons are not left waiting', async () => {
     const context = await browser.newContext({ serviceWorkers: 'block' })
     const { page } = await open(context, '/test/')

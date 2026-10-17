@@ -44,6 +44,7 @@ import {
   type Transport,
   testExitCode,
   toJUnit,
+  withoutLocations,
 } from '@specbook/core'
 import { readDotenv } from './project'
 import { cliVersion } from './version'
@@ -358,17 +359,6 @@ export async function runTests(ctx: TestContext, o: TestCommandOptions): Promise
     console.error(maskDeep(e instanceof Error ? e.message : String(e), Object.values(secrets)))
     return 2
   }
-}
-
-/** A bundle's assertions point into the bundled file, which tells a reader nothing. */
-function withoutLocations(results: RunResult[]): RunResult[] {
-  const strip = (steps: RunResult['steps']): RunResult['steps'] =>
-    steps.map((s) => ({
-      ...s,
-      assertions: s.assertions.map((a) => ({ ...a, location: undefined })),
-      ...(s.children ? { children: strip(s.children) } : {}),
-    }))
-  return results.map((r) => ({ ...r, steps: strip(r.steps) }))
 }
 
 async function execute(

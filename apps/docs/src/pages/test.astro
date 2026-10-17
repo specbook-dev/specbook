@@ -1,7 +1,9 @@
 ---
+import cli from '../../../../packages/cli/package.json'
 import DemoStatus from '../components/DemoStatus.astro'
 import Next from '../components/Next.astro'
 import Snippet from '../components/Snippet.astro'
+import Terminal from '../components/Terminal'
 import Page from '../layouts/Page.astro'
 ---
 
@@ -59,6 +61,12 @@ import Page from '../layouts/Page.astro'
       <p><a class="btn primary" href="/qa/">Open the QA portal ↗</a></p>
 
       <h2 class="title">CI: the same checks on every change</h2>
+      <div class="prose">
+        <p>
+          This is the runner CI uses, on the page. Choose what the demo API does and press Run.
+        </p>
+      </div>
+      <Terminal client:visible files={['find-pets', 'adopt-pet']} chaos={['calm', 'down', 'wrong', 'flaky']} version={cli.version} />
       <Snippet file="snippets/test-workflow.yml" region="workflow" title="test.yml" />
       <div class="prose">
         <p>
