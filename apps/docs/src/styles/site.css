@@ -176,6 +176,10 @@ main.site-main {
 section.block {
   padding: 56px 0;
 }
+/* one gap between sections, not the first one's bottom plus the next one's top */
+section.block + section.block {
+  padding-top: 0;
+}
 .eyebrow {
   display: inline-block;
   font: 600 12px / 1 var(--mono);
