@@ -37,7 +37,8 @@
     "test:viewer": "pnpm run build:viewer && vitest run --config vitest.viewer.config.ts",
     "test:oauth": "pnpm --filter @specbook/cli build && pnpm run build:viewer && vitest run --config vitest.oauth.config.ts",
     "build:site": "pnpm run build:viewer && node scripts/assemble-site.mjs",
-    "deploy:site": "pnpm run build:viewer && node scripts/assemble-site.mjs --previous https://ui.specbook.dev && npx --yes wrangler@4 pages deploy dist-site --project-name specbook-ui --branch main"
+    "deploy:site": "pnpm run build:viewer && node scripts/assemble-site.mjs --previous https://ui.specbook.dev && npx --yes wrangler@4 pages deploy dist-site --project-name specbook-ui --branch main",
+    "test:embed": "pnpm --filter @specbook/cli build && vitest run --config vitest.embed.config.ts"
   },
   "dependencies": {
     "@preact/signals": "2.11.3",

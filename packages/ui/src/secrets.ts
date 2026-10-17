@@ -6,6 +6,8 @@
  * closes) with an in-memory fallback; another backend (an encrypted store, say) can sit behind the same
  * interface. Requests carry `{{secrets.NAME}}` placeholders until the transport sends them.
  */
+import { kv } from './storage'
+
 const KEY = 'specbook.secrets.v1'
 
 type Table = Record<string, Record<string, string>>
@@ -20,7 +22,7 @@ let memory: Table = {}
 
 const read = (): Table => {
   try {
-    const raw = sessionStorage.getItem(KEY)
+    const raw = kv.session.getItem(KEY)
     return raw ? (JSON.parse(raw) as Table) : memory
   } catch {
     return memory
@@ -30,7 +32,7 @@ const read = (): Table => {
 const write = (t: Table) => {
   memory = t
   try {
-    sessionStorage.setItem(KEY, JSON.stringify(t))
+    kv.session.setItem(KEY, JSON.stringify(t))
   } catch {
     /* private mode or blocked storage: the in-memory copy still serves this page */
   }

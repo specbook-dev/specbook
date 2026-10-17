@@ -20,8 +20,13 @@
   </head>
   <body>
     <h1>Pets</h1>
-    <p data-specbook="petstore" data-operation="AddPet">Register a pet in the store.</p>
-    <p data-specbook="petstore" data-sequence="adopt-pet">Walk through adopting a pet end to end.</p>
+    <!-- a Play button appears beside the element; a button or link that carries the attribute is the trigger itself -->
+    <p data-specbook-try="petstore/AddPet">Register a pet in the store.</p>
+    <p data-specbook-flow="adopt-pet">Walk through adopting a pet end to end.</p>
+    <p>
+      Or <button type="button" data-specbook-flow="stripe-checkout" data-specbook-inputs='{"amount":3000}'>run a checkout for 30.00</button>,
+      the customer's name generated.
+    </p>
     <!-- build first: specbook build --out dist-docs; serve this folder over http -->
     <script type="module" src="./dist-docs/specbook.js"></script>
   </body>

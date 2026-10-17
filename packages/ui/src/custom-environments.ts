@@ -3,6 +3,7 @@
  * site, the hosted viewer). A variable here is not a secret, so it lives in `localStorage`, kept per spec; a
  * document opened from a file has no stable address and keeps them for the tab only.
  */
+import { kv } from './storage'
 
 const KEY = 'specbook.environments.v1'
 
@@ -22,8 +23,7 @@ type Table = Record<string, Record<string, BrowserEnvironment>>
 
 const memory: Record<'local' | 'session', Table> = { local: {}, session: {} }
 
-const storageOf = (kind: 'local' | 'session') =>
-  kind === 'local' ? globalThis.localStorage : globalThis.sessionStorage
+const storageOf = (kind: 'local' | 'session') => (kind === 'local' ? kv.local : kv.session)
 
 function read(kind: 'local' | 'session'): Table {
   try {

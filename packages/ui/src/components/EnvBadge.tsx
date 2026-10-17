@@ -1,5 +1,12 @@
 import { engine } from '../runtime'
-import { env, environmentNote, environmentRisk, environments, newEnvironmentOpen } from '../store'
+import {
+  env,
+  environmentNote,
+  environmentRisk,
+  environments,
+  features,
+  newEnvironmentOpen,
+} from '../store'
 
 const NEW_ENVIRONMENT = '\u0000new-environment'
 
@@ -22,7 +29,7 @@ export function EnvBadge() {
       : risk === 'production' || (risk !== 'sandbox' && /prod/i.test(name))
         ? 'prod'
         : 'live'
-  const canCreate = engine.canCreateEnvironment()
+  const canCreate = features.value.createEnvironment && engine.canCreateEnvironment()
   const switchable = names.length > 1 || canCreate
   return (
     <span

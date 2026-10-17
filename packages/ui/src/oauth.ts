@@ -8,6 +8,7 @@ import {
   tokenRequestFields,
 } from '@specbook/core'
 import { OAUTH_CHANNEL, type OAuthMessage } from './oauth-callback'
+import { kv, type Store } from './storage'
 
 /**
  * Page side of "Sign in": opens the provider in a popup, waits for the return leg
@@ -137,14 +138,14 @@ export async function signIn(
 const CLIENTS = 'specbook.oauth.clients.v1'
 const EXPIRY = 'specbook.oauth.expiry.v1'
 
-const readJson = (store: Storage, key: string): Record<string, any> => {
+const readJson = (store: Store, key: string): Record<string, any> => {
   try {
     return JSON.parse(store.getItem(key) ?? '{}')
   } catch {
     return {}
   }
 }
-const writeJson = (store: Storage, key: string, value: unknown) => {
+const writeJson = (store: Store, key: string, value: unknown) => {
   try {
     store.setItem(key, JSON.stringify(value))
   } catch {
@@ -154,7 +155,7 @@ const writeJson = (store: Storage, key: string, value: unknown) => {
 
 export const recallClientId = (authorizationUrl: string): string | undefined => {
   try {
-    return readJson(localStorage, CLIENTS)[authorizationUrl]
+    return readJson(kv.local, CLIENTS)[authorizationUrl]
   } catch {
     return undefined
   }
@@ -162,8 +163,8 @@ export const recallClientId = (authorizationUrl: string): string | undefined => 
 
 export const rememberClientId = (authorizationUrl: string, clientId: string): void => {
   try {
-    writeJson(localStorage, CLIENTS, {
-      ...readJson(localStorage, CLIENTS),
+    writeJson(kv.local, CLIENTS, {
+      ...readJson(kv.local, CLIENTS),
       [authorizationUrl]: clientId,
     })
   } catch {
@@ -176,10 +177,10 @@ const expiryKey = (origin: string, name: string) => `${origin}\n${name}`
 /** Remembered for this tab only, to say "expires in 59 min"; the token itself stays in the secret store. */
 export const noteExpiry = (origin: string, name: string, expiresIn: number | undefined): void => {
   try {
-    const t = readJson(sessionStorage, EXPIRY)
+    const t = readJson(kv.session, EXPIRY)
     if (expiresIn === undefined) delete t[expiryKey(origin, name)]
     else t[expiryKey(origin, name)] = Date.now() + expiresIn * 1000
-    writeJson(sessionStorage, EXPIRY, t)
+    writeJson(kv.session, EXPIRY, t)
   } catch {
     /* no storage */
   }
@@ -187,7 +188,7 @@ export const noteExpiry = (origin: string, name: string, expiresIn: number | und
 
 export const expiryOf = (origin: string, name: string): number | undefined => {
   try {
-    return readJson(sessionStorage, EXPIRY)[expiryKey(origin, name)]
+    return readJson(kv.session, EXPIRY)[expiryKey(origin, name)]
   } catch {
     return undefined
   }

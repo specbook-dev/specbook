@@ -53,14 +53,22 @@ const tokens = (accent: string) =>
  * The accent as CSS: unlayered, so it wins over the default tokens. A separate dark value applies
  * under `prefers-color-scheme: dark` (unless the light theme is forced) and `data-theme="dark"`.
  */
-export function brandCss(b: Pick<BrandingConfig, 'accent' | 'accentDark'>): string {
+export function brandCss(
+  b: Pick<BrandingConfig, 'accent' | 'accentDark'>,
+  scope: 'root' | 'host' = 'root',
+): string {
   if (!b.accent && !b.accentDark) return ''
-  const light = b.accent ? `:root{${tokens(b.accent)}}` : ''
+  // in a shadow root the tokens sit on the host element, which :root does not match
+  const base = scope === 'host' ? ':host' : ':root'
+  const notLight =
+    scope === 'host' ? ':host(:not([data-theme="light"]))' : ':root:not([data-theme="light"])'
+  const dark = scope === 'host' ? ':host([data-theme="dark"])' : ':root[data-theme="dark"]'
+  const light = b.accent ? `${base}{${tokens(b.accent)}}` : ''
   if (!b.accentDark) return light
   return (
     `${light}` +
-    `@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){${tokens(b.accentDark)}}}` +
-    `:root[data-theme="dark"]{${tokens(b.accentDark)}}`
+    `@media (prefers-color-scheme: dark){${notLight}{${tokens(b.accentDark)}}}` +
+    `${dark}{${tokens(b.accentDark)}}`
   )
 }
 

@@ -11,6 +11,11 @@ type Props = {
   /** dims the page and traps focus; the standalone site docks the panel beside its list instead */
   modal?: boolean
   tab?: PanelTab
+  /** `popover`: a centered dialog (a sheet from the bottom on a phone); `side`: the app's sheet from the right */
+  variant?: 'side' | 'popover'
+  /** an embed's preset flow inputs, and whether to run as soon as it is ready */
+  preset?: Record<string, unknown>
+  autoRun?: boolean
   /** switch tab, optionally opening a named example */
   onNavigate: (to: { tab: PanelTab; example?: string }) => void
   onPrev?: () => void
@@ -51,6 +56,7 @@ export function Host(p: Props) {
         subtitle="Sequence"
         flush
         modal={p.modal}
+        variant={p.variant}
         onPrev={p.onPrev}
         onNext={p.onNext}
         onClose={p.onClose}
@@ -58,7 +64,11 @@ export function Host(p: Props) {
         <div class="panel-split">
           {tabs}
           <div class={`panel-main ${tab === 'docs' ? 'scroll' : ''}`}>
-            {tab === 'docs' ? <SequenceDocs info={p.info} /> : <SequencePanel info={p.info} />}
+            {tab === 'docs' ? (
+              <SequenceDocs info={p.info} />
+            ) : (
+              <SequencePanel info={p.info} preset={p.preset} autoRun={p.autoRun} />
+            )}
           </div>
         </div>
       </Panel>
@@ -69,6 +79,7 @@ export function Host(p: Props) {
       subtitle={`${p.op.method} ${p.op.path}`}
       flush
       modal={p.modal}
+      variant={p.variant}
       onPrev={p.onPrev}
       onNext={p.onNext}
       onClose={p.onClose}
@@ -91,6 +102,7 @@ export function Host(p: Props) {
               op={p.op}
               variants={p.variants}
               initial={p.example}
+              autoRun={p.autoRun}
             />
           )}
         </div>

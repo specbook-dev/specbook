@@ -16,3 +16,5 @@ export const envVarsVersion = signal(0)
 export const envSettingsOpen = signal(false)
 /** The New environment dialog. */
 export const newEnvironmentOpen = signal(false)
+/** What the shell around the panels offers. An embed has no dialog for creating an environment or for settings. */
+export const features = signal({ createEnvironment: true, environmentSettings: true })
