@@ -7,3 +7,4 @@ dist
 .vitest
 dist-viewer
 dist-site
+.astro

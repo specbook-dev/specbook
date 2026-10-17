@@ -1,1 +1,0 @@
-import{r as e}from"./ops-petstore-pet-0-C8ABaH0K.js";var t=e.request({name:`Find pets by status`,tags:[`smoke`,`monitor`],query:{status:`{{status}}`},init:{status:`available`},capture:{pets:e=>e.status===200?e.data:[]},assert:(e,{assert:t})=>{t.is(e.status,200,`ok`),e.status===200&&t.ok(e.data.length>0,`returns at least one pet`)}});export{t as default};

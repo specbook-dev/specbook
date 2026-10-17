@@ -1,1 +1,0 @@
-import{t as e}from"./ops-countries-graphql-0-CldED8U4.js";var t=e.request({name:`List continents`,tags:[`smoke`],data:{query:`{ continents { code name } }`},assert:(e,{assert:t})=>{if(t.is(e.status,200,`ok`),e.status!==200)return;let n=e.data.data?.continents;t.ok((n?.length??0)>=6,`at least six continents`)}});export{t as default};
