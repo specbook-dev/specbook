@@ -209,6 +209,29 @@ describe('specbook test', () => {
     expect(posts).toBe(2)
   })
 
+  it('--var changes an address too: the request goes where the variable says', async () => {
+    process.env.API_KEY = SECRET
+    const other = createServer((_, res) => {
+      hitsElsewhere++
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ id: 1, name: 'Elsewhere' }))
+    })
+    await new Promise<void>((r) => other.listen(0, '127.0.0.1', r))
+    const elsewhere = `http://127.0.0.1:${(other.address() as AddressInfo).port}`
+    let hitsElsewhere = 0
+    try {
+      const r = await run({
+        patterns: ['requests/get-pet.req.ts'],
+        vars: { apiUrl: elsewhere },
+      })
+      expect(r.code).toBe(0)
+      expect(hitsElsewhere).toBe(1)
+      expect(r.out).toContain('Get pet')
+    } finally {
+      await new Promise<void>((r) => other.close(() => r()))
+    }
+  })
+
   it('retries a failed flow and reports it flaky, exiting 0', async () => {
     process.env.API_KEY = SECRET
     flakyCalls = 0

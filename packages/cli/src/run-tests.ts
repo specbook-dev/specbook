@@ -380,7 +380,11 @@ async function execute(
 ): Promise<number> {
   const config = ctx.config
   const total = ctx.targets.length
-  const vars = environmentScope(config, o.env, fileVars)
+  // `--var` overrides a variable everywhere, an address included: it layers over the environment's own files
+  const given = Object.fromEntries(
+    Object.entries(o.vars).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)]),
+  )
+  const vars = environmentScope(config, o.env, { ...fileVars, ...given })
   const transport = transportFor(ctx, o.env, vars, o.timeoutMs ?? DEFAULT_TIMEOUT_MS)
   const origins = originsFor(config, o.env, vars)
   const faker = await ctx.loadFaker()
