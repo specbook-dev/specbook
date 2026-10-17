@@ -24,11 +24,7 @@ import Page from '../layouts/Page.astro'
     <div class="wrap">
       <h2 class="title">Write notes beside each operation</h2>
       <div class="prose">
-        <p>
-          Put a markdown file next to what it describes. A <code>README.md</code> in an operation's folder
-          documents that operation, and <code>&lt;name&gt;.seq.md</code> documents the flow beside it. A heading
-          made of one code span, like <code>## `petId`</code>, attaches its text to that field.
-        </p>
+        <p>Drop a Markdown file right next to the endpoint it describes.</p>
       </div>
       <Snippet file="demo/requests/petstore/GetPetById/README.md" region="notes" title="requests/petstore/GetPetById/README.md" />
       <div class="demo">
@@ -43,6 +39,19 @@ import Page from '../layouts/Page.astro'
             </button>
           </p>
         </div>
+      </div>
+      <div class="prose">
+        <details class="more">
+          <summary>Where your notes live</summary>
+          <ul>
+            <li>An operation: a <code>README.md</code> in its folder, like <code>requests/petstore/GetPetById/README.md</code>.</li>
+            <li>Or one file per operation in the service's <code>docs</code> folder, like <code>requests/petstore/docs/GetPetById.md</code>.</li>
+            <li>A saved request: <code>&lt;name&gt;.req.md</code> beside <code>&lt;name&gt;.req.ts</code>.</li>
+            <li>A flow: <code>&lt;name&gt;.seq.md</code> beside <code>&lt;name&gt;.seq.ts</code>.</li>
+            <li>Anywhere else: a markdown file whose front matter names what it documents, like <code>operation: petstore/GetPetById</code>.</li>
+            <li>A field: a heading made of one code span, like <code>## `petId`</code>, attaches its text to that field.</li>
+          </ul>
+        </details>
       </div>
 
       <h2 class="title">Make any example runnable</h2>

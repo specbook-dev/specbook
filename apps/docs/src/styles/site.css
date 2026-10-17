@@ -248,6 +248,31 @@ h2.title {
   text-wrap: pretty;
   color: color-mix(in srgb, var(--text) 86%, var(--muted));
 }
+.prose .more {
+  margin: 0;
+}
+.prose .more summary {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 0;
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+@media (pointer: coarse) {
+  .prose .more summary {
+    min-height: 44px;
+  }
+}
+.prose .more ul {
+  margin: 0.25em 0 0;
+  padding-left: 1.2em;
+  color: color-mix(in srgb, var(--text) 86%, var(--muted));
+}
+.prose .more li {
+  margin: 0 0 0.5em;
+  text-wrap: pretty;
+}
 .prose h3 {
   margin: 1.6em 0 0.5em;
   font-size: 1.15rem;
