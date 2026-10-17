@@ -23,7 +23,7 @@ export const CARDS = [
   {
     slug: 'home',
     name: 'Specbook',
-    line: 'Storybook for APIs. Discover, develop, document, test and monitor from one definition.',
+    line: 'One definition, from discovery and development to QA and production monitoring.',
   },
   ...found,
 ]

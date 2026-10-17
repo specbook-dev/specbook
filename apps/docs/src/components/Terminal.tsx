@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 // A terminal on the page that runs the demo's requests and flows with the same runner and list reporter the CLI uses.
 // What it executes is the files the snippets show, loaded when Run is first pressed.
 

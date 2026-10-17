@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 // A recording of the real CLI, played back with its colors and (slowed a little) its timing. It is the same output the
 // terminal on the Test page produces, captured by `docs-demo capture`.
 
