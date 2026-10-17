@@ -28,6 +28,20 @@ export default defineConfig({
       description:
         'The Swagger UI alternative built for modern teams: explore APIs, author executable flows once, publish live documentation.',
       disable404Route: true,
+      // Reference pages share the home card: a link to one in a post or a chat shows a picture too
+      head: [
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image', content: 'https://docs.specbook.dev/og/home.png' },
+        },
+        { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
+        { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image:alt', content: 'Specbook: API docs that come to life' },
+        },
+        { tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },
+      ],
       pagefind: true,
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/specbook-dev/specbook' },

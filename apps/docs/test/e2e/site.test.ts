@@ -153,6 +153,32 @@ describe('the built site', () => {
     await context.close()
   })
 
+  it('every page can be shared: a title, a description and a card image of the right size, on every kind of page', async () => {
+    const context = await browser.newContext()
+    for (const path of ['/', '/develop/', '/document/', '/test/', '/monitor/', '/reference/cli/']) {
+      const page = await context.newPage()
+      await page.goto(origin + path)
+      const tag = (name: string) =>
+        page
+          .locator(`meta[property="${name}"], meta[name="${name}"]`)
+          .first()
+          .getAttribute('content')
+      const where = (what: string) => `${path} ${what}`
+      expect(await tag('og:title'), where('og:title')).toBeTruthy()
+      expect(await tag('og:description'), where('og:description')).toBeTruthy()
+      // a link in a post is fetched from outside, so the picture's address names the site, not this test server
+      expect(await tag('og:image'), where('og:image')).toMatch(
+        /^https:\/\/docs\.specbook\.dev\/og\/[\w-]+\.png$/,
+      )
+      expect(await tag('og:image:width'), where('width')).toBe('1200')
+      expect(await tag('og:image:height'), where('height')).toBe('630')
+      expect((await tag('og:image:alt')) ?? '', where('alt')).not.toBe('')
+      expect(await tag('twitter:card'), where('twitter:card')).toBe('summary_large_image')
+      await page.close()
+    }
+    await context.close()
+  })
+
   it('has a search index covering the pages', async () => {
     const entry = JSON.parse(await readFile(join(dist, 'pagefind/pagefind-entry.json'), 'utf8'))
     const pages = Object.values<{ page_count: number }>(entry.languages).reduce(
