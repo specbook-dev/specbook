@@ -294,6 +294,7 @@ h2.title {
 /* ---- tiles */
 .tiles {
   display: grid;
+  margin-top: 28px;
   gap: 14px;
   grid-template-columns: repeat(6, 1fr);
 }
