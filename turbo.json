@@ -30,6 +30,10 @@
     "test:embed": {
       "dependsOn": ["^build"],
       "cache": false
+    },
+    "test:sw": {
+      "dependsOn": ["^build"],
+      "cache": false
     }
   }
 }

@@ -1,0 +1,9 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["requests", "sequences", ".specbook", "server", "scripts", ".generated/*/index.ts"],
+  "exclude": ["server/sw.ts"]
+}

@@ -1,0 +1,104 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Countries GraphQL API",
+    "version": "1.0.0",
+    "description": "A public, keyless GraphQL API (https://countries.trevorblades.com) described as one POST operation."
+  },
+  "servers": [{ "url": "https://countries.trevorblades.com" }],
+  "paths": {
+    "/": {
+      "post": {
+        "operationId": "Query",
+        "summary": "Run a GraphQL query",
+        "description": "Send a GraphQL document and its variables. The response always has a `data` object and, when something went wrong, an `errors` array.",
+        "tags": ["graphql"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/graphql": {
+              "schema": { "$ref": "#/components/schemas/GraphqlRequest" },
+              "examples": {
+                "country": {
+                  "summary": "One country by code",
+                  "value": {
+                    "query": "query Country($code: ID!) {\n  country(code: $code) {\n    name\n    capital\n    currency\n    languages {\n      name\n    }\n  }\n}",
+                    "variables": { "code": "DE" }
+                  }
+                },
+                "continents": {
+                  "summary": "Every continent",
+                  "value": {
+                    "query": "{\n  continents {\n    code\n    name\n  }\n}"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "GraphQL result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GraphqlResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "GraphqlRequest": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": { "type": "string", "description": "The GraphQL document." },
+          "variables": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Values for the variables the document declares."
+          },
+          "operationName": {
+            "type": "string",
+            "description": "Which operation to run when the document has several."
+          }
+        }
+      },
+      "GraphqlResponse": {
+        "type": "object",
+        "example": {
+          "data": {
+            "country": {
+              "name": "Germany",
+              "capital": "Berlin",
+              "currency": "EUR",
+              "languages": [{ "name": "German" }]
+            },
+            "continents": [
+              { "code": "AF", "name": "Africa" },
+              { "code": "AN", "name": "Antarctica" },
+              { "code": "AS", "name": "Asia" },
+              { "code": "EU", "name": "Europe" },
+              { "code": "NA", "name": "North America" },
+              { "code": "OC", "name": "Oceania" },
+              { "code": "SA", "name": "South America" }
+            ]
+          }
+        },
+        "properties": {
+          "data": { "type": "object", "additionalProperties": true, "nullable": true },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": { "message": { "type": "string" } }
+            }
+          }
+        }
+      }
+    }
+  }
+}
