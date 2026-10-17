@@ -77,7 +77,8 @@ export async function runDemo(o: DemoRun): Promise<number> {
   const origins: Record<string, string> = {}
   for (const service of Object.keys(o.config.services)) {
     try {
-      origins[service] = new URL(base(service)).origin
+      const u = new URL(base(service))
+      origins[service] = `${u.origin}${u.pathname.replace(/\/+$/, '')}`
     } catch {
       /* a call says so */
     }

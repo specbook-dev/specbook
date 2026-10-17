@@ -256,18 +256,25 @@ function transportFor(ctx: TestContext, env: string, vars: Record<string, unknow
   })
 }
 
-/** The origin each service's calls go to in `env`, for traces and the report; services with no address are left out. */
+/**
+ * The address each service's calls go to in `env`: its origin for the report, or with `basePath` the origin and the base
+ * path, which is what a trace shows. Services with no address are left out.
+ */
 function originsFor(
   config: SpecbookConfig,
   env: string,
   vars: Record<string, unknown>,
+  basePath = false,
 ): Record<string, string> {
   if (env === 'mock') return {}
   const out: Record<string, string> = {}
   for (const service of Object.keys(config.services)) {
     try {
       const url = baseUrlFor(config, service, env, vars)
-      if (url) out[service] = new URL(url).origin
+      if (url) {
+        const u = new URL(url)
+        out[service] = basePath ? `${u.origin}${u.pathname.replace(/\/+$/, '')}` : u.origin
+      }
     } catch {
       /* no usable address here: a call says so */
     }
@@ -370,6 +377,7 @@ async function execute(
   const vars = environmentScope(config, o.env, { ...fileVars, ...given })
   const transport = transportFor(ctx, o.env, vars)
   const origins = originsFor(config, o.env, vars)
+  const addresses = originsFor(config, o.env, vars, true)
   const faker = await ctx.loadFaker()
   const git = { ...(ctx.git ?? gitInfo(ctx.root)) }
   const ci = detectCi(process.env)
@@ -391,7 +399,7 @@ async function execute(
     colors,
     quiet: o.quiet,
     trace: o.trace,
-    origins,
+    origins: addresses,
     cwd: ctx.root,
     readSource,
     rerun: (r: RunResult) =>
@@ -506,7 +514,7 @@ async function execute(
         toJUnit(clean, {
           timestamp: meta.startedAt,
           hostname: hostname(),
-          origins,
+          origins: addresses,
           properties: { env: o.env, sha: git.sha, branch: git.branch, specbook: meta.specbook },
         }),
       )

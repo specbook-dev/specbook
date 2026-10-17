@@ -13,7 +13,7 @@ export interface ListOptions {
   quiet?: boolean
   /** show the request and response of a failed step (default), of every step, or not at all */
   trace?: 'on-failure' | 'always' | 'off'
-  /** service → origin, to show full addresses in a trace */
+  /** service → the address its calls go to (origin and base path), so a trace shows the URL that was called */
   origins?: Record<string, string>
   /** paths are shown relative to this folder */
   cwd?: string

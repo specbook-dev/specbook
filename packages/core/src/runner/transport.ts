@@ -58,6 +58,40 @@ export function absoluteBase(baseUrl: string, pageHref?: string): string {
 /** How long a request waits for an answer when nothing says otherwise. */
 export const DEFAULT_TIMEOUT_MS = 30_000
 
+/** What node's fetch says in `error.cause.code`, in words a person can act on. */
+const WHY: Record<string, string> = {
+  ECONNREFUSED: 'connection refused',
+  ENOTFOUND: 'host not found',
+  EAI_AGAIN: 'host not found',
+  ECONNRESET: 'connection reset',
+  ETIMEDOUT: 'connection timed out',
+  UND_ERR_CONNECT_TIMEOUT: 'connection timed out',
+  EHOSTUNREACH: 'host unreachable',
+  ENETUNREACH: 'network unreachable',
+}
+
+/** node's bare "fetch failed" says nothing; its cause says why. A browser gives no cause, so its error is left as it is. */
+function unreachable(e: unknown, url: string): unknown {
+  const cause = (
+    e as { cause?: { code?: string; message?: string; errors?: { code?: string }[] } } | undefined
+  )?.cause
+  if (!(e instanceof TypeError) || !cause) return e
+  const code = cause.code ?? cause.errors?.find((x) => x.code)?.code
+  const tls =
+    code && /^CERT_|^ERR_TLS|SELF_SIGNED|UNABLE_TO_VERIFY/.test(code) ? 'certificate problem' : ''
+  // a reason there are words for, else the cause's own message ("bad port"), else nothing to add
+  const own = typeof cause.message === 'string' && cause.message.length <= 120 ? cause.message : ''
+  const why = (code && WHY[code]) || tls || own
+  if (!why) return e
+  let host = url
+  try {
+    host = new URL(url).host
+  } catch {
+    /* an address that is not a URL is shown as it is */
+  }
+  return new Error(`Could not reach ${host}: ${why}.`, { cause: e })
+}
+
 export interface FetchTransportOptions {
   baseUrl: (service: string) => string
   fetch?: typeof fetch
@@ -85,8 +119,9 @@ export function createFetchTransport(opts: FetchTransportOptions): Transport {
         }, req.timeoutMs)
       : undefined
     signal?.addEventListener('abort', () => ctl.abort())
+    const url = buildUrl(opts.baseUrl(req.service), req)
     try {
-      const res = await f(buildUrl(opts.baseUrl(req.service), req), {
+      const res = await f(url, {
         method: req.method,
         headers,
         body,
@@ -112,7 +147,7 @@ export function createFetchTransport(opts: FetchTransportOptions): Transport {
       if (timedOut) throw new Error(`Timed out after ${req.timeoutMs}ms: no answer from the API.`)
       // a person pressing Stop, or the run's own deadline: say so, not "This operation was aborted"
       if (signal?.aborted) throw new Error('Stopped before the API answered.')
-      throw e
+      throw unreachable(e, url)
     } finally {
       if (timer) clearTimeout(timer)
     }

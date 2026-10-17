@@ -54,7 +54,7 @@ export interface JUnitOptions {
   hostname?: string
   /** shown as `<properties>` on each suite (env, git sha, seed…) */
   properties?: Record<string, string | undefined>
-  /** service → origin, for the trace in `<system-out>` */
+  /** service → the address its calls go to (origin and base path), for the trace in `<system-out>` */
   origins?: Record<string, string>
 }
 

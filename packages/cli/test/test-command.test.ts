@@ -52,6 +52,10 @@ beforeAll(async () => {
       res.statusCode = 404
       return void res.end(JSON.stringify({ message: 'no such pet' }))
     }
+    if (url.startsWith('/v2/')) {
+      res.statusCode = 404
+      return void res.end(JSON.stringify({ message: 'nope' }))
+    }
     if (url === '/flaky') {
       res.statusCode = ++flakyCalls === 1 ? 500 : 200
       return void res.end('{}')
@@ -231,6 +235,22 @@ describe('specbook test', () => {
     } finally {
       await new Promise<void>((r) => other.close(() => r()))
     }
+  })
+
+  it('shows the address a failed request went to, base path included, and keeps the report to the origin', async () => {
+    process.env.API_KEY = SECRET
+    const dirOut = join(dir, 'reports-v2')
+    const r = await run({
+      patterns: ['requests/get-pet.req.ts'],
+      vars: { apiUrl: `${base}/v2` },
+      reporters: ['list', `json:${dirOut}/report.json`, `junit:${dirOut}/junit.xml`],
+    })
+    expect(r.code).toBe(1)
+    expect(r.out).toContain(`GET ${base}/v2/pet/1`)
+    expect(await readFile(join(dirOut, 'junit.xml'), 'utf8')).toContain(`${base}/v2/pet/1`)
+    // the report's address stays an origin
+    const report = JSON.parse(await readFile(join(dirOut, 'report.json'), 'utf8'))
+    expect(report.services.api).toBe(base)
   })
 
   it('retries a failed flow and reports it flaky, exiting 0', async () => {

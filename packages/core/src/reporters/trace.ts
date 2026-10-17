@@ -16,7 +16,7 @@ const SHOWN_RESPONSE_HEADERS = [
 ]
 
 export interface TraceOptions {
-  /** service → origin (`https://api.example.com`), to show the full address */
+  /** service → the address its calls go to (`https://api.example.com/v1`: origin and base path), to show the full URL */
   origins?: Record<string, string>
   /** characters of a body shown before it is cut (default 2048) */
   maxBody?: number

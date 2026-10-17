@@ -53,6 +53,55 @@ describe('the fetch transport', () => {
   })
 })
 
+describe('when the API cannot be reached', () => {
+  /** What node's fetch throws: a bare TypeError, with the reason one level down. */
+  const failing = (cause: object) =>
+    (() => {
+      throw Object.assign(new TypeError('fetch failed'), { cause })
+    }) as unknown as typeof fetch
+  const sendTo = (base: string, cause: object) =>
+    createFetchTransport({ baseUrl: () => base, fetch: failing(cause) })(req({ url: '/pet/1' }))
+
+  it('says which host and why, in words', async () => {
+    await expect(
+      sendTo(
+        'http://127.0.0.1:9/api',
+        Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }),
+      ),
+    ).rejects.toThrow('Could not reach 127.0.0.1:9: connection refused.')
+    await expect(
+      sendTo(
+        'https://nope.example',
+        Object.assign(new Error('getaddrinfo'), { code: 'ENOTFOUND' }),
+      ),
+    ).rejects.toThrow('Could not reach nope.example: host not found.')
+    // node reports a name that has several addresses as one error holding the others
+    await expect(
+      sendTo('http://localhost:9', {
+        errors: [{ code: 'ECONNREFUSED' }, { code: 'ECONNREFUSED' }],
+      }),
+    ).rejects.toThrow('Could not reach localhost:9: connection refused.')
+    await expect(
+      sendTo('https://bad.example', Object.assign(new Error('x'), { code: 'CERT_HAS_EXPIRED' })),
+    ).rejects.toThrow('Could not reach bad.example: certificate problem.')
+  })
+
+  it("falls back to the cause's own words, and leaves an error with nothing to add as it was", async () => {
+    // a port that fetch refuses has no code, only a message
+    await expect(sendTo('http://127.0.0.1:9', new Error('bad port'))).rejects.toThrow(
+      'Could not reach 127.0.0.1:9: bad port.',
+    )
+    await expect(sendTo('http://x.test', {})).rejects.toThrow('fetch failed')
+    // a browser's "Failed to fetch" has no cause to read
+    const bare = (() => {
+      throw new TypeError('Failed to fetch')
+    }) as unknown as typeof fetch
+    await expect(
+      createFetchTransport({ baseUrl: () => 'http://x.test', fetch: bare })(req()),
+    ).rejects.toThrow('Failed to fetch')
+  })
+})
+
 describe('absoluteBase', () => {
   it('resolves a relative address against the page and leaves an absolute one', async () => {
     const { absoluteBase } = await import('../src')
