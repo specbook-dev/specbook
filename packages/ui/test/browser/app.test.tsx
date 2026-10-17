@@ -238,6 +238,31 @@ describe('docs and play panel', () => {
     }
   })
 
+  it('shows the product name whole on a phone, and keeps the menu on screen', async () => {
+    const [w, h] = [window.innerWidth, window.innerHeight]
+    const before = brand.value
+    try {
+      for (const width of [390, 360]) {
+        await page.viewport(width, 800)
+        brand.value = { links: [], ready: false }
+        await mount()
+        await waitFor(() => expect(brand.value.ready).toBe(true))
+        brand.value = { ...brand.value, name: 'Specbook' }
+        await waitFor(() => expect($('.brand-name')?.textContent).toBe('Specbook'))
+        const name = $('.brand-name') as HTMLElement
+        // not clipped: all of the text fits in its box
+        expect(name.scrollWidth, `${width}px`).toBeLessThanOrEqual(name.clientWidth)
+        expect(($('.menu-btn') as HTMLElement).getBoundingClientRect().right).toBeLessThanOrEqual(
+          window.innerWidth,
+        )
+        render(null, root)
+      }
+    } finally {
+      brand.value = before
+      await page.viewport(w, h)
+    }
+  })
+
   it('keeps the phone header inside the screen however long the product name is', async () => {
     const [w, h] = [window.innerWidth, window.innerHeight]
     await page.viewport(360, 800)

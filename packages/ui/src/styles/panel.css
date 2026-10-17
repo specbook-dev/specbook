@@ -1971,11 +1971,9 @@
     .panel-head .spacer {
       display: none;
     }
-    .panel-head label.row > .muted {
+    /* the Environment badge in the panel is the one switch on a phone: a bare, unlabeled copy here only confuses */
+    .panel-head label.row {
       display: none;
-    }
-    .panel-head select {
-      max-width: 34%;
     }
     .stepper {
       gap: 0;

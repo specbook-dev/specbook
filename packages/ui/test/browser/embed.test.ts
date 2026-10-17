@@ -296,6 +296,21 @@ describe('embed', () => {
   })
 
   describe('on a phone', () => {
+    it('has one environment switch, the badge in the panel, not an unlabeled copy in the header', async () => {
+      const [w, h] = [window.innerWidth, window.innerHeight]
+      await page.viewport(390, 844)
+      try {
+        await host()
+        await open()
+        await settled()
+        expect(q('.env-badge')).not.toBeNull()
+        const copy = q('.panel-head label.row') as HTMLElement | null
+        if (copy) expect(getComputedStyle(copy).display).toBe('none')
+      } finally {
+        await page.viewport(w, h)
+      }
+    })
+
     it('is a sheet from the bottom that fits the screen, with no sideways scroll', async () => {
       const [w, h] = [window.innerWidth, window.innerHeight]
       await page.viewport(390, 844)

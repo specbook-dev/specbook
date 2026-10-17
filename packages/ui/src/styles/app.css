@@ -684,6 +684,19 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    /* room for it: a name of ordinary length stays whole and the search field gives way instead, while a
+       longer one still ends in an ellipsis. Narrower than this only the logo is left. */
+    @media (min-width: 360px) {
+      .brand {
+        flex: 0 0 auto;
+      }
+      .brand-name {
+        max-width: 9ch;
+      }
+      .header .palette-btn {
+        min-width: 64px;
+      }
+    }
     .palette-btn {
       flex: 1;
       min-width: 0;
