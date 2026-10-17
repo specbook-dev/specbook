@@ -60,7 +60,7 @@ function SavedRequestNote({ variant, html }: { variant: Variant; html?: string }
   return (
     <section class="saved-note-doc">
       <h2>
-        Saved request <code>{variant.name}</code>
+        Request <code>{variant.name}</code>
       </h2>
       <div class="doc-custom" dangerouslySetInnerHTML={{ __html: html }} />
     </section>

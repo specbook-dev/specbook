@@ -264,7 +264,7 @@ Markdown lives next to what it describes:
 | File | Documents |
 | --- | --- |
 | `sequences/<name>.seq.md` | the flow in `<name>.seq.ts` |
-| `requests/<name>.req.md` | the saved request in `<name>.req.ts` |
+| `requests/<name>.req.md` | the request in `<name>.req.ts` |
 | `requests/<service>/<Operation>/README.md` | an operation, above its parameter tables |
 | `requests/<service>/docs/<Operation>.md` | the same, flat: one `docs/` folder per service |
 

@@ -435,7 +435,7 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
                   </option>
                 ))}
                 {variants.map((v) => (
-                  <option value={`saved:${v.file}`}>{v.name} · saved request</option>
+                  <option value={`saved:${v.file}`}>{v.name} · request</option>
                 ))}
               </select>
             </label>
@@ -520,7 +520,9 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
 
         {saved && (
           <p class="muted lock">
-            A saved request: its own values, checks and mock hook apply, and it is read-only here.
+            A request from your project: it runs with its own values and checks. Edit its file to
+            change it.
+            {env.value === 'mock' && saved.def.mockHook ? ' Its mock hook shapes the answer.' : ''}
           </p>
         )}
 

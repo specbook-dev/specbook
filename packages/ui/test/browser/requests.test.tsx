@@ -60,7 +60,7 @@ describe('requests are listed beside flows', () => {
     // the picker is on the saved request, and its row is the active one
     await waitFor(() => {
       const sel = $<HTMLSelectElement>('.request-panel select')
-      expect(sel?.selectedOptions[0]?.textContent).toContain('saved request')
+      expect(sel?.selectedOptions[0]?.textContent).toContain('· request')
     })
     expect(row('Find pets by status')?.classList.contains('active')).toBe(true)
     catalogService.value = 'petstore'

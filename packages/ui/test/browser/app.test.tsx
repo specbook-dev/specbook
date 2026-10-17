@@ -717,6 +717,39 @@ describe('docs and play panel', () => {
     expect(editor()?.value).toContain('{{petId}}')
   })
 
+  it("says only what is true about a request's mock hook: in mock, and only when it has one", async () => {
+    await mount()
+    const open = async (key: string, file: string) => {
+      await play(key)
+      // requests load after the first screen, so the option can arrive after the panel does
+      const value = `saved:requests/${file}`
+      await waitFor(() =>
+        expect($(`.request-panel .rq-meta select option[value="${value}"]`)).not.toBeNull(),
+      )
+      type(
+        $<HTMLSelectElement>('.request-panel .rq-meta select') as HTMLSelectElement,
+        value,
+        'change',
+      )
+      await waitFor(() => expect($('.request-panel .lock')).not.toBeNull())
+      return $('.request-panel .lock')?.textContent ?? ''
+    }
+    // a request with a hook, in mock: the hook is named
+    const withHook = await open('petstore/GetOrderById', 'petstore/get-order.req.ts')
+    expect(withHook).toContain('A request from your project')
+    expect(withHook).toContain('Edit its file to change it')
+    expect(withHook).toContain('mock hook')
+    expect(withHook).not.toContain('saved')
+    // the same request in live: nothing about mocks
+    env.value = 'live'
+    await waitFor(() => expect($('.request-panel .lock')?.textContent).not.toContain('mock'))
+    // a request with no hook, in mock: nothing about a hook either
+    env.value = 'mock'
+    const plain = await open('petstore/AddPet', 'petstore/add-pet.req.ts')
+    expect(plain).toContain('A request from your project')
+    expect(plain).not.toContain('mock hook')
+  })
+
   it('edits a form body as nested JSON and can switch to the bracket-key grid and back', async () => {
     await mount()
     await play('stripe/PostCustomers', 'acme-vip')
