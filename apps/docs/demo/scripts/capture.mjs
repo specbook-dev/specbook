@@ -142,9 +142,11 @@ try {
     name: 'bundle-run',
     // run where an ops team would: against an address of their own, here the demo API on this machine
     command:
-      'node specbook-tests.mjs --env demo --var petstoreUrl=$STAGING/api/petstore --var countriesUrl=$STAGING/api/countries',
+      'PETSTORE_API_KEY=$PETSTORE_API_KEY node specbook-tests.mjs --env demo --var petstoreUrl=$STAGING/api/petstore --var countriesUrl=$STAGING/api/countries',
     args: [join(root, 'dist-bundle/specbook-tests.mjs'), '--env', 'demo', ...vars],
     cwd: join(root, 'dist-bundle'),
+    // where the bundle runs, the key comes from the environment, as a pipeline provides it
+    env: { PETSTORE_API_KEY: 'special-key' },
     expect: 0,
     site: 'https://staging.example.com',
   })

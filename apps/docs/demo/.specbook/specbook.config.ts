@@ -8,8 +8,17 @@ export default defineConfig({
     countriesUrl: 'https://countries.trevorblades.com',
   },
   faker: { locales: { en: ['en'], de: ['de', 'en'], ja: ['ja', 'en'] }, default: 'en' },
+  secrets: { PETSTORE_API_KEY: {} },
   services: {
-    petstore: { spec: './openapi/petstore.json', baseUrl: '{{petstoreUrl}}' },
+    petstore: { spec: './openapi/petstore.json', baseUrl: '{{petstoreUrl}}', auth: 'apiKey' },
     countries: { spec: './openapi/countries.json', baseUrl: '{{countriesUrl}}' },
+  },
+  auth: {
+    // The public Petstore documents this header and accepts any value. Its secured operations show it
+    // wherever the environment is not mock.
+    apiKey: {
+      title: 'Petstore API key',
+      apply: { headers: { api_key: '{{secrets.PETSTORE_API_KEY}}' } },
+    },
   },
 })

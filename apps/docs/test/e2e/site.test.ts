@@ -169,7 +169,7 @@ describe('the built site', () => {
     await context.close()
   })
 
-  it('the service worker takes control and a request in the popover runs against the demo API', async () => {
+  it('the service worker takes control, and a request in the popover on the Document page answers from the spec', async () => {
     const context = await browser.newContext()
     const { page, problems } = await open(context, '/document/')
     await expect.poll(demoState(page), { timeout: 30_000 }).toBe('ready')
@@ -249,18 +249,11 @@ describe('the built site', () => {
     await context.close()
   })
 
-  it('the landing page runs a request against the public Petstore, which the policy allows', async () => {
+  it("the landing page runs a request on mock data, calls nothing, and shows the request's checks", async () => {
     const context = await browser.newContext()
     const called: string[] = []
-    // the real server is not needed to prove the page may call it: answer in its place
-    await context.route('https://petstore3.swagger.io/**', (route) => {
-      called.push(route.request().url())
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        headers: { 'access-control-allow-origin': '*' },
-        body: JSON.stringify({ id: 1, name: 'Pet1', photoUrls: [], status: 'available' }),
-      })
+    context.on('request', (r) => {
+      if (r.url().includes('swagger.io')) called.push(r.url())
     })
     const { page, problems } = await open(context, '/')
     await page.locator('button[data-specbook-try="requests/petstore/get-pet.req.ts"]').click()
@@ -270,7 +263,7 @@ describe('the built site', () => {
         timeout: 30_000,
       })
       .toMatch(/200/)
-    expect(called[0]).toContain('/api/v3/pet/1')
+    expect(called).toEqual([])
     // the request's own checks are shown, not just the response
     const panel = await page.evaluate(
       () =>
@@ -278,14 +271,33 @@ describe('the built site', () => {
           ?.textContent,
     )
     expect(panel).toMatch(/Checks\s*2/)
-    // `petId` comes from the request's own init, so nothing is asked of the visitor
+    // `petId` comes from the request's own init, so nothing is asked of the visitor, and mock needs no key
     expect(panel).not.toMatch(/Needs a value/)
+    expect(await page.locator('specbook-panel .needs-vars').count()).toBe(0)
     expect(await violations(page)).toEqual([])
     expect(problems).toEqual([])
     await context.close()
   })
 
-  it('a flow on the landing page finishes and shows its response when the live server answers an error', async () => {
+  it('the landing flow passes on mock data with no network and no key', async () => {
+    const context = await browser.newContext()
+    const called: string[] = []
+    context.on('request', (r) => {
+      if (r.url().includes('swagger.io')) called.push(r.url())
+    })
+    const { page } = await open(context, '/')
+    await page.locator('button[data-specbook-flow="adopt-pet"]').click()
+    await page.getByRole('button', { name: 'Run with defaults' }).click()
+    await expect
+      .poll(() => page.locator('specbook-panel .seq-run .badge').first().textContent(), {
+        timeout: 30_000,
+      })
+      .toMatch(/Passed/)
+    expect(called).toEqual([])
+    await context.close()
+  })
+
+  it('switching the landing flow to live asks for the Petstore key, and a failing live server ends the run with its answer shown', async () => {
     const context = await browser.newContext()
     const orders: string[] = []
     const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }
@@ -309,6 +321,15 @@ describe('the built site', () => {
     })
     const { page } = await open(context, '/')
     await page.locator('button[data-specbook-flow="adopt-pet"]').click()
+    await page
+      .locator('specbook-panel select[aria-label="Environment"]:visible')
+      .selectOption('live')
+    // live is the real API: the secured step shows the key it will send, and nothing is sent until it has one
+    const bar = page.locator('specbook-panel .needs-vars')
+    await expect.poll(() => bar.textContent(), { timeout: 10_000 }).toMatch(/PETSTORE_API_KEY/)
+    await bar.locator('input').fill('any-value')
+    // committed when the field is left, as a person does by tabbing away
+    await bar.locator('input').press('Tab')
     await page.getByRole('button', { name: 'Run with defaults' }).click()
     // the run ends: the button is a Run button again, the summary says it failed, and the failing step can be opened
     await expect
@@ -358,7 +379,7 @@ describe('the built site', () => {
     await context.close()
   })
 
-  it('the landing page buttons need no service worker: they call the public Petstore', async () => {
+  it('the landing page buttons need no service worker: they answer from the spec', async () => {
     const context = await browser.newContext({ serviceWorkers: 'block' })
     const { page } = await open(context, '/')
     await expect.poll(demoState(page), { timeout: 30_000 }).toMatch(/unsupported|bypassed/)
@@ -366,16 +387,6 @@ describe('the built site', () => {
       expect(await page.locator(sel).first().isDisabled(), sel).toBe(false)
       expect(await page.locator(sel).first().getAttribute('title'), sel).toBeNull()
     }
-    await context.close()
-  })
-
-  it('without a service worker the page still lets a demo button be pressed, and the panel shows the failure', async () => {
-    const context = await browser.newContext({ serviceWorkers: 'block' })
-    const { page } = await open(context, '/document/')
-    await expect.poll(demoState(page), { timeout: 30_000 }).toMatch(/unsupported|bypassed/)
-    const button = page.locator('button[data-specbook-flow="new-pet"]')
-    expect(await button.isDisabled()).toBe(false)
-    expect(await button.getAttribute('title')).toMatch(/service worker|reload/i)
     await context.close()
   })
 })

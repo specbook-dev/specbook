@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState } from 'preact/hooks'
 import envText from '../../demo/.specbook/environments/demo.env?raw'
+import secretsText from '../../demo/.specbook/environments/demo.secrets.env?raw'
 import config from '../../demo/.specbook/specbook.config'
 import { demoReady, onDemoChange, setChaos } from '../../demo/server/client'
 import { type Chaos, calm } from '../../demo/server/store'
@@ -116,6 +117,7 @@ export default function Terminal({
         modules,
         env: 'demo',
         envText,
+        secretsText,
         retries,
         grep,
         tag,

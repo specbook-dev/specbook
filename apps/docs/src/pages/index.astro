@@ -29,9 +29,9 @@ import { PAGES } from '../lib/pages'
     <div class="wrap">
       <h2 class="title">See it in action</h2>
       <p class="lede" style="margin-top: 0">
-        Call the public Swagger Petstore and instantly see the response validated against the API
-        spec. Or run a flow to chain requests together: find a pet, place an order, and check the order, all in one
-        executable sequence, without leaving your favorite editor.
+        Run a request from the Swagger Petstore right here, with nothing to set up. Specbook answers from the
+        spec's own examples and checks the response against it. Or run a flow that chains requests together:
+        find a pet, place an order, and check the order, all in one executable sequence.
       </p>
       <div class="demo">
         <div class="demo-bar">
@@ -39,13 +39,13 @@ import { PAGES } from '../lib/pages'
           <span>get-pet.req.ts</span>
           <span class="grow"></span>
         </div>
-        <div class="demo-body">
+        <div class="demo-body" data-specbook-env="mock">
           <Snippet file="demo/requests/petstore/get-pet.req.ts" region="request" title={false} />
           <p class="actions">
-            <button type="button" class="run" data-specbook-try="requests/petstore/get-pet.req.ts" data-specbook-env="live">
+            <button type="button" class="run" data-specbook-try="requests/petstore/get-pet.req.ts">
               ▶ Run this request
             </button>
-            <button type="button" class="run" data-specbook-flow="adopt-pet" data-specbook-env="live">
+            <button type="button" class="run" data-specbook-flow="adopt-pet">
               ▶ Run a flow: adopt a pet
             </button>
             <a class="run" href="https://demo.specbook.dev" target="_blank" rel="noopener">
@@ -60,6 +60,10 @@ import { PAGES } from '../lib/pages'
                   stroke-linejoin="round"></path>
               </svg>
             </a>
+          </p>
+          <p class="note">
+            No server, no keys. Specbook mocks the API from your spec, just switch the environment to point to the
+            real one.
           </p>
         </div>
       </div>
@@ -89,6 +93,11 @@ import { PAGES } from '../lib/pages'
 </Page>
 
 <style>
+  .note {
+    margin: 14px 0 0;
+    font-size: 0.9rem;
+    color: var(--muted, inherit);
+  }
   .actions {
     display: flex;
     flex-wrap: wrap;

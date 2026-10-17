@@ -39,12 +39,12 @@ const attr =
           type="button"
           class="run"
           {...{ [attr]: target }}
-          data-specbook-env="demo"
+          data-specbook-env="mock"
           data-specbook-inputs={inputs ? JSON.stringify(inputs) : undefined}
         >
           ▶ Run it
         </button>
-        <span class="muted">against the demo API, in this page</span>
+        <span class="muted">on mock data, in this page</span>
       </p>
     )
   }

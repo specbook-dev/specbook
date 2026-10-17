@@ -38,7 +38,7 @@ import Page from '../layouts/Page.astro'
         </div>
         <div class="demo-body prose" style="max-width: none">
           <p>
-            <button type="button" data-specbook-try="petstore/GetPetById" data-specbook-env="demo" data-specbook-tab="docs">
+            <button type="button" data-specbook-try="petstore/GetPetById" data-specbook-env="mock" data-specbook-tab="docs">
               Open the docs for Get a pet by id
             </button>
           </p>
@@ -59,17 +59,17 @@ import Page from '../layouts/Page.astro'
           <span>On this page, it does this</span>
         </div>
         <div class="demo-body prose" style="max-width: none">
-          <p data-specbook-try="requests/petstore/get-pet.req.ts" data-specbook-env="demo">
+          <p data-specbook-try="requests/petstore/get-pet.req.ts" data-specbook-env="mock">
             Fetch a pet by its id and see the response checked against the spec.
           </p>
           <p style="display: flex; flex-wrap: wrap; gap: 12px">
-            <button type="button" data-specbook-flow="new-pet" data-specbook-env="demo">
+            <button type="button" data-specbook-flow="new-pet" data-specbook-env="mock">
               Register a pet with a generated name
             </button>
             <button
               type="button"
               data-specbook-flow="adopt-pet"
-              data-specbook-env="demo"
+              data-specbook-env="mock"
               data-specbook-inputs='{"quantity":2}'
             >
               Adopt two pets

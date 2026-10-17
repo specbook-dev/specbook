@@ -29,6 +29,8 @@ export interface DemoRun {
   env: string
   /** the text of the environment's file */
   envText: string
+  /** the text of the environment's secrets file, when it has one */
+  secretsText?: string
   retries?: number
   /** only runs whose title contains this, case-insensitively */
   grep?: string
@@ -93,6 +95,7 @@ export async function runDemo(o: DemoRun): Promise<number> {
     run: {
       env: o.env,
       vars,
+      secrets: o.secretsText ? parseDotenv(o.secretsText) : undefined,
       transport: (req, signal) => transport({ ...req, timeoutMs: req.timeoutMs ?? 30_000 }, signal),
       onEvent: (e: RunEvent) => reporter.onEvent(e),
       implicitStatusCheck: true,
