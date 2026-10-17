@@ -460,7 +460,10 @@
     padding: var(--sb-space-3) 0 0;
     border-top: 1px solid var(--sb-border);
   }
-  /* the tick says it passed; the sentence stays plain, so a list of checks reads calmly and a failure stands out */
+  /* the tick says it passed; the sentence is muted, so a list of checks reads calmly and a failure stands out */
+  .checks .ok {
+    color: var(--sb-text-muted);
+  }
   .checks .ok .tick {
     color: var(--sb-success);
   }
