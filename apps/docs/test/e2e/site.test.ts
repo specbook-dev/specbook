@@ -259,6 +259,41 @@ describe('the built site', () => {
     await context.close()
   })
 
+  it('Discover: the viewer shows the Petstore, and the form opens an address in it', async () => {
+    const context = await browser.newContext()
+    const { page, problems } = await open(context, '/discover/')
+    const frame = page.frameLocator('iframe.viewer')
+    await page.locator('iframe.viewer').scrollIntoViewIfNeeded()
+    await frame
+      .getByText(/pets? by status/i)
+      .first()
+      .waitFor({
+        timeout: 30_000,
+      })
+    await page.fill('#spec', 'https://example.com/openapi.json')
+    await page.getByRole('button', { name: 'Open', exact: true }).click()
+    await page.waitForURL(/\/viewer\/\?spec=https%3A%2F%2Fexample\.com%2Fopenapi\.json/)
+    expect(problems).toEqual([])
+    await context.close()
+  })
+
+  it('Document: the docs tab of the popover shows the notes written beside the operation', async () => {
+    const context = await browser.newContext()
+    const { page, problems } = await open(context, '/document/')
+    await expect
+      .poll(() => page.locator('[data-demo-status]').first().getAttribute('data-state'), {
+        timeout: 30_000,
+      })
+      .toBe('ready')
+    await page.getByRole('button', { name: 'Open the docs for Get a pet by id' }).click()
+    await page.locator('specbook-panel').getByText('Looks a pet up by its id').waitFor({
+      timeout: 30_000,
+    })
+    expect(await violations(page)).toEqual([])
+    expect(problems).toEqual([])
+    await context.close()
+  })
+
   it('without a service worker the page says so and the buttons are not left waiting', async () => {
     const context = await browser.newContext({ serviceWorkers: 'block' })
     const { page } = await open(context, '/test/')

@@ -115,7 +115,12 @@ export function headersFile(scriptHashes, styleHashes = []) {
   ]
   const policy = [...base, "connect-src 'self'"].join('; ')
   // the viewer opens any address a visitor gives it, and the demo and QA portal can run against a real API
-  const open = [...base, 'connect-src *'].join('; ')
+  // and they are the apps' own pages, which the viewer's production policy lets set inline styles
+  const open = [
+    ...base.filter((d) => !d.startsWith('style-src')),
+    "style-src 'self' 'unsafe-inline'",
+    'connect-src *',
+  ].join('; ')
   const common = [
     'X-Content-Type-Options: nosniff',
     'Referrer-Policy: strict-origin-when-cross-origin',

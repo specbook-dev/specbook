@@ -28,12 +28,12 @@ import Page from '../layouts/Page.astro'
           <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
           <span>The Petstore, open in the viewer</span>
           <span class="grow"></span>
-          <a href="/viewer/?spec=/specs/petstore.json">Open it full size ↗</a>
+          <a id="full" href="/viewer/">Open it full size ↗</a>
         </div>
         <iframe
           class="viewer"
           title="The Petstore API in the Specbook viewer"
-          src="/viewer/?spec=/specs/petstore.json"
+          id="viewer"
           loading="lazy"></iframe>
       </div>
 
@@ -65,11 +65,10 @@ import Page from '../layouts/Page.astro'
           in <code>?spec=</code>.
         </p>
       </div>
-      <Snippet
-        file="snippets/discover.md"
-        region="badge"
-        title="README.md"
-      />
+      <p>
+        <a id="badge" href="/viewer/"><img src="/badge.svg" alt="Open in Specbook" width="136" height="20" /></a>
+      </p>
+      <Snippet file="snippets/discover.md" region="badge" title="README.md" />
 
       <div class="prose">
         <h3>Or put it on your own page</h3>
@@ -124,6 +123,11 @@ import Page from '../layouts/Page.astro'
 </style>
 
 <script>
+  // the viewer takes the whole address of a spec, so it is built from where this page is served
+  const demo = `/viewer/?spec=${encodeURIComponent(`${location.origin}/specs/petstore.json`)}`
+  ;(document.getElementById('viewer') as HTMLIFrameElement).src = demo
+  for (const id of ['full', 'badge']) (document.getElementById(id) as HTMLAnchorElement).href = demo
+
   const form = document.getElementById('open-form') as HTMLFormElement
   form.addEventListener('submit', (e) => {
     e.preventDefault()

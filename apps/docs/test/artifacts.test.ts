@@ -31,6 +31,7 @@ describe('the headers the site is served with', () => {
       const rule = text.slice(text.indexOf(`${app}\n`))
       expect(rule.slice(0, rule.indexOf('\n\n'))).toContain('! Content-Security-Policy')
       expect(rule.slice(0, rule.indexOf('\n\n'))).toContain('connect-src *')
+      expect(rule.slice(0, rule.indexOf('\n\n'))).toContain("style-src 'self' 'unsafe-inline'")
     }
   })
 
