@@ -142,17 +142,13 @@ export default function Terminal({ files = [], chaos = ['calm'], grep, version }
         </button>
       </div>
       {chaos.length > 1 && (
-        <div
-          class="term-chaos"
-          role="radiogroup"
-          aria-label="What the demo API does during the run"
-        >
+        <fieldset class="term-chaos">
+          <legend class="sr-only">What the demo API does during the run</legend>
           {chaos.map((id) => (
             <button
               key={id}
               type="button"
-              role="radio"
-              aria-checked={mode === id}
+              aria-pressed={mode === id}
               class={`chip action${mode === id ? ' on' : ''}`}
               disabled={running}
               onClick={() => setMode(id)}
@@ -161,15 +157,15 @@ export default function Terminal({ files = [], chaos = ['calm'], grep, version }
             </button>
           ))}
           <span class="term-note">{CHAOS[mode].note}. This shows the runner, not real uptime.</span>
-        </div>
+        </fieldset>
       )}
-      {/* biome-ignore lint/security/noDangerouslySetInnerHtml: ansiToHtml escapes the text and emits only its own spans */}
       <pre
         ref={log}
         class="term-out"
         role="log"
         aria-live="polite"
         aria-label="Output of the run"
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling region has to be reachable by keyboard
         tabIndex={0}
         dangerouslySetInnerHTML={{
           __html: out ? ansiToHtml(out) : '<span class="a-d">Press Run to start.</span>',

@@ -222,7 +222,7 @@ describe('the built site', () => {
     await term.scrollIntoViewIfNeeded()
     const output = term.locator('.term-out')
     const run = async (label?: string) => {
-      if (label) await term.getByRole('radio', { name: label }).click()
+      if (label) await term.getByRole('button', { name: label }).click()
       await term.getByRole('button', { name: /^Run/ }).click()
       await expect.poll(() => output.textContent(), { timeout: 30_000 }).toMatch(/exit \d/)
       return (await output.textContent()) ?? ''

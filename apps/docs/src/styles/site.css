@@ -615,3 +615,16 @@ specbook-panel {
 .term-foot {
   border-top: 1px solid #23232e;
 }
+.term-chaos {
+  margin: 0;
+  min-width: 0;
+  border: 0;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

@@ -15,6 +15,8 @@ const CLOSE: Record<number, string[]> = {
   0: [],
 }
 
+const SGR = new RegExp(`${String.fromCharCode(27)}\\[(\\d+)m`, 'g')
+
 const escapeHtml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
@@ -23,7 +25,7 @@ export function ansiToHtml(text: string): string {
   let out = ''
   const open = new Set<string>()
   let last = 0
-  for (const m of text.matchAll(/\u001b\[(\d+)m/g)) {
+  for (const m of text.matchAll(SGR)) {
     out += escapeHtml(text.slice(last, m.index))
     last = m.index + m[0].length
     const code = Number(m[1])
