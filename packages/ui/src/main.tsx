@@ -1,6 +1,5 @@
+import { loadManifests } from 'virtual:specbook/registry'
 import { render } from 'preact'
-// first: a built project's manifests are filled in before the app module reads them
-import 'virtual:specbook/manifests'
 import { App } from './app'
 import { handleOAuthCallback } from './oauth-callback'
 import { applyTheme } from './theme'
@@ -17,8 +16,12 @@ applyTheme()
 // would strip a host page's own `?code=&state=` that the embed deliberately left alone.
 const underShell =
   (globalThis as { __SPECBOOK_VIEWER__?: unknown }).__SPECBOOK_VIEWER__ !== undefined
-void (underShell ? Promise.resolve(false) : handleOAuthCallback()).then((handled) => {
-  if (!handled) render(<App />, document.getElementById('app') as HTMLElement)
+void (underShell ? Promise.resolve(false) : handleOAuthCallback()).then(async (handled) => {
+  if (handled) return
+  // a built project starts with its services' lists not loaded: fetch them, then draw the app. The app's own code
+  // is part of this page's static imports, so it loads alongside, not after (an embed fetches only the lists it needs)
+  await loadManifests()
+  render(<App />, document.getElementById('app') as HTMLElement)
 })
 
 if (import.meta.hot) {

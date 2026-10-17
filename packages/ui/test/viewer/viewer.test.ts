@@ -616,6 +616,49 @@ describe('large documents meet the budget', () => {
   })
 })
 
+describe('the viewer does not wait on itself', () => {
+  /** The wait a page's files add when each answer takes a fixed time to come back: with no limit on the line, it is all round trips. */
+  const readyAfter = async (latency: number) => {
+    const context = await browser.newContext()
+    const page = await context.newPage()
+    const cdp = await context.newCDPSession(page)
+    await cdp.send('Network.enable')
+    await cdp.send('Network.setCacheDisabled', { cacheDisabled: true })
+    await cdp.send('Network.emulateNetworkConditions', {
+      offline: false,
+      latency,
+      downloadThroughput: -1,
+      uploadThroughput: -1,
+    })
+    const t = Date.now()
+    await page.goto(`${siteUrl}/v1/?${spec('petstore3.json')}`, { waitUntil: 'commit' })
+    // the groups of the real list: the page shows the app's shape before that, from a placeholder
+    await page.waitForFunction(() => document.querySelectorAll('.group-head').length >= 2, null, {
+      timeout: 60_000,
+      polling: 25,
+    })
+    const took = Date.now() - t
+    await context.close()
+    return took
+  }
+  const median = (xs: number[]) =>
+    [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] as number
+
+  it('puts the list on screen within a fixed number of round trips', async () => {
+    const LATENCY = 100
+    const base = median([await readyAfter(0), await readyAfter(0), await readyAfter(0)])
+    const slow = median([
+      await readyAfter(LATENCY),
+      await readyAfter(LATENCY),
+      await readyAfter(LATENCY),
+    ])
+    const rounds = (slow - base) / LATENCY
+    // Measured: about 5.5 with the app in the page's static imports, and about 6.6 when the app is behind a dynamic
+    // import that the entry makes after it runs. A new step before the list is shown has to be worth a round trip.
+    expect(rounds).toBeLessThan(6)
+  })
+})
+
 describe('the landing page at the root', () => {
   const land = async () => {
     const page = await browser.newPage()

@@ -236,7 +236,14 @@ describe('the embed on the whole example API', () => {
   it('still starts the whole app with every service in its catalog', async () => {
     const page = await browser.newPage()
     await page.goto(`${full.origin}/index.html`)
-    await page.locator('.op-row, .flow-row, .req-row, .pill').first().waitFor({ timeout: 60_000 })
+    await page.locator('.group-head').first().waitFor({ timeout: 60_000 })
+    // the app reads every service's list as it starts: an app that started before they were there says "0 APIs"
+    const text = await page.locator('body').innerText()
+    expect(text).not.toMatch(/\b0 APIs/)
+    // All, then one tab for each of the four services
+    expect(await page.locator('.pill').count()).toBe(5)
+    for (const service of ['countries', 'github', 'petstore', 'stripe'])
+      expect(text).toContain(service)
     await page.close()
   })
 })
