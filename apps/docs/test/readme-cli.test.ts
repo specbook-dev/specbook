@@ -55,7 +55,9 @@ describe('the README terminal recording', () => {
     const fail = await read('test-fail')
     for (const theme of ['dark', 'light']) {
       const committed = await readFile(join(root, `.github/cli-${theme}.svg`), 'utf8')
-      expect(committed).toBe(buildSvg(theme, pass, fail))
+      // a new recording times its requests differently each time; everything else must match
+      const same = (svg: string) => svg.replace(/\d+ms/g, 'Nms')
+      expect(same(committed)).toBe(same(buildSvg(theme, pass, fail)))
     }
   })
 })
