@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createMockTransport, defineOperation, runRequest } from '../src'
+import { createMockTransport, defineOperation, runRequest, withMock } from '../src'
 import { reflectRequest } from '../src/mock-reflect'
 
 describe('reflectRequest', () => {
@@ -168,7 +168,7 @@ describe('mock transport reflects the request', () => {
   }
   const transport = createMockTransport({ loader, sleep: async () => {} })
 
-  it('answers with what was posted, and explicit responses still win', async () => {
+  it('answers with what was posted, and a hook can still change it', async () => {
     const r = await runRequest(Create.request({ data: { name: 'Widget', qty: 5 } }), {
       env: 'mock',
       transport,
@@ -177,31 +177,20 @@ describe('mock transport reflects the request', () => {
     expect(r.steps[0]?.response?.body).toEqual({ id: 't_1', name: 'Widget', qty: 5, state: 'new' })
 
     const pinned = await runRequest(
-      Create.request({
-        data: { name: 'Widget', qty: 5 },
-        mock: { responses: { 201: { name: 'Pinned' } } },
+      withMock(Create.request({ data: { name: 'Widget', qty: 5 } }), (_req, res) => {
+        if (res.status === 201) res.data.name = 'Pinned'
       }),
       { env: 'mock', transport },
     )
     expect(pinned.steps[0]?.response?.body).toMatchObject({ name: 'Pinned', qty: 5 })
-
-    const off = await runRequest(
-      Create.request({ data: { name: 'Widget', qty: 5 }, mock: { reflect: false } }),
-      { env: 'mock', transport },
-    )
-    expect(off.steps[0]?.response?.body).toEqual({
-      id: 't_1',
-      name: 'Example name',
-      qty: 1,
-      state: 'new',
-    })
   })
 
   it('does not reflect error responses', async () => {
-    const r = await runRequest(
-      Create.request({ data: { name: 'Widget', qty: 5 }, mock: { status: 400 } }),
-      { env: 'mock', transport },
-    )
+    const r = await runRequest(Create.request({ data: { name: 'Widget', qty: 5 } }), {
+      env: 'mock',
+      transport,
+      mockStatus: 400,
+    })
     expect(r.steps[0]?.response?.body).toEqual({ name: 'bad' })
   })
 })

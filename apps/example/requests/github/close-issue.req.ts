@@ -9,5 +9,4 @@ export default IssuesUpdate.request({
     assert.is(res.status, 200, 'updated')
     if (res.status === 200) assert.is(res.data.state, 'closed', 'is closed')
   },
-  mock: { responses: { 200: { state: 'closed' } } },
 })

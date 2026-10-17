@@ -161,6 +161,29 @@ Pass `--safe` against production and a run only reads. A failure shows what was 
 back, with credentials removed. The exit code is 0 (passed), 1 (a test failed), 2 (could not run) or 3 (usage).
 See [Testing and monitoring](docs/testing-and-monitoring.md).
 
+### Mocks
+
+The `mock` environment needs no server. It answers from the examples `generate` writes from your spec (the response's
+`example` if the spec has one, else a value built from its schema), filled in from the request: a field you posted, the
+id in the path or a query value comes back in the response, so `GET /pet/7` answers with pet 7.
+
+That is usually enough. When a check needs data the example does not have, wrap the request in `withMock`; it is the
+file's one export, and `req` and `res` are typed from the operation:
+
+```ts
+export default withMock(
+  GetOrderById.request({ /* ... */ }),
+  (req, res) => {
+    if (res.status === 200) res.data.status = 'placed'            // change what the example says
+    if (req.vars.paymentMethod === 'pm_card_chargeDeclined')
+      res.respond(402, { error: { code: 'card_declined' } })      // or answer another declared status
+    res.headers['x-rate-limit'] = '9'                              // headers and a delay (res.delayMs) too
+  },
+)
+```
+
+In the UI, **Respond with** picks a status for any request in the `mock` environment.
+
 ### Config, variables and secrets
 
 A document opened in the viewer or with `specbook preview` gets an environment for each entry in its `servers`

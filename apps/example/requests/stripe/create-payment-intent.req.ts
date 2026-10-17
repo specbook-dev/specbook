@@ -23,15 +23,4 @@ export default PostPaymentIntents.request({
       assert.is(res.data.currency, vars.currency, 'currency matches')
     }
   },
-  mock: {
-    responses: {
-      200: {
-        id: 'pi_mock_123',
-        amount: '{{amount}}',
-        currency: '{{currency}}',
-        customer: '{{customerId}}',
-        status: 'requires_confirmation',
-      },
-    },
-  },
 })

@@ -27,6 +27,7 @@ import {
   type SpecbookConfig,
   type Transport,
   usesFaker,
+  withMock,
 } from '@specbook/core'
 import type { EnvironmentStore } from './custom-environments'
 import { type ExtensionBridge, extensionTransport } from './extension'
@@ -677,14 +678,10 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
       await fakerReady(i.version, i.locale, i.seed)
     const o = await baseOptions(i)
     if (target.kind === 'sequence') return runSequence(target, o)
-    const def =
-      i.mockStatus !== undefined && i.env === 'mock'
-        ? target.with({ mock: { status: i.mockStatus } })
-        : target
-    return runRequest(def, o)
+    return runRequest(target, i.env === 'mock' ? { ...o, mockStatus: i.mockStatus } : o)
   }
 
-  /** `base` keeps its init/capture/assert/mock; `overrides` replace path/query/headers/data. */
+  /** `base` keeps its init/capture/assert and mock hook; `overrides` replace path/query/headers/data. */
   async function operationRequest(
     key: string,
     version: number,
@@ -697,7 +694,8 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     const op = mod[key.split('/')[1] as string]
     if (!op) throw new Error(`Operation module for ${key} has no export`)
     const defined = Object.fromEntries(Object.entries(overrides).filter(([, v]) => v !== undefined))
-    return op.request({ ...(base?.input ?? {}), ...defined })
+    const made = op.request({ ...(base?.input ?? {}), ...defined })
+    return base?.mockHook ? withMock(made, base.mockHook) : made
   }
 
   async function operationMeta(key: string, version: number): Promise<OpMeta | undefined> {

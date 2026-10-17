@@ -9,21 +9,4 @@ export default IssuesAddLabels.request({
     assert.is(res.status, 200, 'labels added')
   },
   // a whole label, so the mocked response also satisfies the spec's schema
-  mock: {
-    responses: {
-      200: [
-        {
-          id: 208045946,
-          node_id: 'MDU6TGFiZWwyMDgwNDU5NDY=',
-          url: 'https://api.github.com/repos/{{owner}}/{{repo}}/labels/{{label}}',
-          name: '{{label}}',
-          description: 'Something is not working',
-          color: 'f29513',
-          default: true,
-          archived_at: null,
-          archived_by: null,
-        },
-      ],
-    },
-  },
 })

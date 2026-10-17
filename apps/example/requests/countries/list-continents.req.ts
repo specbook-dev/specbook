@@ -9,18 +9,4 @@ export default Query.request({
     const continents = res.data.data?.continents as { code: string }[] | undefined
     assert.ok((continents?.length ?? 0) >= 6, 'at least six continents')
   },
-  mock: {
-    responses: {
-      200: {
-        data: {
-          data: {
-            continents: ['AF', 'AN', 'AS', 'EU', 'NA', 'OC', 'SA'].map((code) => ({
-              code,
-              name: code,
-            })),
-          },
-        },
-      },
-    },
-  },
 })

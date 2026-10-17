@@ -111,6 +111,8 @@ export interface RunOptions {
   example?: ExampleLoader
   /** Reads files named by upload fields (path relative to the example's `dir`). */
   readFile?: FileReader
+  /** The `mock` environment answers with this status (the UI's "Respond with"). */
+  mockStatus?: number
 }
 
 // ---------------- internals ----------------
@@ -423,11 +425,11 @@ async function execute(
       mediaType: encoding === 'binary' ? def.op.mediaType : undefined,
       formArrays: def.op.formArrays,
       timeoutMs: def.input.timeoutMs,
-      mockStatus: rt.o.env === 'mock' ? def.input.mock?.status : undefined,
+      mockStatus: rt.o.env === 'mock' ? rt.o.mockStatus : undefined,
       mock:
         rt.o.env === 'mock'
           ? {
-              config: def.input.mock,
+              hook: def.mockHook,
               vars: scope,
               pathParams,
               rawQuery: query,

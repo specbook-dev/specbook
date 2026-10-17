@@ -63,11 +63,6 @@ export type DeepPartial<T> = T extends readonly (infer U)[]
 
 export type Source<T> = Templated<T> | (() => Promise<{ default: Templated<T> }>)
 
-/** Mock overrides are deep-merged over the generated example, so they only need the fields that matter. */
-export type PartialSource<T> =
-  | DeepPartial<Templated<T>>
-  | (() => Promise<{ default: DeepPartial<Templated<T>> }>)
-
 export type Init = Record<string, unknown>
 export type ResolvedInit<I> = { [K in keyof I]: I[K] extends () => infer R ? R : I[K] }
 
@@ -124,37 +119,46 @@ export interface RequestInput<T extends OpTypes, I extends Init = Init, C = {}> 
       req: RenderedRequest
     },
   ) => void | Promise<void>
-  mock?: MockInput<T, I>
   auth?: AuthProfileName | false
   assertMode?: AssertMode
 }
 
-export interface MockResponse<B> {
-  data?: PartialSource<B>
-  init?: Init
-  headers?: Record<string, string>
-  delayMs?: number
+/** What the request being answered looks like to a mock: its values, as they were sent. */
+export interface MockReq<I> {
+  vars: ResolvedInit<I> & Record<string, unknown>
+  body: unknown
+  query: unknown
+  path: unknown
+  headers: Record<string, string>
 }
 
-export interface MockInput<T extends OpTypes, I> {
-  /**
-   * Echo request values into the generated response (fields it shares with the body, the path id).
-   * Default true; explicit `responses` always win.
-   */
-  reflect?: boolean
-  status?: keyof T['responses'] & number
-  responses?: {
-    [S in keyof T['responses'] & number]?:
-      | PartialSource<T['responses'][S]>
-      | MockResponse<T['responses'][S]>
+/**
+ * The answer a mock is about to give, one shape per status the operation declares so that checking `res.status` narrows
+ * `res.data`. Change `data`, `headers` and `delayMs` in place, or `respond` with another status.
+ */
+export type MockRes<T extends OpTypes> = {
+  [S in keyof T['responses'] & number]: {
+    status: S
+    data: T['responses'][S]
+    headers: Record<string, string>
+    /** Wait this long before answering. */
+    delayMs: number
+    /**
+     * Answer with another status the operation declares: its generated example, with `data` merged over it. Request values
+     * are echoed into a 2xx example as usual.
+     */
+    respond<R extends keyof T['responses'] & number>(
+      status: R,
+      data?: DeepPartial<T['responses'][R]>,
+    ): void
   }
-  when?: (req: {
-    vars: ResolvedInit<I>
-    body: unknown
-    query: unknown
-    path: unknown
-  }) => (keyof T['responses'] & number) | undefined
-}
+}[keyof T['responses'] & number]
+
+/** Runs when the `mock` environment answers this request, after the example is chosen, filled from the request and rendered. */
+export type MockHook<T extends OpTypes, I> = (
+  req: MockReq<I>,
+  res: MockRes<T>,
+) => void | Promise<void>
 
 export interface RequestOverrides<T extends OpTypes, I, C2> {
   /** Added to the request's own tags. */
@@ -166,7 +170,6 @@ export interface RequestOverrides<T extends OpTypes, I, C2> {
   data?: DeepPartial<Templated<T['body']>>
   capture?: { [K in keyof C2]: (res: ResponseOf<T>) => C2[K] }
   assert?: RequestInput<T, any, any>['assert']
-  mock?: { status?: keyof T['responses'] & number }
   auth?: AuthProfileName | false
   assertMode?: AssertMode
 }
@@ -179,6 +182,8 @@ export interface RequestDef<T extends OpTypes = AnyOp, I extends Init = Init, C 
   readonly dataPatches: readonly unknown[]
   /** Explicit `.with({ vars })`; beats captures and inputs, only UI overrides are higher. */
   readonly varOverrides: Readonly<Record<string, unknown>>
+  /** Set by `withMock`: how the mock environment answers this request. */
+  readonly mockHook?: MockHook<T, I>
   /** Phantom: lets sequence steps infer the captured type. */
   readonly _captured?: C
   with<C2 = {}>(o: RequestOverrides<T, I, C2>): RequestDef<T, I, C & C2>

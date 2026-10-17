@@ -1,4 +1,4 @@
-import { defineOperation, sequence } from '@specbook/core'
+import { defineOperation, sequence, withMock } from '@specbook/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createEngine, pickRunnable } from '../src/engine'
 
@@ -62,6 +62,15 @@ describe('ui engine', () => {
     expect(ok.steps[0]?.response?.body).toEqual({ id: '7', name: 'Rex' })
     const nope = await engine.run(def, { env: 'mock', version: 0, mockStatus: 404 })
     expect(nope.steps[0]?.response?.status).toBe(404)
+  })
+
+  it("a saved request keeps its mock hook when the panel rebuilds it with the person's values", async () => {
+    const saved = withMock(GetPet.request({ path: { petId: '1' } }), (_req, res) => {
+      if (res.status === 200) res.data.name = 'Hooked'
+    })
+    const def = await engine.operationRequest('pets/GetPet', 0, { path: { petId: '9' } }, saved)
+    const r = await engine.run(def, { env: 'mock', version: 0 })
+    expect(r.steps[0]?.response?.body).toEqual({ id: '9', name: 'Hooked' })
   })
 
   it('runs a sequence and pauses for input via onInput', async () => {

@@ -2,6 +2,7 @@ import { deepMerge } from './template'
 import type {
   AnyOp,
   Init,
+  MockHook,
   Operation,
   OpMeta,
   OpTypes,
@@ -15,6 +16,7 @@ function make<T extends OpTypes, I extends Init, C>(
   input: RequestInput<T, I, C>,
   dataPatches: readonly unknown[],
   varOverrides: Readonly<Record<string, unknown>> = {},
+  mockHook?: MockHook<T, I>,
 ): RequestDef<T, I, C> {
   return {
     kind: 'request',
@@ -22,6 +24,7 @@ function make<T extends OpTypes, I extends Init, C>(
     input,
     dataPatches,
     varOverrides,
+    mockHook,
     with<C2>(o: RequestOverrides<T, I, C2>) {
       const next: RequestInput<T, any, any> = { ...input }
       if (o.path) next.path = deepMerge(input.path as any, o.path) as any
@@ -29,15 +32,29 @@ function make<T extends OpTypes, I extends Init, C>(
       if (o.headers) next.headers = { ...(input.headers ?? {}), ...o.headers }
       if (o.capture) next.capture = { ...(input.capture ?? {}), ...o.capture } as any
       if (o.assert) next.assert = o.assert
-      if (o.mock) next.mock = { ...(input.mock ?? {}), ...o.mock } as any
       if (o.auth !== undefined) next.auth = o.auth
       if (o.assertMode) next.assertMode = o.assertMode
       if (o.tags) next.tags = [...new Set([...(input.tags ?? []), ...o.tags])]
       const patches = o.data !== undefined ? [...dataPatches, o.data] : dataPatches
       const overrides = o.vars ? { ...varOverrides, ...o.vars } : varOverrides
-      return make(op, next, patches, overrides) as RequestDef<T, I, C & C2>
+      return make(op, next, patches, overrides, mockHook) as RequestDef<T, I, C & C2>
     },
   }
+}
+
+/**
+ * How the `mock` environment answers this request, when the generated example (filled from the request) is not enough.
+ * Rarely needed; `req` and `res` are typed from the operation. Returns the request, so it is the file's one export:
+ *
+ *     export default withMock(GetOrder.request({ ... }), (req, res) => {
+ *       if (res.status === 200) res.data.status = 'placed'
+ *     })
+ */
+export function withMock<T extends OpTypes, I extends Init, C>(
+  def: RequestDef<T, I, C>,
+  hook: MockHook<T, I>,
+): RequestDef<T, I, C> {
+  return make(def.op, def.input, def.dataPatches, def.varOverrides, hook)
 }
 
 /** Generated code calls this once per operation. */

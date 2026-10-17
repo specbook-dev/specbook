@@ -14,5 +14,4 @@ export default IssuesCreate.request({
       assert.is(res.data.state, 'open', 'is open')
     }
   },
-  mock: { responses: { 201: { number: 42, title: '{{title}}', state: 'open' } } },
 })

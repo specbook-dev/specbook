@@ -8,6 +8,7 @@
   },
   "scripts": {
     "generate": "specbook generate",
+    "typecheck": "specbook generate && tsc --noEmit",
     "run:mock": "specbook test --env mock",
     "test": "specbook generate && specbook test --env mock",
     "build:docs": "specbook generate && specbook build --out dist-docs",

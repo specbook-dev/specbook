@@ -9,5 +9,4 @@ export default IssuesCreateComment.request({
     assert.is(res.status, 201, 'comment created')
     if (res.status === 201) assert.is(res.data.body, vars.comment, 'echoes the comment')
   },
-  mock: { responses: { 201: { body: '{{comment}}' } } },
 })

@@ -1,6 +1,6 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import type { InferControls } from '../src'
-import { c, defineOperation, sequence } from '../src'
+import { c, defineOperation, sequence, withMock } from '../src'
 
 interface Order {
   id: string
@@ -51,5 +51,23 @@ describe('types', () => {
   })
   it('InferControls', () => {
     expectTypeOf<InferControls<{ a: ReturnType<typeof c.text> }>>().toEqualTypeOf<{ a: string }>()
+  })
+  it('withMock types req from the init and res from the declared statuses', () => {
+    withMock(CreateOrder.request({ init: { who: 'Ada' } }), (req, res) => {
+      expectTypeOf(req.vars.who).toEqualTypeOf<string>()
+      if (res.status === 201) {
+        expectTypeOf(res.data).toEqualTypeOf<Order>()
+        res.data.status = 'PAID'
+        // @ts-expect-error not a status of the order
+        res.data.status = 'SHIPPED'
+      } else {
+        expectTypeOf(res.data).toEqualTypeOf<ApiError>()
+      }
+      res.respond(400, { message: 'nope' })
+      // @ts-expect-error 404 is not a status this operation declares
+      res.respond(404)
+      // @ts-expect-error not a field of the 400 body
+      res.respond(400, { oops: true })
+    })
   })
 })

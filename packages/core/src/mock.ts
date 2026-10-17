@@ -1,8 +1,8 @@
-// In-process mock transport: serves request-level mock overrides, falling back to generated examples.
+// In-process mock transport: answers from the generated examples, filled in from the request that was sent, and lets a
+// request's `withMock` hook change the answer.
 import { reflectRequest } from './mock-reflect'
 import type { PreparedRequest, RawResponse, Transport } from './runner/transport'
 import { deepMerge, render } from './template'
-import type { MockResponse } from './types'
 
 export interface MockExampleLoader {
   /** Statuses that have an example for this operation, in spec order. */
@@ -15,45 +15,17 @@ export interface MockTransportOptions {
   sleep?: (ms: number) => Promise<void>
 }
 
-const isMockResponse = (v: unknown): v is MockResponse<unknown> =>
-  v !== null &&
-  typeof v === 'object' &&
-  ('data' in (v as object) ||
-    'init' in (v as object) ||
-    'headers' in (v as object) ||
-    'delayMs' in (v as object))
+const is2xx = (s: number) => s >= 200 && s < 300
 
-function evalInit(init: Record<string, unknown> | undefined) {
-  return Object.fromEntries(
-    Object.entries(init ?? {}).map(([k, v]) => [
-      k,
-      typeof v === 'function' ? (v as () => unknown)() : v,
-    ]),
-  )
-}
+/** The loader may hand out one object to every caller, and a hook edits what it is given. */
+const copy = <T>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T))
 
 export function createMockTransport(opts: MockTransportOptions): Transport {
   const sleep = opts.sleep ?? ((ms) => new Promise<void>((r) => setTimeout(r, ms)))
   return async (req: PreparedRequest): Promise<RawResponse> => {
     const hints = req.mock
-    const cfg = hints?.config
-    const known = await opts.loader.statuses(req.service, req.opId)
-    const overridden = Object.keys(cfg?.responses ?? {}).map(Number)
-    const all = [...new Set([...known, ...overridden])]
-
-    const fromWhen = cfg?.when?.({
-      vars: (hints?.vars ?? {}) as never,
-      body: req.body,
-      query: hints?.rawQuery,
-      path: hints?.pathParams,
-    })
-    const status =
-      req.mockStatus ??
-      fromWhen ??
-      cfg?.status ??
-      all.find((s) => s >= 200 && s < 300) ??
-      all[0] ??
-      200
+    const all = await opts.loader.statuses(req.service, req.opId)
+    const status = req.mockStatus ?? all.find(is2xx) ?? all[0] ?? 200
 
     // Secured operations answer 401 when no credential header was applied.
     if (
@@ -67,42 +39,65 @@ export function createMockTransport(opts: MockTransportOptions): Transport {
       return json(401, body)
     }
 
-    const override = (cfg?.responses as Record<number, unknown> | undefined)?.[status]
-    let delay = 0
-    let headers: Record<string, string> = {}
-    let scope = { ...(hints?.vars ?? {}), ...(hints?.pathParams ?? {}), ...(hints?.rawQuery ?? {}) }
-    let template: unknown = await opts.loader.example(req.service, req.opId, status)
-    // The generated example answers the request that was sent, so a created thing has the fields you posted.
-    if (status >= 200 && status < 300 && cfg?.reflect !== false)
-      template = reflectRequest(template, {
-        body: req.body,
-        path: hints?.pathParams,
-        query: hints?.rawQuery,
-      })
-    // A declared status without a response schema (e.g. Petstore's 404) has no example: empty body.
-    if (override !== undefined) {
-      // Overrides are layered over the generated example (objects merge, arrays/scalars replace).
-      let data: unknown
-      if (isMockResponse(override)) {
-        data = await resolveSource(override.data)
-        scope = { ...scope, ...evalInit(override.init) }
-        headers = override.headers ? render(override.headers, scope) : {}
-        delay = override.delayMs ?? 0
-      } else {
-        data = await resolveSource(override)
-      }
-      if (data !== undefined) template = deepMerge(template, data)
+    const scope = {
+      ...(hints?.vars ?? {}),
+      ...(hints?.pathParams ?? {}),
+      ...(hints?.rawQuery ?? {}),
     }
-    if (delay) await sleep(delay)
-    const body = template === undefined ? undefined : render(template, scope)
-    return { ...json(status, body), headers: { 'content-type': 'application/json', ...headers } }
-  }
-}
+    // The generated example answers the request that was sent, so a created thing has the fields you posted.
+    // A declared status without a response schema (e.g. Petstore's 404) has no example: empty body.
+    const answer = async (s: number) => {
+      let template: unknown = copy(await opts.loader.example(req.service, req.opId, s))
+      if (is2xx(s))
+        template = reflectRequest(template, {
+          body: req.body,
+          path: hints?.pathParams,
+          query: hints?.rawQuery,
+        })
+      return template === undefined ? undefined : render(template, scope)
+    }
 
-async function resolveSource(src: unknown): Promise<unknown> {
-  if (typeof src === 'function')
-    return (await (src as () => Promise<{ default: unknown }>)()).default
-  return src
+    const res: {
+      status: number
+      data: unknown
+      headers: Record<string, string>
+      delayMs: number
+      respond(status: number, data?: unknown): void
+    } = {
+      status,
+      data: await answer(status),
+      headers: {},
+      delayMs: 0,
+      respond: (s, data) => {
+        pending = { status: s, data }
+      },
+    }
+    let pending: { status: number; data?: unknown } | undefined
+
+    if (hints?.hook) {
+      await hints.hook(
+        {
+          vars: (hints.vars ?? {}) as never,
+          body: req.body,
+          query: hints.rawQuery,
+          path: hints.pathParams,
+          headers: req.headers,
+        },
+        res as never,
+      )
+    }
+    if (pending) {
+      const base = await answer(pending.status)
+      res.status = pending.status
+      res.data = pending.data === undefined ? base : deepMerge(base, pending.data)
+    }
+
+    if (res.delayMs) await sleep(res.delayMs)
+    return {
+      ...json(res.status, res.data),
+      headers: { 'content-type': 'application/json', ...res.headers },
+    }
+  }
 }
 
 function json(status: number, body: unknown): RawResponse {

@@ -16,11 +16,11 @@ export interface PreparedRequest {
   /** Array style per form field, from the spec's `encoding` object. */
   formArrays?: Record<string, FormArrays>
   timeoutMs?: number
-  /** Mock status the caller wants served (mock env only). */
+  /** Mock status the caller wants served, e.g. the UI's "Respond with" (mock env only). */
   mockStatus?: number
   /** In-process hints for the mock transport; never serialized or substituted. */
   mock?: {
-    config?: import('../types').MockInput<any, any>
+    hook?: import('../types').MockHook<any, any>
     vars: Record<string, unknown>
     pathParams: Record<string, unknown>
     rawQuery: Record<string, unknown>
@@ -61,7 +61,6 @@ export function createFetchTransport(opts: FetchTransportOptions): Transport {
       body = enc.body
       if (enc.contentType) headers['content-type'] ??= enc.contentType
     }
-    if (req.mockStatus !== undefined) headers['x-specbook-mock-status'] = String(req.mockStatus)
 
     const ctl = new AbortController()
     const timer = req.timeoutMs ? setTimeout(() => ctl.abort(), req.timeoutMs) : undefined

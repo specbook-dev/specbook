@@ -496,8 +496,7 @@ export function RequestPanel({ service, op, variants, initial }: Props) {
 
         {saved && (
           <p class="muted lock">
-            A saved request: its own values, checks and mock responses apply, and it is read-only
-            here.
+            A saved request: its own values, checks and mock hook apply, and it is read-only here.
           </p>
         )}
 

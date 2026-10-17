@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { createMockTransport, defineOperation, runRequest } from '../src'
+import {
+  createMockTransport,
+  defineOperation,
+  runRequest,
+  runSequence,
+  sequence,
+  withMock,
+} from '../src'
 
 const GetOrder = defineOperation<{
   params: { path: { id: string } }
   body: never
   responses: {
-    200: { id: string; owner: string }
+    200: { id: string; owner: string; status: string }
     404: { message: string }
     401: { message: string }
   }
@@ -14,7 +21,9 @@ const GetOrder = defineOperation<{
 const loader = {
   statuses: () => [200, 404, 401],
   example: (_s: string, _o: string, status: number) =>
-    status === 200 ? { id: '{{id}}', owner: 'default' } : { message: `status ${status}` },
+    status === 200
+      ? { id: '{{id}}', owner: 'default', status: 'approved' }
+      : { message: `status ${status}` },
 }
 const transport = createMockTransport({ loader, sleep: async () => {} })
 const base = {
@@ -23,65 +32,114 @@ const base = {
   auth: { k: { apply: { headers: { authorization: 'Bearer x' } } } },
   serviceAuth: { order: 'k' },
 }
+const body = (r: Awaited<ReturnType<typeof runRequest>>) => r.steps[0]?.response?.body
 
 describe('mock transport', () => {
   it('serves the example and renders path vars', async () => {
     const r = await runRequest(GetOrder.request({ path: { id: 'o-7' } }), base)
-    expect(r.steps[0]?.response?.body).toEqual({ id: 'o-7', owner: 'default' })
+    expect(body(r)).toEqual({ id: 'o-7', owner: 'default', status: 'approved' })
   })
-  it('request-level override beats example, with init generators', async () => {
-    const def = GetOrder.request({
-      path: { id: 'o-1' },
-      init: { who: () => 'Ada' },
-      mock: {
-        responses: {
-          200: { data: { id: '{{id}}', owner: '{{who}}' }, init: { who: () => 'Grace' } },
-        },
-      },
+  it('the run option forces a declared status, for every request in the run', async () => {
+    const r = await runRequest(GetOrder.request({ path: { id: 'x' } }), {
+      ...base,
+      mockStatus: 404,
     })
-    const r = await runRequest(def, base)
-    expect(r.steps[0]?.response?.body).toEqual({ id: 'o-1', owner: 'Grace' })
-  })
-  it('.with({ mock: { status } }) forces an error response', async () => {
-    const def = GetOrder.request({ path: { id: 'x' } }).with({ mock: { status: 404 } })
-    const r = await runRequest(def, base)
-    expect(r.steps[0]?.response?.status).toBe(404)
-  })
-  it('mock.when picks status from request data', async () => {
-    const def = GetOrder.request({
-      path: { id: 'missing' },
-      mock: { when: ({ path }) => ((path as any).id === 'missing' ? 404 : undefined) },
-    })
-    const r = await runRequest(def, base)
     expect(r.steps[0]?.response?.status).toBe(404)
   })
   it('secured op without credentials answers 401', async () => {
     const r = await runRequest(GetOrder.request({ path: { id: 'x' } }), { env: 'mock', transport })
     expect(r.steps[0]?.response?.status).toBe(401)
   })
-})
-
-describe('mock overrides layer over examples', () => {
-  it('deep-merges partial overrides onto the generated example', async () => {
-    const def = GetOrder.request({
-      path: { id: 'o-9' },
-      mock: { responses: { 200: { owner: 'Grace' } } },
+  it('does not touch the example the loader hands out', async () => {
+    const shared = { id: 'a', owner: 'shared', status: 'approved' }
+    const t = createMockTransport({ loader: { statuses: () => [200], example: () => shared } })
+    const def = withMock(GetOrder.request({ path: { id: 'a' } }), (_req, res) => {
+      if (res.status === 200) res.data.owner = 'changed'
     })
-    const r = await runRequest(def, base)
-    expect(r.steps[0]?.response?.body).toEqual({ id: 'o-9', owner: 'Grace' })
+    await runRequest(def, { ...base, transport: t })
+    expect(shared.owner).toBe('shared')
   })
 })
 
-describe('statuses without a response body', () => {
-  it('answers with an empty body instead of failing', async () => {
-    const def = GetOrder.request({ path: { id: 'x' } }).with({ mock: { status: 404 } })
+describe('withMock', () => {
+  it('changes what the example says, typed to the operation', async () => {
+    const def = withMock(GetOrder.request({ path: { id: 'o-9' } }), (_req, res) => {
+      if (res.status === 200) {
+        res.data.owner = 'Grace'
+        res.data.status = 'placed'
+      }
+    })
+    const r = await runRequest(def, base)
+    expect(body(r)).toEqual({ id: 'o-9', owner: 'Grace', status: 'placed' })
+  })
+
+  it('decides from the request: values sent, vars and the path', async () => {
+    const def = withMock(
+      GetOrder.request({ path: { id: 'missing' }, init: { who: () => 'Ada' } }),
+      (req, res) => {
+        if ((req.path as { id: string }).id === 'missing')
+          res.respond(404, { message: 'no such order' })
+        else if (res.status === 200) res.data.owner = String(req.vars.who)
+      },
+    )
+    const r = await runRequest(def, base)
+    expect(r.steps[0]?.response?.status).toBe(404)
+    expect(body(r)).toEqual({ message: 'no such order' })
+    const ok = await runRequest(
+      withMock(
+        GetOrder.request({ path: { id: 'o-1' }, init: { who: () => 'Ada' } }),
+        (req, res) => {
+          if (res.status === 200) res.data.owner = String(req.vars.who)
+        },
+      ),
+      base,
+    )
+    expect(body(ok)).toMatchObject({ owner: 'Ada' })
+  })
+
+  it('sets headers and waits the delay it asks for', async () => {
+    const waited: number[] = []
+    const t = createMockTransport({ loader, sleep: async (ms) => void waited.push(ms) })
+    const def = withMock(GetOrder.request({ path: { id: 'x' } }), (_req, res) => {
+      res.headers['x-rate-limit'] = '9'
+      res.delayMs = 800
+    })
+    const r = await runRequest(def, { ...base, transport: t })
+    expect(r.steps[0]?.response?.headers['x-rate-limit']).toBe('9')
+    expect(waited).toEqual([800])
+  })
+
+  it('may be async', async () => {
+    const def = withMock(GetOrder.request({ path: { id: 'x' } }), async (_req, res) => {
+      await Promise.resolve()
+      if (res.status === 200) res.data.owner = 'later'
+    })
+    expect(body(await runRequest(def, base))).toMatchObject({ owner: 'later' })
+  })
+
+  it('is carried by .with(), and by a request used as a flow step', async () => {
+    const def = withMock(GetOrder.request({ path: { id: 'x' } }), (_req, res) => {
+      if (res.status === 200) res.data.status = 'placed'
+    }).with({ tags: ['smoke'] })
+    expect(body(await runRequest(def, base))).toMatchObject({ status: 'placed' })
+
+    const flow = sequence({ id: 'f', title: 'F' }).step('Get', def)
+    const r = await runSequence(flow, base)
+    expect(r.steps[0]?.response?.body).toMatchObject({ status: 'placed' })
+  })
+
+  it('answers with an empty body for a declared status that has no example', async () => {
     const t = createMockTransport({
       loader: {
         statuses: () => [200, 404],
         example: (_s, _o, st) => (st === 200 ? { id: 'x' } : undefined),
       },
     })
-    const r = await runRequest(def, { env: 'mock', transport: t })
+    const r = await runRequest(GetOrder.request({ path: { id: 'x' } }), {
+      env: 'mock',
+      transport: t,
+      mockStatus: 404,
+    })
     expect(r.steps[0]?.response?.status).toBe(404)
     expect(r.steps[0]?.error).toBeUndefined()
   })
