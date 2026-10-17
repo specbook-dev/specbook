@@ -12,7 +12,8 @@ export interface MockExampleLoader {
 
 export interface MockTransportOptions {
   loader: MockExampleLoader
-  sleep?: (ms: number) => Promise<void>
+  /** Waits a mock's `delayMs`. The default can be ended early by the run's signal: a person pressing Stop. */
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>
 }
 
 const is2xx = (s: number) => s >= 200 && s < 300
@@ -21,8 +22,22 @@ const is2xx = (s: number) => s >= 200 && s < 300
 const copy = <T>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T))
 
 export function createMockTransport(opts: MockTransportOptions): Transport {
-  const sleep = opts.sleep ?? ((ms) => new Promise<void>((r) => setTimeout(r, ms)))
-  return async (req: PreparedRequest): Promise<RawResponse> => {
+  const sleep =
+    opts.sleep ??
+    ((ms: number, signal?: AbortSignal) =>
+      new Promise<void>((done, stop) => {
+        if (signal?.aborted) return stop(new Error('Stopped before the API answered.'))
+        const timer = setTimeout(done, ms)
+        signal?.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(timer)
+            stop(new Error('Stopped before the API answered.'))
+          },
+          { once: true },
+        )
+      }))
+  return async (req: PreparedRequest, signal?: AbortSignal): Promise<RawResponse> => {
     const hints = req.mock
     const all = await opts.loader.statuses(req.service, req.opId)
     const status = req.mockStatus ?? all.find(is2xx) ?? all[0] ?? 200
@@ -92,7 +107,7 @@ export function createMockTransport(opts: MockTransportOptions): Transport {
       res.data = pending.data === undefined ? base : deepMerge(base, pending.data)
     }
 
-    if (res.delayMs) await sleep(res.delayMs)
+    if (res.delayMs) await sleep(res.delayMs, signal)
     return {
       ...json(res.status, res.data),
       headers: { 'content-type': 'application/json', ...res.headers },

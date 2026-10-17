@@ -143,7 +143,6 @@ export interface TestCommandOptions {
   notify?: string
 }
 
-const DEFAULT_TIMEOUT_MS = 30_000
 const KINDS = ['list', 'json', 'junit', 'github', 'ndjson'] as const
 type Kind = (typeof KINDS)[number]
 
@@ -246,22 +245,15 @@ function missingSecretsMessage(e: MissingSecretsError, env: string, files: boole
 }
 
 /** A transport for the environment: mock responses for `mock`, else the addresses its variables give. */
-function transportFor(
-  ctx: TestContext,
-  env: string,
-  vars: Record<string, unknown>,
-  defaultTimeoutMs: number,
-): Transport {
+function transportFor(ctx: TestContext, env: string, vars: Record<string, unknown>): Transport {
   if (env === 'mock') return createMockTransport({ loader: ctx.mock as MockLoader })
-  const fetchT = createFetchTransport({
+  return createFetchTransport({
     baseUrl: (service) => {
       const url = baseUrlFor(ctx.config, service, env, vars)
       if (!url) throw new Error(`No baseUrl for service "${service}" in env "${env}"`)
       return url
     },
   })
-  return (req: PreparedRequest, signal) =>
-    fetchT({ ...req, timeoutMs: req.timeoutMs ?? defaultTimeoutMs }, signal)
 }
 
 /** The origin each service's calls go to in `env`, for traces and the report; services with no address are left out. */
@@ -376,7 +368,7 @@ async function execute(
     Object.entries(o.vars).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)]),
   )
   const vars = environmentScope(config, o.env, { ...fileVars, ...given })
-  const transport = transportFor(ctx, o.env, vars, o.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+  const transport = transportFor(ctx, o.env, vars)
   const origins = originsFor(config, o.env, vars)
   const faker = await ctx.loadFaker()
   const git = { ...(ctx.git ?? gitInfo(ctx.root)) }
@@ -457,6 +449,8 @@ async function execute(
       readFile: ctx.examples.readFile,
       readOnly: o.safe === true,
       implicitStatusCheck: true,
+      // the flag, else the project's own, else the runner's 30 seconds
+      timeoutMs: o.timeoutMs ?? config.timeoutMs,
     },
     retries: o.retries,
     bail: o.bail,

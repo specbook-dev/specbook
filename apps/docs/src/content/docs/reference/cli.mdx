@@ -26,7 +26,7 @@ description: Every command and what it does.
 | `--list` | Prints what would run. |
 | `--shard i/n`, `--bail n` | Splits a run into parts, or stops after n failed flows. |
 | `--retries n` | Runs a failed flow again. A pass on a retry is marked flaky and exits 0. |
-| `--timeout ms`, `--global-timeout ms` | Limit each request, and the whole run. |
+| `--timeout ms`, `--global-timeout ms` | Limit each request (default: the config's `timeoutMs`, else 30000; `0` waits), and the whole run. |
 | `--safe` | Refuses requests that may change data. Use it against production. |
 | `--reporter list\|json\|junit\|github\|ndjson[:path]` | Chooses reporters. Repeat the flag to use several. |
 | `--input k=v`, `--var k=v` | Sets a flow input, or a variable. A variable can override an address. |

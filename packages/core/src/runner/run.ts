@@ -23,7 +23,12 @@ import type {
   VarUse,
 } from '../types'
 import { describeFiles, isBlob } from './encode'
-import type { PreparedRequest, RawResponse, Transport } from './transport'
+import {
+  DEFAULT_TIMEOUT_MS,
+  type PreparedRequest,
+  type RawResponse,
+  type Transport,
+} from './transport'
 
 // ---------------- public options ----------------
 
@@ -111,6 +116,11 @@ export interface RunOptions {
   example?: ExampleLoader
   /** Reads files named by upload fields (path relative to the example's `dir`). */
   readFile?: FileReader
+  /**
+   * How long each request waits for an answer, in milliseconds, when the request does not say (`timeoutMs` on the request
+   * wins). 0 waits for as long as it takes. Default: 30 seconds.
+   */
+  timeoutMs?: number
   /** The `mock` environment answers with this status (the UI's "Respond with"). */
   mockStatus?: number
 }
@@ -424,7 +434,7 @@ async function execute(
       encoding,
       mediaType: encoding === 'binary' ? def.op.mediaType : undefined,
       formArrays: def.op.formArrays,
-      timeoutMs: def.input.timeoutMs,
+      timeoutMs: def.input.timeoutMs ?? rt.o.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       mockStatus: rt.o.env === 'mock' ? rt.o.mockStatus : undefined,
       mock:
         rt.o.env === 'mock'

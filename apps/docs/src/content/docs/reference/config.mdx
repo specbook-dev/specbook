@@ -11,6 +11,7 @@ description: What the config file holds.
 | `vars` | Defaults for every environment, such as each API's address. |
 | `environments` | Variables for one environment, and a `risk` of `production` or `sandbox` where the name does not say. |
 | `services` | `{ spec, baseUrl, auth }` for each API. `baseUrl` is a template like `'{{petstoreUrl}}'`. |
+| `timeoutMs` | How long a request waits for an answer, in the CLI and in the browser. Default 30000; `0` waits as long as it takes. |
 | `auth` | Profiles that apply a credential, such as headers built from `{{secrets.NAME}}`, or an OAuth flow. |
 | `secrets` | The secrets the project uses, by name. |
 | `faker` | `{ locales, default }`, the locales generated values can use. |

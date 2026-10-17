@@ -35,7 +35,8 @@ export const TEST_HELP = `      --env <name>             environment (default: m
       --shard <i/n>            run the i-th of n equal parts
       --bail <n>               stop after n failed flows
       --retries <n>            run a failed flow again up to n times (a pass is "flaky")
-      --timeout <ms>           per request (default 30000)   --global-timeout <ms>   the whole run
+      --timeout <ms>           per request (default: the config's timeoutMs, else 30000; 0 waits)
+      --global-timeout <ms>    the whole run
       --safe                   refuse requests that may change data (use against production)
       --reporter <r[:path]>    list (default) | json | junit | github | ndjson (repeatable)
       --trace <when>           on-failure (default) | always | off: the request and response of a step

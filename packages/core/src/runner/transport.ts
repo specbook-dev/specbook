@@ -55,6 +55,9 @@ export function absoluteBase(baseUrl: string, pageHref?: string): string {
   }
 }
 
+/** How long a request waits for an answer when nothing says otherwise. */
+export const DEFAULT_TIMEOUT_MS = 30_000
+
 export interface FetchTransportOptions {
   baseUrl: (service: string) => string
   fetch?: typeof fetch
@@ -62,6 +65,8 @@ export interface FetchTransportOptions {
 
 export function createFetchTransport(opts: FetchTransportOptions): Transport {
   return async (req, signal) => {
+    // a run stopped before this request left: nothing is sent, and no 'abort' will ever be heard from a signal that has fired
+    if (signal?.aborted) throw new Error('Stopped before the API answered.')
     const f = opts.fetch ?? fetch
     const headers: Record<string, string> = { ...req.headers }
     let body: BodyInit | undefined
@@ -105,6 +110,8 @@ export function createFetchTransport(opts: FetchTransportOptions): Transport {
     } catch (e) {
       // an abort that the request's own timeout caused says so, not "This operation was aborted"
       if (timedOut) throw new Error(`Timed out after ${req.timeoutMs}ms: no answer from the API.`)
+      // a person pressing Stop, or the run's own deadline: say so, not "This operation was aborted"
+      if (signal?.aborted) throw new Error('Stopped before the API answered.')
       throw e
     } finally {
       if (timer) clearTimeout(timer)

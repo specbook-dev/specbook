@@ -26,12 +26,29 @@ describe('the fetch transport', () => {
     await expect(send(req({ timeoutMs: 30 }))).rejects.toThrow(/Timed out after 30ms/)
   })
 
+  it('sends nothing for a run that was stopped before the request left', async () => {
+    let calls = 0
+    const send = createFetchTransport({
+      baseUrl: () => 'http://x.test',
+      fetch: (() => {
+        calls++
+        return new Promise(() => {})
+      }) as unknown as typeof fetch,
+    })
+    const stop = new AbortController()
+    stop.abort()
+    await expect(send(req({ timeoutMs: 5000 }), stop.signal)).rejects.toThrow(
+      /Stopped before the API answered/,
+    )
+    expect(calls).toBe(0)
+  })
+
   it('leaves another reason to stop as it was: a run that is cancelled is not a timeout', async () => {
     const send = createFetchTransport({ baseUrl: () => 'http://x.test', fetch: hanging })
     const stop = new AbortController()
     const pending = send(req({ timeoutMs: 5000 }), stop.signal)
     stop.abort()
-    await expect(pending).rejects.toThrow(/aborted/)
+    await expect(pending).rejects.toThrow(/Stopped before the API answered/)
     await expect(pending).rejects.not.toThrow(/Timed out/)
   })
 })
