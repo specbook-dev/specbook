@@ -125,7 +125,9 @@ export function resolveControl(name: string, ctl: Control, given: unknown): unkn
       )
         return values[d]
       if (typeof d === 'function') return d(options)
-      if (d !== undefined) return d
+      // a starting value that is not one of the options means nothing (`default: 0` on pet ids is the first pet, not a
+      // pet numbered 0): the first option is the default
+      if (d !== undefined && values.some((v) => same(v, d))) return d
       return values[0]
     }
     case 'multiselect': {

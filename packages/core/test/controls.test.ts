@@ -2,6 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { c, describeControls, resolveControls } from '../src'
 
 describe('controls', () => {
+  it('takes the first option when the default is not one of them: `default: 0` on pet ids is the first pet, not pet 0', () => {
+    const pets = [
+      { id: 4, name: 'Rex' },
+      { id: 9, name: 'Tom' },
+    ]
+    const pick = (d: number) => c.select(pets, { value: (p) => p.id, default: d })
+    expect(resolveControls({ pet: pick(0) })).toEqual({ pet: 4 })
+    // a default that is one of the options is kept
+    expect(resolveControls({ pet: pick(9) })).toEqual({ pet: 9 })
+    // and what a person chose still wins
+    expect(resolveControls({ pet: pick(0) }, { pet: 9 })).toEqual({ pet: 9 })
+  })
+
   it('select resolves default by index, value, or first option', () => {
     const flights = [
       { id: 'a', code: 'X1' },
