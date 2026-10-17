@@ -32,7 +32,10 @@ const ids = Object.keys(open.metas)
 export const mode = 'static' as const
 export const project = { root: '', outDir: '', requestsDir: 'requests' }
 export const manifests = { [service]: open.manifest }
+export const loadManifests = async (_services?: string[]) => {}
 export const requests: never[] = []
+export const requestMeta = {}
+export const unresolvedRequests: string[] = []
 export const sequences: never[] = []
 export const sequenceMeta = {}
 export const unresolvedSequences: string[] = []

@@ -1,0 +1,1 @@
+function e(t,n){let r=r=>e(t,[...n,r]);return{kind:`sequence`,meta:t,nodes:n,step:(e,t)=>r({kind:`step`,name:e,def:t}),each:(e,t,n)=>r({kind:`each`,name:e,items:t,def:n}),use:r=>e(t,[...n,...r.nodes]),check:(e,t)=>r({kind:`check`,name:e,fn:t}),input:(e,t)=>r({kind:`input`,name:e,controls:t})}}function t(t){return e(t,[])}export{t};

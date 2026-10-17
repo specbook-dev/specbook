@@ -41,6 +41,8 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: 'virtual:specbook/registry', replacement: resolve(here, 'src/viewer/registry.ts') },
+      // a built project fills its manifests from this; the viewer's registry already has its one
+      { find: 'virtual:specbook/manifests', replacement: resolve(here, 'src/viewer/manifests.ts') },
       ...node.flatMap((n) => [
         { find: new RegExp(`^${n}$`), replacement: stub },
         { find: new RegExp(`^node:${n}$`), replacement: stub },

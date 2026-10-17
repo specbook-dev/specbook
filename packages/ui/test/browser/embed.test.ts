@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
 import '../../src/embed'
+import { registry } from '../../src/runtime'
 
 const play = () => document.querySelector('specbook-play') as HTMLElement
 const playButton = () => play().shadowRoot?.querySelector('button') as HTMLButtonElement
@@ -133,7 +134,7 @@ describe('embed', () => {
     await openFlow(
       '<p data-specbook-flow="stripe-checkout" data-specbook-inputs=\'{"amount":3000}\'>Checkout</p>',
     )
-    expect(field('amount')?.value).toBe('3000')
+    await vi.waitFor(() => expect(field('amount')?.value).toBe('3000'))
     // the generated customer name is filled in, and the die makes another
     await vi.waitFor(() => expect(field('fullName')?.value).not.toBe(''), { timeout: 30_000 })
     const first = field('fullName')?.value
@@ -149,6 +150,79 @@ describe('embed', () => {
     })
     // a screen reader is told how it went
     expect(q('[role="status"]')?.textContent).toMatch(/Flow passed, \d+ of \d+ steps passed/)
+  })
+
+  /** Counts which request and flow files the registry is asked to import. */
+  const watchImports = () => {
+    const imported: string[] = []
+    const undo = [...registry.requests, ...registry.sequences].map((e) => {
+      const load = e.load
+      e.load = (v: number) => {
+        imported.push(e.file)
+        return load(v)
+      }
+      return () => {
+        e.load = load
+      }
+    })
+    return {
+      imported,
+      stop: () => {
+        for (const u of undo) u()
+      },
+    }
+  }
+
+  it('imports only the request file that is for the operation, not every request in the project', async () => {
+    const watch = watchImports()
+    try {
+      page_('<p data-specbook-try="petstore/FindPetsByStatus">Find</p>')
+      await vi.waitFor(() => expect(play()).not.toBeNull())
+      playButton().click()
+      await vi.waitFor(() => expect(q('.request-panel .rq-bar')).not.toBeNull(), {
+        timeout: 30_000,
+      })
+      const mine = Object.entries(registry.requestMeta)
+        .filter(([, key]) => key === 'petstore/FindPetsByStatus')
+        .map(([file]) => file)
+      expect(mine.length).toBeGreaterThan(0)
+      expect(registry.requests.length).toBeGreaterThan(mine.length + 3)
+      expect(new Set(watch.imported)).toEqual(new Set([...mine, ...registry.unresolvedRequests]))
+      expect(watch.imported.some((f) => f.endsWith('.seq.ts'))).toBe(false)
+    } finally {
+      watch.stop()
+    }
+  })
+
+  it('opens a saved request by its file, importing only that file', async () => {
+    const watch = watchImports()
+    try {
+      page_('<p data-specbook-try="requests/petstore/find-pets.req.ts">Saved</p>')
+      await vi.waitFor(() => expect(play()).not.toBeNull())
+      playButton().click()
+      await vi.waitFor(() => expect(q('.request-panel .rq-bar')).not.toBeNull(), {
+        timeout: 30_000,
+      })
+      expect(watch.imported).toEqual(['requests/petstore/find-pets.req.ts'])
+      expect(q('.request-panel')?.getAttribute('data-op')).toBe('petstore/FindPetsByStatus')
+      expect(q('.panel-head')?.textContent).toContain('Find')
+    } finally {
+      watch.stop()
+    }
+  })
+
+  it('imports only the flow file a flow is in', async () => {
+    const watch = watchImports()
+    try {
+      await openFlow('<p data-specbook-flow="adopt-pet">Adopt</p>')
+      expect(watch.imported.filter((f) => f.endsWith('.seq.ts'))).toEqual([
+        registry.sequenceMeta['adopt-pet']?.file,
+      ])
+      // the requests it uses are imported by the flow itself, not listed by the embed
+      expect(watch.imported.filter((f) => f.endsWith('.req.ts'))).toEqual([])
+    } finally {
+      watch.stop()
+    }
   })
 
   it('says what a bad attribute asked, instead of failing quietly', async () => {

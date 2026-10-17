@@ -25,6 +25,7 @@ import {
 import { scanExamples } from './examples'
 import { requestsDirFor, safeProjectPath, scanProject } from './files'
 import { type EnvironmentAddresses, handleProxy, type ProxyConfig } from './proxy'
+import { scanRequests } from './requests'
 import { parseSequenceMeta, scanSequences } from './sequences'
 
 export * from './environments'
@@ -55,6 +56,8 @@ const VIRTUAL_FAKER_LOCALE = 'virtual:specbook/faker-locale/'
 const RESOLVED_FAKER_LOCALE = `\0${VIRTUAL_FAKER_LOCALE}`
 const VIRTUAL_MANIFESTS = 'virtual:specbook/manifests'
 const RESOLVED_MANIFESTS = `\0${VIRTUAL_MANIFESTS}`
+const VIRTUAL_MANIFEST = 'virtual:specbook/manifest/'
+const RESOLVED_MANIFEST = `\0${VIRTUAL_MANIFEST}`
 const VIRTUAL_OPERATIONS = 'virtual:specbook/operations'
 const RESOLVED_OPERATIONS = `\0${VIRTUAL_OPERATIONS}`
 const VIRTUAL_DOC = 'virtual:specbook/doc/'
@@ -151,7 +154,9 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
   let isBuild = false
   let docHtml: string[] = []
   /** build only: parts of the registry that live in their own chunks, and the data files served as assets */
-  let manifestsCode = 'export default {}'
+  let manifestsCode = 'export {}'
+  /** build: the manifest of each service, one module each */
+  let manifestCode = new Map<string, string>()
   let operationsCode = 'export const operations = {}'
   /** `service/Operation` -> the generated files that make up its data bundle */
   let bundlePlan = new Map<
@@ -272,6 +277,8 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
     )
     // Sequence titles come from each file's literal header, so listing them imports no sequence.
     const sequenceScan = await scanSequences(root, files.sequences)
+    // which operation each request file is for, read from its text, so an embed imports only the one it opens
+    const requestScan = await scanRequests(root, files.requests, new Set(Object.keys(manifests)))
     for (const f of files.sequences) {
       const src = await readFile(join(root, f), 'utf8').catch(() => '')
       seqHeaders.set(join(root, f), JSON.stringify(parseSequenceMeta(src)))
@@ -326,7 +333,19 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
     if (isBuild) {
       // The registry stays small: manifests and the operation modules sit in their own chunks, and the
       // generated JSON (schemas, examples, docs, definitions) is served as plain files under data/.
-      manifestsCode = `export default ${JSON.stringify(slim(manifests))}`
+      // one chunk per service, so a page that opens one operation fetches one service's list
+      const slimmed = slim(manifests)
+      manifestCode = new Map(
+        Object.entries(slimmed).map(([svc, m]) => [svc, `export default ${JSON.stringify(m)}`]),
+      )
+      // the whole app fills `manifests` from all of them before it starts; an embed asks for the ones it needs
+      manifestsCode = `import { manifests } from 'virtual:specbook/registry'
+${Object.keys(slimmed)
+  .map((svc, i) => `import m${i} from ${JSON.stringify(`${VIRTUAL_MANIFEST}${svc}`)}`)
+  .join('\n')}
+Object.assign(manifests, { ${Object.keys(slimmed)
+        .map((svc, i) => `${JSON.stringify(svc)}: m${i}`)
+        .join(', ')} })`
       operationsCode = `export const operations = {\n${operationEntries.join(',\n')}\n}`
       const gen = join(root, outDir)
       bundlePlan = new Map()
@@ -386,8 +405,7 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
             projectLoads.push(`  ${JSON.stringify(`${key}/${e.name}`)}: ${imp(e.abs)}`)
       }
       const services = Object.keys(manifests)
-      return `import manifests from ${JSON.stringify(VIRTUAL_MANIFESTS)}
-export const mode = "static"
+      return `export const mode = "static"
 export const minimal = ${JSON.stringify(!!only)}
 export const project = ${JSON.stringify({ root, outDir, requestsDir })}
 // where the data files are: dist/data, whether this chunk is in dist/ or dist/assets/
@@ -402,8 +420,13 @@ const bundle = (key) => {
 }
 const part = (pick) =>
   new Proxy({}, { get: (_, key) => (typeof key === 'string' && key.includes('/') ? () => bundle(key).then((b) => ({ default: pick(b) })) : undefined) })
-export { manifests }
+export const manifests = {}
+const manifestLoaders = {${services.map((svc) => `\n  ${JSON.stringify(svc)}: () => import(${JSON.stringify(`${VIRTUAL_MANIFEST}${svc}`)})`).join(',')}\n}
+export const loadManifests = (names = Object.keys(manifestLoaders)) =>
+  Promise.all(names.map((svc) => manifests[svc] ? undefined : manifestLoaders[svc]?.().then((m) => { manifests[svc] = m.default }))).then(() => undefined)
 export const requests = [${files.requests.map(entry).join(',\n')}]
+export const requestMeta = ${JSON.stringify(requestScan.meta)}
+export const unresolvedRequests = ${JSON.stringify(requestScan.unresolved)}
 export const sequences = [${files.sequences.map(entry).join(',\n')}]
 export const sequenceMeta = ${JSON.stringify(sequenceScan.meta)}
 export const unresolvedSequences = ${JSON.stringify(sequenceScan.unresolved)}
@@ -454,7 +477,10 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
 export const minimal = ${JSON.stringify(!!only)}
 export const project = ${JSON.stringify({ root, outDir, requestsDir })}
 export const manifests = ${JSON.stringify(slim(manifests))}
+export const loadManifests = () => Promise.resolve()
 export const requests = [${files.requests.map(entry).join(',\n')}]
+export const requestMeta = ${JSON.stringify(requestScan.meta)}
+export const unresolvedRequests = ${JSON.stringify(requestScan.unresolved)}
 export const sequences = [${files.sequences.map(entry).join(',\n')}]
 export const sequenceMeta = ${JSON.stringify(sequenceScan.meta)}
 export const unresolvedSequences = ${JSON.stringify(sequenceScan.unresolved)}
@@ -561,6 +587,8 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
               // operation modules are grouped by tag instead of one chunk per operation
               manualChunks(id: string) {
                 if (id === RESOLVED_MANIFESTS) return 'manifests'
+                if (id.startsWith(RESOLVED_MANIFEST))
+                  return `manifest-${id.slice(RESOLVED_MANIFEST.length)}`
                 return operationChunks.get(id)
               },
             },
@@ -573,6 +601,7 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
       if (id === VIRTUAL_TYPES) return RESOLVED_TYPES
       if (id === VIRTUAL_FAKER) return RESOLVED_FAKER
       if (id === VIRTUAL_MANIFESTS) return RESOLVED_MANIFESTS
+      if (id.startsWith(VIRTUAL_MANIFEST)) return `\0${id}`
       if (id === VIRTUAL_OPERATIONS) return RESOLVED_OPERATIONS
       if (id.startsWith(VIRTUAL_FAKER_LOCALE)) return `\0${id}`
       if (id.startsWith(VIRTUAL_DOC)) return `\0${id}`
@@ -581,6 +610,8 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
     async load(id) {
       if (id === RESOLVED) return registryCode()
       if (id === RESOLVED_MANIFESTS) return manifestsCode
+      if (id.startsWith(RESOLVED_MANIFEST))
+        return manifestCode.get(id.slice(RESOLVED_MANIFEST.length)) ?? 'export default {}'
       if (id === RESOLVED_OPERATIONS) return operationsCode
       if (id === RESOLVED_FAKER || id.startsWith(RESOLVED_FAKER_LOCALE)) {
         // Let Vite resolve the package from the project (ESM entry, not the CJS one `require.resolve` finds).

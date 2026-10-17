@@ -32,9 +32,10 @@ interface Loaded {
   variants: Record<string, Variant[]>
 }
 
-let loaded: Promise<Loaded> | undefined
-const load = () =>
-  (loaded ??= (async () => {
+/** The environments, locale and accent: shared by everything a page opens, so asked for once. */
+let shared: Promise<void> | undefined
+const loadShared = () =>
+  (shared ??= (async () => {
     environments.value = await engine.environments(version.value)
     environmentRisk.value = await engine.environmentRisks(version.value)
     environmentNote.value = await engine.environmentNotes(version.value)
@@ -43,8 +44,40 @@ const load = () =>
     const cfg = await engine.config(version.value).catch(() => undefined)
     if (cfg?.faker?.default) locale.value = cfg.faker.default
     if (cfg?.branding) applyBranding(cfg.branding)
-    return { variants: await engine.loadVariants(registry.requests, version.value) }
   })())
+
+/**
+ * One request: only the request files that are for its operation are imported (the registry says which from their text),
+ * and only its service's list of operations is fetched, not every request and every service of the project.
+ */
+async function loadRequest(t: Target): Promise<Loaded & { service?: string; operation?: string }> {
+  const wanted = (file: string, key?: string) =>
+    t.request
+      ? file === t.request
+      : registry.requestMeta[file] === key || registry.unresolvedRequests.includes(file)
+  let key: string | undefined
+  if (!t.request) {
+    // a bare operation id names no service: the lists of all services say which has it
+    if (!t.service) await registry.loadManifests()
+    const service =
+      t.service ??
+      Object.values(registry.manifests).find((m) => m.operations.some((o) => o.id === t.operation))
+        ?.service
+    key = service && t.operation ? `${service}/${t.operation}` : undefined
+    if (!key) return { variants: {} }
+  }
+  const entries = registry.requests.filter((e) => wanted(e.file, key))
+  const variants = await engine.loadVariants(entries, version.value)
+  if (t.request) {
+    const hit = Object.keys(variants)[0]
+    if (!hit) return { variants }
+    key = hit
+  }
+  const at = (key as string).indexOf('/')
+  const service = (key as string).slice(0, at)
+  await registry.loadManifests([service])
+  return { variants, service, operation: (key as string).slice(at + 1) }
+}
 
 /** Headers are read from the file text, so only the requested module (or the odd unresolved ones) is imported. */
 async function loadSequence(id: string) {
@@ -52,27 +85,29 @@ async function loadSequence(id: string) {
   const wanted = (f: string) => (file ? f === file : registry.unresolvedSequences.includes(f))
   const entries = registry.sequences.filter((e) => wanted(e.file))
   const list = await engine.loadSequences(entries, version.value)
-  return list.find((s) => s.seq.meta.id === id)
+  const found = list.find((s) => s.seq.meta.id === id)
+  if (found) {
+    // the services its steps call; a step built by a function is only known when it runs, so any such step asks for all
+    const names = new Set<string>()
+    let all = false
+    for (const n of found.seq.nodes) {
+      if (n.kind === 'step' && typeof n.def !== 'function') names.add(n.def.op.service)
+      else if (n.kind === 'step' || n.kind === 'each') all = true
+    }
+    await registry.loadManifests(all ? undefined : [...names])
+  }
+  return found
 }
 
-function findOperation(t: Target, data: Loaded) {
-  // a saved request opens its own operation, on that request
-  if (t.request) {
-    for (const [key, list] of Object.entries(data.variants)) {
-      if (!list.some((v) => v.file === t.request)) continue
-      const [service, id] = [key.slice(0, key.indexOf('/')), key.slice(key.indexOf('/') + 1)]
-      const op = registry.manifests[service]?.operations.find((o) => o.id === id)
-      if (op) return { service, op, example: `saved:${t.request}` }
-    }
-    return undefined
+function findOperation(t: Target, data: Loaded & { service?: string; operation?: string }) {
+  if (!data.service || !data.operation) return undefined
+  const op = registry.manifests[data.service]?.operations.find((o) => o.id === data.operation)
+  if (!op) return undefined
+  return {
+    service: data.service,
+    op,
+    example: t.request ? `saved:${t.request}` : (t.example ?? ''),
   }
-  const services = Object.values(registry.manifests)
-  const scope = t.service ? services.filter((m) => m.service === t.service) : services
-  for (const m of scope) {
-    const op = m.operations.find((o) => o.id === t.operation)
-    if (op) return { service: m.service, op, example: t.example ?? '' }
-  }
-  return undefined
 }
 
 const isProduction = (name: string) =>
@@ -100,7 +135,7 @@ function Problem({ title, text, onClose }: { title: string; text: string; onClos
 }
 
 function Embedded({ target, onClose }: { target: Target; onClose: () => void }) {
-  const [data, setData] = useState<Loaded>()
+  const [data, setData] = useState<Loaded & { service?: string; operation?: string }>()
   const [seq, setSeq] = useState<SequenceInfo>()
   const [seqMissing, setSeqMissing] = useState(false)
   const [note, setNote] = useState<string>()
@@ -121,12 +156,15 @@ function Embedded({ target, onClose }: { target: Target; onClose: () => void }) 
   }, [])
 
   useEffect(() => {
-    load().then((d) => {
+    loadShared().then(async () => {
       setNote(chooseEnvironment(target))
-      setData(d)
+      if (target.sequence) {
+        const s = await loadSequence(target.sequence)
+        if (s) setSeq(s)
+        else setSeqMissing(true)
+        setData({ variants: {} })
+      } else setData(await loadRequest(target))
     })
-    if (target.sequence)
-      loadSequence(target.sequence).then((s) => (s ? setSeq(s) : setSeqMissing(true)))
   }, [])
 
   const wantsAutoRun = !!target.autoRun && !isProduction(env.value)

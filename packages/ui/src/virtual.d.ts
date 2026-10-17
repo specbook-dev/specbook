@@ -30,7 +30,13 @@ declare module 'virtual:specbook/registry' {
       }[]
     }
   >
+  /** Fetches the manifests of the named services (all when none are named) into `manifests`. A build starts with it empty. */
+  export const loadManifests: (services?: string[]) => Promise<void>
   export const requests: Entry[]
+  /** Which `service/Operation` each request file is for, read from its text (no import), by project-relative file. */
+  export const requestMeta: Record<string, string>
+  /** Request files whose text does not say; these are imported to be listed. */
+  export const unresolvedRequests: string[]
   export const sequences: Entry[]
   /** Sequence headers read from the `*.seq.ts` text (no import), keyed by id. */
   export const sequenceMeta: Record<
@@ -93,6 +99,10 @@ declare module 'virtual:specbook/registry' {
   }[]
   export const loadFaker: ((version: number) => Promise<Record<string, any>>) | null
   export const loadConfig: (version: number) => Promise<{ default: any }>
+}
+
+declare module 'virtual:specbook/manifests' {
+  // a side effect only: it puts the manifest of every service into the registry's `manifests`
 }
 
 declare module 'virtual:specbook/types' {
