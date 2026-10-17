@@ -29,15 +29,6 @@ export function routeFor(o: {
   return 'direct'
 }
 
-/** A config `baseUrl` may be relative (`/api/v1`): it is resolved against the page. */
-export function absoluteBase(baseUrl: string, pageHref?: string): string {
-  try {
-    return new URL(baseUrl, pageHref).toString()
-  } catch {
-    return baseUrl
-  }
-}
-
 const names = (req: PreparedRequest): string[] => {
   const out = new Set<string>()
   const scan = (v: unknown) => {

@@ -35,3 +35,16 @@ describe('the fetch transport', () => {
     await expect(pending).rejects.not.toThrow(/Timed out/)
   })
 })
+
+describe('absoluteBase', () => {
+  it('resolves a relative address against the page and leaves an absolute one', async () => {
+    const { absoluteBase } = await import('../src')
+    expect(absoluteBase('/api/petstore', 'https://docs.specbook.dev/test/')).toBe(
+      'https://docs.specbook.dev/api/petstore',
+    )
+    expect(absoluteBase('https://api.example.com/v1', 'https://docs.specbook.dev/')).toBe(
+      'https://api.example.com/v1',
+    )
+    expect(absoluteBase('not a url')).toBe('not a url')
+  })
+})

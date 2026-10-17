@@ -46,6 +46,15 @@ export function buildUrl(base: string, req: PreparedRequest): string {
   return `${base.replace(/\/+$/, '')}${req.url}${q ? `?${q}` : ''}`
 }
 
+/** A config `baseUrl` may be relative (`/api/v1`): it is resolved against the page. */
+export function absoluteBase(baseUrl: string, pageHref?: string): string {
+  try {
+    return new URL(baseUrl, pageHref).toString()
+  } catch {
+    return baseUrl
+  }
+}
+
 export interface FetchTransportOptions {
   baseUrl: (service: string) => string
   fetch?: typeof fetch
