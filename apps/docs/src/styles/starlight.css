@@ -1,0 +1,24 @@
+/* The reference pages are Starlight; these map its colors to the site's so the two feel like one. */
+:root {
+  --sl-font: var(--font);
+  --sl-font-mono: var(--mono);
+}
+:root[data-theme="dark"] {
+  --sl-color-bg: #07080c;
+  --sl-color-bg-nav: #0a0b10;
+  --sl-color-bg-sidebar: #07080c;
+  --sl-color-hairline: #232738;
+  --sl-color-hairline-light: #232738;
+  --sl-color-hairline-shade: #151824;
+  --sl-color-text-accent: #c4b5fd;
+  --sl-color-accent: #7c3aed;
+  --sl-color-accent-low: #2a1a5e;
+  --sl-color-accent-high: #ddd6fe;
+  --sl-color-bg-accent: #a78bfa;
+}
+:root[data-theme="light"] {
+  --sl-color-text-accent: #5b21b6;
+  --sl-color-accent: #6d28d9;
+  --sl-color-accent-low: #ede9fe;
+  --sl-color-accent-high: #4c1d95;
+}

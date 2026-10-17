@@ -1,0 +1,34 @@
+---
+import { PAGES, type PageSlug } from '../lib/pages'
+
+interface Props {
+  page: PageSlug
+}
+const index = PAGES.findIndex((p) => p.slug === Astro.props.page)
+const prev = PAGES[index - 1]
+const next = PAGES[index + 1]
+---
+
+<nav class="next" aria-label="Pages">
+  {
+    prev && (
+      <a href={`/${prev.slug}/`} rel="prev">
+        <small>Before</small>
+        <span>← {prev.name}</span>
+      </a>
+    )
+  }
+  {
+    next ? (
+      <a href={`/${next.slug}/`} rel="next" class="right">
+        <small>Next</small>
+        <span>{next.name} →</span>
+      </a>
+    ) : (
+      <a href="/reference/embed/" class="right">
+        <small>Then</small>
+        <span>The reference →</span>
+      </a>
+    )
+  }
+</nav>

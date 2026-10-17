@@ -1,0 +1,93 @@
+---
+import DemoStatus from '../components/DemoStatus.astro'
+import Snippet from '../components/Snippet.astro'
+import Page from '../layouts/Page.astro'
+import { PAGES } from '../lib/pages'
+---
+
+<Page
+  home
+  title="Specbook: Storybook for APIs"
+  description="Write a request or a flow once. Discover it, develop against it, document it, test it and monitor it, all from the same definition."
+>
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow">Storybook for APIs</span>
+      <h1 class="display">One definition.<br />Five jobs.</h1>
+      <p class="lede">
+        Write a request or a flow once. Specbook turns your OpenAPI spec into somewhere to discover it,
+        develop against it, document it, test it and monitor it.
+      </p>
+      <div class="hero-actions">
+        <a class="btn primary" href="#try">Run one now</a>
+        <a class="btn" href="/develop/">Start with your spec</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="try">
+    <div class="wrap">
+      <h2 class="title">This one is real.</h2>
+      <p class="lede" style="margin-top: 0">
+        The buttons below send real requests to a small API that is running in this page. Change what it
+        answers on the <a href="/test/">Test</a> and <a href="/monitor/">Monitor</a> pages.
+      </p>
+      <div class="demo">
+        <div class="demo-bar">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>get-pet.req.ts</span>
+          <span class="grow"></span>
+          <DemoStatus />
+        </div>
+        <div class="demo-body">
+          <Snippet file="demo/requests/petstore/get-pet.req.ts" region="request" title={false} />
+          <p class="actions">
+            <button type="button" class="run" data-specbook-try="petstore/GetPetById" data-specbook-env="demo">
+              ▶ Run this request
+            </button>
+            <button type="button" class="run" data-specbook-flow="adopt-pet" data-specbook-env="demo">
+              ▶ Run a flow: adopt a pet
+            </button>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <h2 class="title">From one file to five uses.</h2>
+      <div class="tiles">
+        {
+          PAGES.map((p, i) => (
+            <a class="tile" href={`/${p.slug}/`}>
+              <span class="num">{String(i + 1).padStart(2, '0')}</span>
+              <h3>{p.name}</h3>
+              <p>{p.line}</p>
+              <span class="go">Open →</span>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <h2 class="title">Start in a minute.</h2>
+      <div class="prose">
+        <p>Needs Node 24. Point it at any OpenAPI file or address; the rest is generated.</p>
+      </div>
+      <Snippet file="snippets/install.sh" region="install" title="terminal" />
+    </div>
+  </section>
+</Page>
+
+<style>
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 4px 0 0;
+  }
+</style>

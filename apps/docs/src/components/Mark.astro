@@ -1,0 +1,17 @@
+---
+// The product's mark: an open book with a play triangle.
+---
+
+<svg viewBox="0 0 64 64" role="img" aria-label="Specbook" {...Astro.props}>
+  <defs>
+    <linearGradient id="mark-g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b5cf6"></stop>
+      <stop offset="1" stop-color="#5b21b6"></stop>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#mark-g)"></rect>
+  <path d="M32 19.5c-4.5-3-10-3.6-15.5-2.4v28.4c5.5-1.2 11-.6 15.5 2.4 4.5-3 10-3.6 15.5-2.4V17.1c-5.5-1.2-11-.6-15.5 2.4z" fill="#fff" fill-opacity=".95"></path>
+  <path d="M32 19.5v28.4" stroke="#6d28d9" stroke-width="2" stroke-linecap="round"></path>
+  <path d="M38 27.5v9.5l7.5-4.75z" fill="#6d28d9"></path>
+  <path d="M26.5 28.5l-4 3.75 4 3.75" fill="none" stroke="#6d28d9" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>

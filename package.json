@@ -21,7 +21,9 @@
     "test:pack": "node scripts/smoke-pack.mjs",
     "deploy:demo": "pnpm --filter example run deploy",
     "test:embed": "turbo run test:embed",
-    "test:sw": "turbo run test:sw"
+    "test:sw": "turbo run test:sw",
+    "build:site": "turbo run build:site --filter=docs",
+    "test:site": "turbo run test:site --filter=docs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

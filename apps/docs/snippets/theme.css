@@ -1,0 +1,8 @@
+/* #region theme */
+:root {
+  --sb-accent: #e11d48;
+  --sb-accent-hover: #be123c;
+  --sb-font-sans: "Inter", system-ui, sans-serif;
+  --sb-radius-card: 14px;
+}
+/* #endregion theme */

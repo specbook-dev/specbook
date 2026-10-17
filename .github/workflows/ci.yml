@@ -67,3 +67,21 @@ jobs:
       - run: pnpm test:slow
       # the packages as npm would serve them, installed outside the workspace
       - run: pnpm test:pack
+
+  # The docs site, built and driven in a browser as Cloudflare Pages would serve it. Parallel to `checks`: it builds the
+  # example's full site, the demo's minimal one, the bundle and the viewer, which take a few minutes.
+  site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:site
+      - run: pnpm --filter docs exec playwright install --with-deps chromium
+      - run: scripts/ci-retry.sh 300 pnpm test:site
+        timeout-minutes: 15

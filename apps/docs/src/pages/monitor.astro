@@ -1,0 +1,111 @@
+---
+import DemoStatus from '../components/DemoStatus.astro'
+import Next from '../components/Next.astro'
+import Snippet from '../components/Snippet.astro'
+import Page from '../layouts/Page.astro'
+import { bundleFacts } from '../lib/bundle'
+
+const bundle = bundleFacts()
+---
+
+<Page
+  page="monitor"
+  title="Monitor"
+  description="One file that runs anywhere with just node: the same requests and flows, against production, on a schedule, read-only by default."
+>
+  <section class="hero" style="padding-bottom: 24px">
+    <div class="wrap">
+      <span class="eyebrow">05 · Monitor</span>
+      <h1 class="display">One file. Just node.</h1>
+      <p class="lede">
+        <code>specbook bundle</code> compiles your requests and flows, their dependencies and the runner into a
+        single <code>.mjs</code>. Run it from any machine that has node, on a schedule, against production. No
+        install, no spec, no secrets inside.
+      </p>
+    </div>
+  </section>
+
+  <section class="block" style="padding-top: 8px">
+    <div class="wrap">
+      <Snippet file="snippets/install.sh" region="monitor" title="terminal" />
+
+      <div class="demo">
+        <div class="demo-bar">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>specbook-tests.mjs</span>
+          <span class="grow"></span>
+          <DemoStatus />
+        </div>
+        <div class="demo-body">
+          {
+            bundle.ready ? (
+              <>
+                <p>
+                  <a class="btn primary" href="/downloads/specbook-tests.mjs" download>
+                    Download the demo's tests ({bundle.kb} KB)
+                  </a>
+                </p>
+                <p class="hash">
+                  <span>sha256</span>
+                  <code>{bundle.sha256}</code>
+                </p>
+                <p class="note">
+                  Check it with <code>sha256sum -c specbook-tests.mjs.sha256</code>. It is built from the same
+                  requests and flows as the rest of this site and runs with <code>--env mock</code>: its demo
+                  API answers inside a browser, so there is nothing for node to reach.
+                </p>
+              </>
+            ) : (
+              <p>The bundle is built with the site.</p>
+            )
+          }
+        </div>
+      </div>
+
+      <h2 class="title">Safe against production</h2>
+      <div class="prose">
+        <p>
+          Runs send everything by default, so a developer can test flows that create and delete against a lower
+          environment. Against production pass <strong><code>--safe</code></strong>: any request that is not a
+          GET, HEAD or OPTIONS (or a GraphQL query) is refused before it is sent, so a monitor cannot change
+          production data. Mark a POST that only reads with <code>safe: true</code>.
+        </p>
+        <p>
+          <code>--retries 1</code> runs a failed flow once more; one that then passes is reported as flaky and
+          exits 0. <code>--timeout</code> bounds each request, and the report says which of failed and errored
+          it was, so an API that is down reads differently from one that answered wrongly.
+        </p>
+      </div>
+
+      <h2 class="title">On a schedule</h2>
+      <Snippet file="snippets/monitor-workflow.yml" region="workflow" title="monitor.yml" />
+    </div>
+  </section>
+
+  <div class="wrap"><Next page="monitor" /></div>
+</Page>
+
+<style>
+  .hash {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px;
+    margin: 0 0 10px;
+  }
+  .hash span {
+    font: 600 12px/1 var(--mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .hash code {
+    font: 13px var(--mono);
+    overflow-wrap: anywhere;
+  }
+  .note {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14.5px;
+  }
+</style>

@@ -1,0 +1,28 @@
+{
+  "name": "docs",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build:site": "astro build && node scripts/check-site.mjs dist",
+    "preview": "astro preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --exclude test/e2e",
+    "test:site": "vitest run --config vitest.e2e.config.ts"
+  },
+  "dependencies": {
+    "@astrojs/preact": "6.0.5",
+    "@astrojs/sitemap": "3.7.4",
+    "@astrojs/starlight": "0.42.4",
+    "@specbook/core": "workspace:*",
+    "astro": "7.3.5",
+    "docs-demo": "workspace:*",
+    "preact": "10.29.8"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@types/node": "24.19.2",
+    "playwright": "1.64.0"
+  }
+}

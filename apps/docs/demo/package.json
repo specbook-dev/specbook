@@ -11,7 +11,9 @@
     "typecheck": "specbook generate && tsc --noEmit && tsc --noEmit -p tsconfig.sw.json",
     "test": "specbook generate && specbook test --env mock && vitest run --exclude server/sw.test.ts",
     "build:sw": "node scripts/build-sw.mjs",
-    "test:sw": "vitest run server/sw.test.ts"
+    "test:sw": "vitest run server/sw.test.ts",
+    "build:qa": "specbook build --minimal --out dist-qa",
+    "bundle": "specbook bundle --out dist-bundle/specbook-tests.mjs"
   },
   "dependencies": {
     "@specbook/core": "workspace:*",

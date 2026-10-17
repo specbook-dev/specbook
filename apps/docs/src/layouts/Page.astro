@@ -1,0 +1,114 @@
+---
+import '../styles/site.css'
+import Mark from '../components/Mark.astro'
+import { PAGES, type PageSlug } from '../lib/pages'
+
+interface Props {
+  title: string
+  description: string
+  /** which of the five this is, for the header's current mark */
+  page?: PageSlug
+  /** the home page is called just "Specbook" */
+  home?: boolean
+}
+
+const { title, description, page, home } = Astro.props
+const full = home ? title : `${title} · Specbook`
+const url = new URL(Astro.url.pathname, Astro.site)
+const og = new URL(`/og/${page ?? 'home'}.png`, Astro.site)
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{full}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={url} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Specbook" />
+    <meta property="og:title" content={full} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={url} />
+    <meta property="og:image" content={og} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#07080c" />
+    <script is:inline src="/theme.js"></script>
+  </head>
+  <body class="site">
+    <a class="skip" href="#main">Skip to the content</a>
+    <header class="top">
+      <div class="top-in">
+        <a class="brand" href="/" aria-label="Specbook, home"><Mark /> Specbook</a>
+        <nav class="nav" aria-label="Main">
+          {
+            PAGES.map((p) => (
+              <a href={`/${p.slug}/`} aria-current={p.slug === page ? 'page' : undefined}>
+                {p.name}
+              </a>
+            ))
+          }
+          <a href="/reference/embed/">Reference</a>
+        </nav>
+        <span class="spacer"></span>
+        <a
+          class="icon-btn"
+          href="https://github.com/specbook-dev/specbook"
+          aria-label="Specbook on GitHub"
+          rel="noopener"
+        >
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
+            ><path
+              d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.71 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+            ></path></svg
+          >
+        </a>
+        <button type="button" class="icon-btn" data-theme-toggle aria-pressed="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+            ><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg
+          >
+        </button>
+      </div>
+    </header>
+
+    <main id="main" class="site-main" data-pagefind-body>
+      <slot />
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot-in">
+        <span>Specbook: Storybook for APIs. Independent of Storybook and Swagger.</span>
+        <span>
+          <a href="https://github.com/specbook-dev/specbook">GitHub</a> ·
+          <a href="https://ui.specbook.dev">Hosted viewer</a> ·
+          <a href="/reference/embed/">Reference</a>
+        </span>
+      </div>
+    </footer>
+
+    <script>
+      import '../scripts/theme-toggle'
+      import '../scripts/demo-api'
+    </script>
+    <!-- the play panel: one script that makes every data-specbook-try and -flow on the page open it -->
+    <script is:inline type="module" src="/qa/specbook.js"></script>
+  </body>
+</html>
+
+<style is:global>
+  .skip {
+    position: absolute;
+    left: -999px;
+    top: 8px;
+    z-index: 100;
+    padding: 8px 14px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-radius: 8px;
+  }
+  .skip:focus {
+    left: 8px;
+  }
+</style>
