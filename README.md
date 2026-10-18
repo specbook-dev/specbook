@@ -104,7 +104,8 @@ embed it in a page of your own instead:
 ```
 
 On the same origin, a strict Content-Security-Policy needs `script-src 'self'` and `worker-src 'self'`. Loading
-the hosted script instead needs the viewer's host in `script-src` and `worker-src blob:`.
+the hosted script instead needs the viewer's host in `script-src`, `style-src` and `worker-src`, plus `blob:` in
+`worker-src`.
 
 In a Spring Boot app, put the unpacked files under `src/main/resources/META-INF/resources/specbook/` and they
 are served at `/specbook/`.

@@ -40,7 +40,8 @@ cookies are sent.
 
 <Snippet file="snippets/embed.html" region="viewer" title="docs.html" />
 
-`spec` may be a relative address, and `baseUrl` sets the API address when the document has none.
+`spec` may be a relative address, and `baseUrl` sets the API address when the document has none. The viewer starts on
+`mock`; set `defaultEnv` to `"live"` (or the name of a server in the document) to start on that environment instead.
 
 | Situation | What to do |
 | --- | --- |
@@ -48,3 +49,7 @@ cookies are sent.
 | Your policy blocks third-party scripts | Self-host the viewer. The built folder ships in `@specbook/ui` as `dist-viewer/`. |
 | You want the hosted viewer in your page | An iframe of `ui.specbook.dev` works, but it is cross-origin, so the API must allow it. |
 | It is someone else's API | It works when that API allows calls from a browser. |
+
+A page under a strict Content-Security-Policy needs `script-src 'self'` and `worker-src 'self'` when you self-host
+the viewer. Loading the hosted script needs `ui.specbook.dev` in `script-src`, `style-src` and `worker-src`, and
+`blob:` in `worker-src`.
