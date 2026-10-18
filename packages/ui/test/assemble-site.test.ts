@@ -125,13 +125,33 @@ describe('the landing page references', () => {
     // not cached, not indexed
     const headers = await readFile(join(site, '_headers'), 'utf8')
     expect(headers).toMatch(
-      /\/oauth\/callback\/\*\n\s+Cache-Control: no-cache\n\s+X-Robots-Tag: noindex/,
+      /\/oauth\/callback\/\*\n\s+Cache-Control: no-cache, no-transform\n\s+X-Robots-Tag: noindex/,
     )
 
     // the build it came from is untouched: a self-hosted copy keeps using its own address
     expect(await readFile(join(dist, 'index.html'), 'utf8')).not.toContain(
       'specbook-oauth-callback',
     )
+  })
+
+  it('lets only the home page run the analytics beacon, and keeps it off the viewer and the sign-in page', async () => {
+    const site = await assemble(await viewer({ 'main-aaa.js': 'a' }))
+    const headers = await readFile(join(site, '_headers'), 'utf8')
+    const rule = (path: string) =>
+      headers.split('\n\n').find((block) => block.split('\n').includes(path)) ?? ''
+    const beacon = 'https://static.cloudflareinsights.com'
+    // every path but the home page: this origin's scripts only
+    expect(rule('/*')).toContain("script-src 'self';")
+    expect(rule('/*')).not.toContain(beacon)
+    // the home page lets go of that policy and sets its own
+    expect(rule('/')).toContain('! Content-Security-Policy')
+    expect(rule('/')).toContain(`script-src 'self' ${beacon};`)
+    // the viewer's page and the sign-in return are not given to Cloudflare to add a script to
+    expect(rule('/v1/')).toContain('no-transform')
+    expect(rule('/v1/index.html')).toContain('no-transform')
+    expect(rule('/oauth/callback/*')).toContain('no-transform')
+    for (const path of ['/v1/', '/v1/index.html', '/oauth/callback/*'])
+      expect(rule(path)).not.toContain(beacon)
   })
 
   it('still declares it when the viewer’s index has no head to put it in', async () => {

@@ -136,7 +136,10 @@ beforeAll(async () => {
       res.setHeader('content-type', types[extname(f)] ?? 'application/octet-stream')
       for (const r of rules)
         if (r.match.test(p === '/' ? '/' : p))
-          for (const [k, v] of r.headers) res.setHeader(k as string, v as string)
+          // `! Name` lets go of a header an earlier rule set, as Pages does
+          for (const [k, v] of r.headers)
+            if ((k as string).startsWith('!')) res.removeHeader((k as string).slice(1).trim())
+            else res.setHeader(k as string, v as string)
       res.end(await readFile(f))
     } catch {
       res.statusCode = 404
@@ -447,11 +450,20 @@ describe('the sign-in callback page', () => {
     expect(r.headers.get('content-type')).toContain('text/html')
     expect(r.headers.get('content-security-policy')).toContain("script-src 'self'")
     expect(r.headers.get('referrer-policy')).toBe('no-referrer')
-    expect(r.headers.get('cache-control')).toBe('no-cache')
+    // not given to Cloudflare to add its analytics script to: this address carries the authorization code
+    expect(r.headers.get('cache-control')).toBe('no-cache, no-transform')
+    expect(r.headers.get('content-security-policy')).not.toContain('cloudflareinsights')
     expect(r.headers.get('x-robots-tag')).toBe('noindex')
     expect(await r.text()).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/)
     // and the hosted viewer is told to send people there
-    const viewer = await (await fetch(`${siteUrl}/v1/`)).text()
+    // the viewer page is measured by nothing; the home page alone may run the beacon
+    const viewerRes = await fetch(`${siteUrl}/v1/`)
+    expect(viewerRes.headers.get('content-security-policy')).not.toContain('cloudflareinsights')
+    expect(viewerRes.headers.get('cache-control')).toContain('no-transform')
+    expect((await fetch(`${siteUrl}/`)).headers.get('content-security-policy')).toContain(
+      "script-src 'self' https://static.cloudflareinsights.com;",
+    )
+    const viewer = await viewerRes.text()
     expect(viewer).toContain('name="specbook-oauth-callback" content="/oauth/callback/"')
   })
 

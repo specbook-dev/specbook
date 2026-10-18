@@ -52,7 +52,11 @@ export async function siteHandler(dir: string, specs: Record<string, unknown>) {
       const f = join(dir, p === '/' ? 'index.html' : p.endsWith('/') ? `${p}index.html` : p)
       res.setHeader('content-type', types[extname(f)] ?? 'application/octet-stream')
       for (const r of rules)
-        if (r.match.test(p)) for (const [k, v] of r.headers) res.setHeader(k, v)
+        if (r.match.test(p))
+          // `! Name` lets go of a header an earlier rule set, as Pages does
+          for (const [k, v] of r.headers)
+            if (k.startsWith('!')) res.removeHeader(k.slice(1).trim())
+            else res.setHeader(k, v)
       res.end(await readFile(f))
     } catch {
       res.statusCode = 404

@@ -161,19 +161,24 @@ await writeFile(
 
 // CSP: only this origin's scripts run; the viewer fetches specs and calls APIs, so connect-src is open.
 // no-referrer: spec URLs may carry tokens and must not leak in a Referer header.
-const csp = [
-  "default-src 'self'",
-  // the beacon of Cloudflare Web Analytics, once Pages has it turned on for this site (connect-src is open already)
-  "script-src 'self' https://static.cloudflareinsights.com",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
-  'connect-src *',
-  "worker-src 'self' blob:",
-  "object-src 'none'",
-  "base-uri 'none'",
-  "form-action 'self'",
-  'frame-ancestors *',
-].join('; ')
+const policy = (scripts) =>
+  [
+    "default-src 'self'",
+    `script-src ${scripts}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    'connect-src *',
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    'frame-ancestors *',
+  ].join('; ')
+const csp = policy("'self'")
+// Cloudflare Web Analytics may run on the home page only: the viewer's address carries the spec's address (and
+// so possibly a token) and the sign-in callback's carries the authorization code, so neither may be measured. Their
+// pages also say `no-transform`, which stops Cloudflare adding the beacon to them at all.
+const homeCsp = policy("'self' https://static.cloudflareinsights.com")
 await writeFile(
   resolve(out, '_headers'),
   `/*
@@ -181,9 +186,15 @@ await writeFile(
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
 
+# the home page alone allows the analytics beacon (a rule that sets Content-Security-Policy again is added to the
+# one above, so this one first lets go of it)
+/
+  ! Content-Security-Policy
+  Content-Security-Policy: ${homeCsp}
+
 # the sign-in callback page: its script is not hash-versioned, and it is no page to index
 /oauth/callback/*
-  Cache-Control: no-cache
+  Cache-Control: no-cache, no-transform
   X-Robots-Tag: noindex
 
 /${channel}/assets/*
@@ -195,8 +206,11 @@ await writeFile(
   Cache-Control: no-cache
   Access-Control-Allow-Origin: *
 
+/${channel}/
+  Cache-Control: no-cache, no-transform
+
 /${channel}/index.html
-  Cache-Control: no-cache
+  Cache-Control: no-cache, no-transform
 
 /${channel}/asset-manifest.json
   Cache-Control: no-cache
