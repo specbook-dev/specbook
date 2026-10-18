@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { type Example, fakerLocaleExports } from '@specbook/core'
 import { listEnvironmentFiles, readEnvironment, requestsDirFor } from '@specbook/vite'
 import { type Plugin, rolldown } from 'rolldown'
+import { USES_FAKER } from '../faker-use'
 import type { Loader } from '../load'
 import { unknownOperationsMessage, usedMetadata } from '../ops'
 import type { Project } from '../project'
@@ -127,15 +128,14 @@ async function embed(
   return out
 }
 
-/** The faker locales the config falls back through, as the named exports a bundle needs from `@faker-js/faker`. */
-async function fakerSource(project: Project, sources: string): Promise<string | undefined> {
+/** The faker locales the config can reach, as the named exports a bundle needs from `@faker-js/faker`. */
+async function fakerSource(project: Project): Promise<string | undefined> {
   let entry: string
   try {
     entry = createRequire(join(project.root, 'package.json')).resolve('@faker-js/faker')
   } catch {
     return undefined
   }
-  if (!project.config.faker && !/faker/.test(sources)) return undefined
   const cfg = project.config.faker ?? {}
   const wanted = new Set(['Faker', ...fakerLocaleExports(cfg)])
   const have = new Set(Object.keys(await import(pathToFileURL(entry).href)))
@@ -189,7 +189,6 @@ export async function bundleCommand(
       ),
     )
   ).join('\n')
-  const faker = await fakerSource(project, sourceText)
   const embedded = await embed(project, outDir, ops.services)
   const environments: Record<string, Record<string, string>> = {}
   for (const env of await listEnvironmentFiles(root))
@@ -204,52 +203,54 @@ export async function bundleCommand(
     examples: embedded.examples,
     files: embedded.files,
   }
-  const entry = [
-    `import { main } from ${JSON.stringify(standalonePath())}`,
-    `import config from ${JSON.stringify(project.configFile)}`,
-    ...files.map((f, i) => `import * as m${i} from ${JSON.stringify(join(root, f))}`),
-    ...(faker ? [`import * as fakerModule from ${JSON.stringify(FAKER)}`] : []),
-    `const data = { ...${JSON.stringify(data)}, config,`,
-    `  modules: [${files.map((f, i) => `{ file: ${JSON.stringify(f)}, mod: m${i} }`).join(', ')}],`,
-    `  faker: ${faker ? 'fakerModule' : 'undefined'} }`,
-    'main(data).then((code) => process.exit(code), (e) => {',
-    '  console.error(e instanceof Error ? e.message : e)',
-    '  process.exit(2)',
-    '})',
-  ].join('\n')
-
   // one copy of core, ours, whatever version the project installed: the runner and the requests must agree
   const ours = createRequire(import.meta.url)
-  const plugin: Plugin = {
-    name: 'specbook-bundle',
-    resolveId(id) {
-      if (id === ENTRY) return ENTRY
-      if (id === FAKER) return FAKER
-      if (id.startsWith(`${prefix}/`) && !id.slice(prefix.length + 1).includes('/'))
-        return `\0specbook:api:${id.slice(prefix.length + 1)}`
-      if (id === '@specbook/core' || id.startsWith('@specbook/core/')) return ours.resolve(id)
-      return undefined
-    },
-    load(id) {
-      if (id === ENTRY) return entry
-      if (id === FAKER) return faker
-      if (!id.startsWith('\0specbook:api:')) return undefined
-      const service = id.slice('\0specbook:api:'.length)
-      const metas = ops.services[service]
-      if (!metas) throw new Error(`Service "${service}" has no operations your requests use`)
-      return [
-        "import { defineOperation } from '@specbook/core'",
-        ...Object.entries(metas).map(
-          ([opId, meta]) =>
-            `export const ${opId} = /* @__PURE__ */ defineOperation(${JSON.stringify(meta)})`,
-        ),
-        '',
-      ].join('\n')
-    },
-  }
-
   const warnings: string[] = []
-  try {
+
+  /** Compiles everything into `out`; `faker` is the module to embed, or undefined for a bundle that never uses faker. */
+  const compile = async (faker: string | undefined) => {
+    const entry = [
+      `import { main } from ${JSON.stringify(standalonePath())}`,
+      `import config from ${JSON.stringify(project.configFile)}`,
+      ...files.map((f, i) => `import * as m${i} from ${JSON.stringify(join(root, f))}`),
+      ...(faker ? [`import * as fakerModule from ${JSON.stringify(FAKER)}`] : []),
+      `const data = { ...${JSON.stringify(data)}, config,`,
+      `  modules: [${files.map((f, i) => `{ file: ${JSON.stringify(f)}, mod: m${i} }`).join(', ')}],`,
+      `  faker: ${faker ? 'fakerModule' : 'undefined'} }`,
+      'main(data).then((code) => process.exit(code), (e) => {',
+      '  console.error(e instanceof Error ? e.message : e)',
+      '  process.exit(2)',
+      '})',
+    ].join('\n')
+
+    const plugin: Plugin = {
+      name: 'specbook-bundle',
+      resolveId(id) {
+        if (id === ENTRY) return ENTRY
+        if (id === FAKER) return FAKER
+        if (id.startsWith(`${prefix}/`) && !id.slice(prefix.length + 1).includes('/'))
+          return `\0specbook:api:${id.slice(prefix.length + 1)}`
+        if (id === '@specbook/core' || id.startsWith('@specbook/core/')) return ours.resolve(id)
+        return undefined
+      },
+      load(id) {
+        if (id === ENTRY) return entry
+        if (id === FAKER) return faker
+        if (!id.startsWith('\0specbook:api:')) return undefined
+        const service = id.slice('\0specbook:api:'.length)
+        const metas = ops.services[service]
+        if (!metas) throw new Error(`Service "${service}" has no operations your requests use`)
+        return [
+          "import { defineOperation } from '@specbook/core'",
+          ...Object.entries(metas).map(
+            ([opId, meta]) =>
+              `export const ${opId} = /* @__PURE__ */ defineOperation(${JSON.stringify(meta)})`,
+          ),
+          '',
+        ].join('\n')
+      },
+    }
+
     const build = await rolldown({
       input: ENTRY,
       platform: 'node',
@@ -262,7 +263,7 @@ export async function bundleCommand(
       },
     })
     await mkdir(dirname(out), { recursive: true })
-    await build.write({
+    const written = await build.write({
       file: out,
       format: 'esm',
       minify: true,
@@ -270,6 +271,34 @@ export async function bundleCommand(
       banner: '#!/usr/bin/env node',
     })
     await build.close()
+    // a helper the requests import can use faker without the text of a request saying so: the module graph tells
+    return written.output.some(
+      (c) =>
+        c.type === 'chunk' && Object.keys(c.modules).some((m) => m.endsWith('/core/src/faker.ts')),
+    )
+  }
+
+  const noFaker = () =>
+    console.error(
+      'These tests use faker, but @faker-js/faker is not installed in this project. Add it to devDependencies (npm install --save-dev @faker-js/faker).',
+    )
+  try {
+    // faker goes in when the tests' own text, examples or environments use it, or (found while compiling) a module they import does
+    const text = `${sourceText}\n${JSON.stringify(embedded.examples)}\n${JSON.stringify(environments)}`
+    let faker = USES_FAKER.test(text) ? await fakerSource(project) : undefined
+    if (USES_FAKER.test(text) && !faker) {
+      noFaker()
+      return 2
+    }
+    const importsFaker = await compile(faker)
+    if (importsFaker && !faker) {
+      faker = await fakerSource(project)
+      if (!faker) {
+        noFaker()
+        return 2
+      }
+      await compile(faker)
+    }
   } catch (e) {
     console.error(
       `Could not compile the tests into one file:\n${e instanceof Error ? e.message : e}`,

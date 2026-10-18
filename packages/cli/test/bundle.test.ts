@@ -96,6 +96,13 @@ export default defineConfig({
     'requests/create-pet.req.ts':
       "import { CreatePet } from '#api/api'\nexport default CreatePet.request({ name: 'Create pet', tags: ['write'], example: 'rex' })\n",
     'requests/api/CreatePet/rex.example.json': '{"body":{"name":"rex-from-the-example"}}',
+    // faker is only reached through a helper: nothing in the request's own text says so
+    '.specbook/names.ts':
+      "import { faker } from '@specbook/core/faker'\nexport const petName = () => faker.person.firstName()\n",
+    'requests/gen.req.ts': `import { CreatePet } from '#api/api'
+import { petName } from '../.specbook/names'
+export default CreatePet.request({ name: 'Generated', tags: ['gen'], init: { who: () => petName() }, data: { name: '{{who}}' } })
+`,
     'requests/health.req.ts':
       "import { Health } from '#api/api'\nexport default Health.request({ name: 'Health', tags: ['monitor'] })\n",
     'sequences/s.seq.ts': `import { sequence } from '@specbook/core'
@@ -134,7 +141,7 @@ describe('specbook bundle', () => {
     expect(r.err).toBe('')
     expect(r.code).toBe(0)
     expect(r.out).toMatch(/bundle \S* ?built \d{4}-\d{2}-\d{2}/)
-    expect(r.out).toMatch(/Flows\s+4 passed/)
+    expect(r.out).toMatch(/Flows\s+5 passed/)
     // the example the request names was compiled in, and is what the request sent
     expect(posted.some((b) => b.includes('rex-from-the-example'))).toBe(true)
   }, 60_000)
@@ -147,6 +154,28 @@ describe('specbook bundle', () => {
     expect(r.out).not.toContain('Get pet')
     expect(await quiet(() => bundleCommand(project, loader, { out, tags: ['nothing'] }))).toBe(3)
   }, 60_000)
+
+  it('carries faker only when the tests use it, even through a helper', async () => {
+    const plain = await outFile()
+    const generated = await outFile()
+    expect(await quiet(() => bundleCommand(project, loader, { out: plain, tags: ['smoke'] }))).toBe(
+      0,
+    )
+    expect(
+      await quiet(() => bundleCommand(project, loader, { out: generated, tags: ['gen'] })),
+    ).toBe(0)
+    // faker's English name data is in one and not the other
+    expect(await readFile(plain, 'utf8')).not.toContain('Aaliyah')
+    expect(await readFile(generated, 'utf8')).toContain('Aaliyah')
+    expect((await stat(generated)).size).toBeGreaterThan((await stat(plain)).size * 3)
+    // and the one that has it runs: the request sends a generated name
+    posted = []
+    const r = await runFile(generated, ['--env', 'live'], { API_KEY: 'k' })
+    expect(r.err).toBe('')
+    expect(r.code).toBe(0)
+    const sent = JSON.parse(posted.at(-1) ?? '{}')
+    expect(sent.name).toMatch(/^[A-Z][a-z]+$/)
+  }, 90_000)
 
   it('takes the same flags as specbook test, with the same exit codes', async () => {
     const out = await outFile()
