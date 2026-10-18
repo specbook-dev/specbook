@@ -128,18 +128,12 @@ export const operations = Object.fromEntries(
 ) as Record<string, () => Promise<Record<string, any>>>
 
 /**
- * Faker, English only: a locale is its own chunk in a project build, but a viewer opening a stranger's
- * spec has no reason to ship the others. Loaded only when a run uses `{{faker.*}}`.
+ * The hosted viewer and the embed ship no faker: a spec's mock and example values come from the generator, and a
+ * `{{faker.*}}` someone types is refused with this message instead of being sent as it is.
  */
-export const loadFaker = () =>
-  import('./faker-en').then((m) => ({
-    Faker: m.Faker,
-    // a run asks for its locale and `base`, the fallback every locale chain ends in
-    locales: {
-      en: () => Promise.resolve(m.en),
-      base: () => Promise.resolve(m.base),
-    },
-  }))
+export const loadFaker = null
+export const fakerUnavailable =
+  'Generated values ({{faker.…}}) work in a Specbook project, not in the hosted viewer. Type a value instead.'
 
 // `live` is the document's first server, or the address the person typed for it; the rest keep their own
 // names. Each address is the variable `baseUrl` in its environment, so a copy of one can point elsewhere.
@@ -189,8 +183,6 @@ export const loadConfig = () =>
       auth: open.auth,
       ...(Object.keys(vars).length ? { vars } : {}),
       ...(Object.keys(environmentSettings).length ? { environments: environmentSettings } : {}),
-      // one locale, so the header offers no locale choice
-      faker: { default: 'en', locales: { en: ['en', 'base'] } },
       services: {
         [service]: {
           spec: '',

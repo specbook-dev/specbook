@@ -147,6 +147,18 @@ describe('ui engine', () => {
     expect(loads).toBe(2)
   })
 
+  it('stops a run on a misspelt faker placeholder, naming it and not a missing variable', async () => {
+    const e = createEngine({ ...reg, loadFaker: async () => import('@faker-js/faker') })
+    const r = await e.run(GetPet.request({ path: { petId: '{{faker.person.fistName}}' } }), {
+      env: 'mock',
+      version: 0,
+    })
+    expect(r.status).toBe('error')
+    const text = r.steps[0]?.error ?? ''
+    expect(text).toMatch(/Unknown faker generator "\{\{faker\.person\.fistName\}\}"/)
+    expect(text).not.toMatch(/Missing variable/)
+  })
+
   it('pickRunnable prefers default, then any runnable export', () => {
     const req = GetPet.request({})
     expect(pickRunnable({ default: req })).toBe(req)

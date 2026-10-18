@@ -520,21 +520,17 @@ describe('docs and play panel', () => {
     await waitFor(() => expect($('.response .conf')?.textContent).toContain('Matches spec'))
   })
 
-  it('lists spec, generated and dynamic examples and switches between them', async () => {
+  it('lists the spec and generated examples, and no dynamic one', async () => {
     await mount()
     await play('petstore/AddPet')
     const select = $<HTMLSelectElement>('.request-panel select') as HTMLSelectElement
     const names = [...select.options].map((o) => o.value)
-    expect(names).toEqual(expect.arrayContaining(['ex:default', 'ex:dynamic']))
+    expect(names).toContain('ex:default')
+    expect(names).not.toContain('ex:dynamic')
 
     type(select, 'ex:default', 'change')
     await waitFor(() => expect(editor()?.value).toContain('"doggie"'))
-    type(select, 'ex:dynamic', 'change')
-    await waitFor(() => expect(editor()?.value).toContain('{{faker.'))
-    await send()
-    expect($('.response .state-badge')?.textContent).toMatch(/200/)
-    const body = $('.response .body-editor textarea') as HTMLTextAreaElement
-    expect(body.value).not.toContain('{{faker')
+    expect(editor()?.value).not.toContain('{{faker')
   })
 
   it('keeps the field documentation on screen, docked to the bottom of the pane, in a short window', async () => {
@@ -1081,11 +1077,28 @@ describe('docs and play panel', () => {
     expect(localStorage.getItem('specbook:grid-cols')).toBeNull()
   })
 
-  it('offers synthetic data as new each run or fixed with a seed number', async () => {
+  it('offers generated values as new each run or fixed with a seed number', async () => {
     await mount()
-    const select = $<HTMLSelectElement>('select[aria-label="Synthetic data"]') as HTMLSelectElement
+    const select = $<HTMLSelectElement>(
+      'select[aria-label="Generated values"]',
+    ) as HTMLSelectElement
     expect(select.value).toBe('random')
     expect($('input[aria-label="Seed number"]')).toBeNull()
+    // a request that does not use faker leaves the control in place, but off
+    await play('petstore/FindPetsByStatus')
+    await waitFor(() => expect($('.request-panel')).not.toBeNull())
+    expect(select.disabled).toBe(true)
+
+    // typing a placeholder turns it on, without the header moving
+    const before = select.getBoundingClientRect().top
+    await play('petstore/AddPet')
+    await waitFor(() => expect(editor()?.value).toContain('"name"'))
+    expect(select.disabled).toBe(true)
+    const area = editor() as HTMLTextAreaElement
+    area.value = '{"name":"{{faker.person.firstName}}","photoUrls":["x"]}'
+    area.dispatchEvent(new Event('input', { bubbles: true }))
+    await waitFor(() => expect(select.disabled).toBe(false))
+    expect(select.getBoundingClientRect().top).toBe(before)
 
     type(select, 'fixed', 'change')
     await waitFor(() => expect(seed.value).toBe(42))

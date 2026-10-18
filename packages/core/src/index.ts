@@ -5,8 +5,15 @@ export * from './diff'
 export * from './environment'
 export type { Example, ExampleLoader, FileReader, Row } from './example'
 export { fromFormRows, fromRows, toFormRows, toRows } from './example'
-export type { FakerConfig } from './faker'
-export { faker, fakerLocaleNames, installFaker, prepareFaker, setFaker } from './faker'
+export type { FakerConfig } from './faker-runtime'
+export {
+  faker,
+  fakerLocaleExports,
+  fakerLocaleNames,
+  installFaker,
+  prepareFaker,
+  setFaker,
+} from './faker-runtime'
 export * from './mock'
 export * from './oauth'
 export * from './proxy/index'
@@ -31,6 +38,7 @@ export {
 export {
   collectPlaceholders,
   deepMerge,
+  FakerPlaceholderError,
   render,
   renderString,
   rootName,

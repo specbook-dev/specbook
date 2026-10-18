@@ -5,31 +5,36 @@ description: Every command and what it does.
 
 | Command | What it does |
 | --- | --- |
-| `specbook init [--agents \| --no-agents]` | Scaffolds the config, the `#api/*` import and an environments folder, and writes `.specbook/agent-guide.md` for AI coding agents. It creates an `AGENTS.md` that points to the guide when the project has no `AGENTS.md` or `CLAUDE.md`, and never edits one that exists. `--agents` adds a marked Specbook section to an existing file, and a later run refreshes only that section. `--no-agents` skips the guide and `AGENTS.md`. |
-| `specbook add <service> --spec <path or url>` | Registers a spec and generates its code. An address is downloaded to `openapi/` and recorded in `openapi/sources.json`. |
+| `specbook init [--agents \| --no-agents]` | Scaffolds the config, the `#api/*` import and an environments folder, adds `@faker-js/faker` to `devDependencies`, and writes `.specbook/agent-guide.md` for AI coding agents. It creates an `AGENTS.md` that points to the guide when the project has no `AGENTS.md` or `CLAUDE.md`, and never edits one that exists. `--agents` adds a marked Specbook section to an existing file, and a later run refreshes only that section. `--no-agents` skips the guide and `AGENTS.md`. |
+| `specbook add <service> --spec <path or url> [--base-url url]` | Registers a spec and generates its code. An address is downloaded to `openapi/` and recorded in `openapi/sources.json`. `--base-url` sets the API address instead of the spec's first server. |
 | `specbook add --refresh [service...]` | Downloads the recorded addresses again, reports what changed and regenerates. |
 | `specbook generate [service...]` | Generates types, operations, examples and metadata from the specs. `dev`, `build` and `test` do it when needed. |
 | `specbook dev [--port n]` | Opens the docs, a play panel and a credential proxy, so you can run requests as you write them. |
-| `specbook build [--out dir] [--minimal] [--viewer]` | Builds a static docs site and `specbook.js`. `--minimal` publishes only what your requests and flows use, and `--viewer` adds the spec viewer. |
+| `specbook build [--out dir] [--minimal] [--viewer]` | Builds a static docs site and `specbook.js` (to `dist-docs` unless `--out` says otherwise). `--minimal` publishes only what your requests and flows use, and `--viewer` copies the spec viewer to `<out>/viewer/`. |
 | `specbook test [glob...]` | Runs requests and flows against an environment. |
-| `specbook bundle [--out file] [--tag t]` | Compiles the tests into one `.mjs` that runs with just node. |
+| `specbook bundle [--out file] [--tag t] [--external pkg]` | Compiles the tests into one `.mjs` that runs with just node. `--tag` limits it to requests and flows with that tag (repeat it for several), and `--external` leaves a package as an import, to be installed where the file runs (a browser cannot load it). The file takes the `specbook test` flags below. |
 | `specbook check` | Validates specs, generated code drift, imported operations, placeholders and environment files. |
-| `specbook secrets [--env name]` | Shows where each secret resolves from. |
-| `specbook preview <url or file>` | Opens any OpenAPI document in the UI, with no project. |
+| `specbook secrets [--env name] [--secrets-file path]` | Shows where each secret resolves from, never the values. `--secrets-file` includes a dotenv file, as `test` would. |
+| `specbook preview <url or file> [--port n] [--no-open]` | Opens any OpenAPI document in the UI, with no project. `--port` chooses the port, and `--no-open` does not launch the browser. |
 
 ## `specbook test`
 
 | Flag | What it does |
 | --- | --- |
 | `--env <name>` | Chooses the environment. The default is `mock`, for development. |
-| `--tag <tag>`, `--grep <re>`, `--grep-invert <re>` | Choose what runs, by tag or by file and title. |
+| `--tag <tag>`, `--grep <re>`, `--grep-invert <re>` | Choose what runs, by tag (repeat `--tag` for several) or by file and title. |
 | `--list` | Prints what would run. |
 | `--shard i/n`, `--bail n` | Splits a run into parts, or stops after n failed flows. |
 | `--retries n` | Runs a failed flow again. A pass on a retry is marked flaky and exits 0. |
 | `--timeout ms`, `--global-timeout ms` | Limit each request (default: the config's `timeoutMs`, else 30000; `0` waits), and the whole run. |
 | `--safe` | Refuses requests that may change data. Use it against production. |
 | `--reporter list\|json\|junit\|github\|ndjson[:path]` | Chooses reporters. Repeat the flag to use several. |
-| `--input k=v`, `--var k=v` | Sets a flow input, or a variable. A variable can override an address. |
+| `--input k=v`, `--var k=v` | Sets a flow input, or a variable. Repeat either. A variable can override an address. |
+| `--secrets-file <path>` | Reads secrets from a dotenv file. |
+| `--trace on-failure\|always\|off` | When to keep a step's request and response. The default is `on-failure`. |
+| `--quiet` | Prints only failures and the summary. |
+| `--notify <url>` | Posts a summary to a webhook when something fails. |
+| `--seed n`, `--locale l` | Makes the generated values (`faker`) repeatable, or in another language. A failed run's data can be reproduced in the portal or `specbook dev` with the same number. |
 
 Exit codes: 0 when everything passed, 1 when a flow failed or errored, 2 when the run could not start (missing
 secrets, a missing spec, an import that is not an operation) and 3 for a usage error.

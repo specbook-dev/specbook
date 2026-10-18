@@ -4,6 +4,9 @@ import { join } from 'node:path'
 import { ensureEnvironmentsDir } from '@specbook/vite'
 import { agentsStep } from './agents'
 
+/** The faker the CLI itself is tested with. */
+const FAKER_VERSION = '9.3.0'
+
 export async function initCommand(cwd: string, opts: { agents?: boolean } = {}): Promise<void> {
   const dir = join(cwd, '.specbook')
   await mkdir(dir, { recursive: true })
@@ -50,8 +53,16 @@ export default defineConfig({
   // generated code is derived from the specs: regenerate after install instead of committing it
   pkg.scripts = { ...(pkg.scripts ?? {}) }
   if (!pkg.scripts.prepare) pkg.scripts.prepare = 'specbook generate'
+  // generated values in requests and `{{faker.*}}` placeholders in a portal both need it, so it is always there
+  pkg.devDependencies = { ...(pkg.devDependencies ?? {}) }
+  const hasFaker = ['dependencies', 'devDependencies', 'peerDependencies'].some(
+    (k) => pkg[k]?.['@faker-js/faker'],
+  )
+  if (!hasFaker) pkg.devDependencies['@faker-js/faker'] = FAKER_VERSION
   await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
-  console.log('✓ added the "#api/*" subpath import and a "prepare" script to package.json')
+  console.log(
+    `✓ added the "#api/*" subpath import, a "prepare" script${hasFaker ? '' : ' and @faker-js/faker'} to package.json`,
+  )
 
   const gi = join(cwd, '.gitignore')
   const current = existsSync(gi) ? await readFile(gi, 'utf8') : ''

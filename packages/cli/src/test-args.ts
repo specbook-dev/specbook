@@ -44,7 +44,7 @@ export const TEST_HELP = `      --env <name>             environment (default: m
       --input k=v              flow input value (repeatable)
       --var k=v                variable override (repeatable)
       --secrets-file <path>    dotenv file with secrets
-      --locale <l> --seed <n>  synthetic data locale / deterministic seed
+      --locale <l> --seed <n>  generated values: locale / seed for a repeatable run
       --notify <url>           POST a summary to a webhook when something fails`
 
 const parseValue = (v: string): unknown => {

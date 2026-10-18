@@ -47,11 +47,10 @@ await cp(viewer, resolve(out, channel), { recursive: true })
 }
 
 // What the viewer needs to start, so the landing page can fetch it while the visitor is still typing: the
-// app's modules are preloaded, its styles and worker prefetched. The faker chunk (only used by requests
-// with {{faker.*}}) is left out.
+// app's modules are preloaded, its styles and worker prefetched.
 const assets = (await readdir(resolve(out, channel, 'assets'))).sort()
 const ahead = {
-  modules: assets.filter((f) => f.endsWith('.js') && !/^(faker|worker)-/.test(f)),
+  modules: assets.filter((f) => f.endsWith('.js') && !/^worker-/.test(f)),
   prefetch: assets.filter((f) => f.endsWith('.css') || /^worker-.*\.js$/.test(f)),
 }
 const page = resolve(out, 'index.html')

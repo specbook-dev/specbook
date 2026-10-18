@@ -106,7 +106,7 @@ export default sequence({
 - `request.with({ ... })` changes a request for one step (for example its `assert`).
 - Also: `.input(name, ctx => controls)` asks a person for values, `.each(name, items, make)` repeats a request per item, `.check(name, fn)` asserts on the flow's state, `.use(otherFlow)` includes another flow.
 - Controls are `c.number`, `c.text`, `c.select`, `c.multiselect`, `c.boolean`, `c.date`, `c.object`, `c.array`. A flow also runs unattended in CI and as a monitor, so every input and every `.input()` control needs a default that makes sense with nobody to ask.
-- For generated data: `import { faker } from '@specbook/core/faker'` and use it in a default, for example `c.text({ default: () => faker.person.fullName() })`.
+- For generated data: `import { faker } from '@specbook/core/faker'` and use it in a default, for example `c.text({ default: () => faker.person.fullName() })`. It is typed, and `specbook init` installs `@faker-js/faker`. A `{{faker.person.firstName}}` placeholder (`faker.<module>.<method>`, no arguments) also works in a field.
 - Each step is also a request you can run alone.
 
 ### Recipe: list, check, pick, act

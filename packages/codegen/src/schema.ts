@@ -247,41 +247,6 @@ function exampleBoolean(key: string): boolean {
   )
 }
 
-const FAKE_BY_FORMAT: Record<string, string> = {
-  email: 'internet.email',
-  uuid: 'string.uuid',
-  uri: 'internet.url',
-  url: 'internet.url',
-  hostname: 'internet.domainName',
-  ipv4: 'internet.ipv4',
-}
-
-const FAKE_BY_NAME: [RegExp, string][] = [
-  [/^(first_?name|given_?name)$/, 'person.firstName'],
-  [/^(last_?name|family_?name|surname)$/, 'person.lastName'],
-  [/^(full_?name|display_?name)$/, 'person.fullName'],
-  [/^name$/, 'word.noun'],
-  [/^(user_?name|login|handle)$/, 'internet.username'],
-  [/^e?-?mail(_?address)?$/, 'internet.email'],
-  [/^(phone|phone_?number|mobile)$/, 'phone.number'],
-  [/^(city|town)$/, 'location.city'],
-  [/^country$/, 'location.country'],
-  [/^(postal_?code|zip|zip_?code)$/, 'location.zipCode'],
-  [/^(line1|address|street|address_?line_?1)$/, 'location.streetAddress'],
-  [/^(company|organization|org)$/, 'company.name'],
-  [/^(title|subject)$/, 'lorem.sentence'],
-  [/^(description|summary|bio|about|body|comment|note|notes|message)$/, 'lorem.sentence'],
-  [/^(url|website|homepage)$/, 'internet.url'],
-]
-
-/** `{{faker.*}}` placeholder for a string leaf, chosen by format first and then by field name. */
-export function fakerFor(key: string, format?: string): string | undefined {
-  const path =
-    (format && FAKE_BY_FORMAT[format]) ||
-    FAKE_BY_NAME.find(([re]) => re.test(key.toLowerCase()))?.[1]
-  return path ? `{{faker.${path}}}` : undefined
-}
-
 /** Deepest nesting of objects and arrays an example goes into before it settles for an empty one. */
 const MAX_DEPTH = 6
 
@@ -351,21 +316,16 @@ export function synthesize(
   seen: string[] = [],
   key = '',
   status?: number,
-  fake = false,
   sparse = false,
 ): unknown {
   if (!schema) return null
   const again = (s: Schema | undefined, k = key, d = depth, sn = seen) =>
-    synthesize(s, resolve, d, sn, k, status, fake, sparse)
+    synthesize(s, resolve, d, sn, k, status, sparse)
   if (schema.$ref) {
     const target = resolve(schema.$ref)
     // a reference back into itself carries on as "required fields only", which the depth rules then end
     if (seen.includes(schema.$ref)) return again(target, key, Math.max(depth, MAX_DEPTH), [])
     return again(target, key, depth, [...seen, schema.$ref])
-  }
-  if (fake && schema.type === 'string' && !schema.enum) {
-    const generated = fakerFor(key, schema.format)
-    if (generated) return generated
   }
   // a spec example that contradicts its own schema (a string field whose example is an array) is ignored
   if (schema.example !== undefined && fits(schema, schema.example))

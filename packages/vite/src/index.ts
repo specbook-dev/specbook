@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createRequire } from 'node:module'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
-import { environmentNames } from '@specbook/core'
+import { environmentNames, type FakerConfig, fakerLocaleExports } from '@specbook/core'
 import fg from 'fast-glob'
 import type { Plugin, ViteDevServer } from 'vite'
 import { type AddressConfig, addressesFor, NO_ADDRESSES } from './addresses'
@@ -44,6 +44,11 @@ export interface SpecbookPluginOptions {
    * reveals the rest of the API.
    */
   operations?: Set<string>
+  /**
+   * The project's `faker` config. A build ships only the locales it can reach (its chains, plus `en` and `base`);
+   * without it every locale faker has is available.
+   */
+  faker?: FakerConfig
 }
 
 const VIRTUAL = 'virtual:specbook/registry'
@@ -85,7 +90,7 @@ async function readBody(req: IncomingMessage): Promise<string> {
 }
 
 /** Locale names a faker install ships (`de`, `en_US`, ...), from its `locale/` folder next to the entry. */
-function fakerLocales(entry: string): string[] {
+function fakerLocales(entry: string, cfg?: FakerConfig): string[] {
   const names = new Set<string>(['en', 'base'])
   const dir = join(dirname(entry), 'locale')
   if (existsSync(dir))
@@ -93,8 +98,13 @@ function fakerLocales(entry: string): string[] {
       const m = /^([A-Za-z0-9_]+)\.js$/.exec(f)
       if (m) names.add(m[1] as string)
     }
-  return [...names].sort()
+  if (!cfg) return [...names].sort()
+  const wanted = new Set(fakerLocaleExports(cfg))
+  return [...names].filter((n) => wanted.has(n)).sort()
 }
+
+/** Whether a request or flow file uses faker: it imports `@specbook/core/faker` or has a `{{faker.` placeholder. */
+const USES_FAKER = /@specbook\/core\/faker|\{\{\s*faker\./
 
 /** What the sidebar and palette need; descriptions and example titles load per operation (`operationDocs`). */
 function slim(manifests: Record<string, any>) {
@@ -223,7 +233,15 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
     try {
       fakerEntry = createRequire(join(root, 'package.json')).resolve('@faker-js/faker')
     } catch {
-      /* optional peer dependency */
+      /* not installed: fine unless a file uses it, checked below */
+    }
+    if (!fakerEntry) {
+      for (const f of [...files.requests, ...files.sequences]) {
+        if (USES_FAKER.test(await readFile(join(root, f), 'utf8').catch(() => '')))
+          throw new Error(
+            `${f} uses faker, but @faker-js/faker is not installed in this project. Add it to devDependencies (npm install --save-dev @faker-js/faker).`,
+          )
+      }
     }
     const operationEntries = Object.values(manifests).flatMap((m) => {
       const mm = m as { service: string; operations: { id: string }[] }
@@ -604,7 +622,10 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
         const r = await this.resolve('@faker-js/faker', join(root, 'package.json'), {
           skipSelf: true,
         })
-        if (!r) return 'export {}'
+        if (!r)
+          throw new Error(
+            '@faker-js/faker could not be resolved from this project. Add it to devDependencies.',
+          )
         const pkg = JSON.stringify(r.id)
         if (id.startsWith(RESOLVED_FAKER_LOCALE))
           return `export { ${id.slice(RESOLVED_FAKER_LOCALE.length)} as default } from ${pkg}`
@@ -617,7 +638,7 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
         } catch {
           /* fall back to the resolved id */
         }
-        const names = fakerLocales(entry)
+        const names = fakerLocales(entry, options.faker)
         return `export { Faker, base } from ${pkg}
 export const locales = {
 ${names.map((n) => `  ${JSON.stringify(n)}: () => import(${JSON.stringify(`${VIRTUAL_FAKER_LOCALE}${n}`)}).then((m) => m.default)`).join(',\n')}

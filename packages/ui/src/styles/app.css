@@ -749,7 +749,7 @@
       width: 56%;
       min-width: 0;
     }
-    /* Synthetic data is a row inside a row (its label and, once fixed, a seed field): the inner one fills it */
+    /* Generated values is a row inside a row (its label and, once fixed, a seed field): the inner one fills it */
     .header-controls .row > .row {
       flex: 1 1 100%;
     }

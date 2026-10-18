@@ -144,7 +144,7 @@ The variables are in [`tokens.css`](packages/ui/src/styles/tokens.css): surfaces
 The command line turns a project's specs into types, examples, a docs site and runnable requests. Needs Node 24.
 
 ```sh
-npm install --save-dev @specbook/cli @specbook/core
+npm install --save-dev @specbook/cli @specbook/core @faker-js/faker
 ```
 
 Run the install above first; after that, `npx specbook` runs the installed copy. To look at a document with

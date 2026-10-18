@@ -68,14 +68,6 @@ export default defineConfig({
       output: {
         entryFileNames: (chunk) =>
           chunk.name === 'specbook' ? 'specbook.js' : 'assets/[name]-[hash].js',
-        // faker is only needed when a request uses {{faker.*}}, so it is named to be left out of the
-        // landing page's preload list (see scripts/assemble-site.mjs)
-        chunkFileNames: (chunk) =>
-          chunk.moduleIds.some(
-            (id) => id.includes('@faker-js/faker') || id.includes('viewer/faker-en'),
-          )
-            ? 'assets/faker-[hash].js'
-            : 'assets/[name]-[hash].js',
       },
     },
   },

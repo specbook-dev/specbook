@@ -397,17 +397,16 @@ export function generateFromDoc(
           if (defaultType) responseTypes.push(`${st}: ${defaultType}`)
         }
       }
-      // ---- request examples: spec-defined first, then generated default and dynamic
+      // ---- request examples: spec-defined first, then the generated default
       const fileFieldPaths = body?.encoding === 'multipart' ? fileFields(body.schema, resolve) : []
       const wholeBodyFile = body?.encoding === 'binary'
       const sample = `./${SAMPLE_FILE}`
-      const paramsFor = (fake: boolean) => {
+      const paramsFor = () => {
         const pick = (where: string) => {
           const out: Record<string, unknown> = {}
           for (const p of group(where)) {
             if (p.example !== undefined) out[p.name] = p.example
-            else if (p.required)
-              out[p.name] = synthesize(p.schema, resolve, 0, [], p.name, undefined, fake)
+            else if (p.required) out[p.name] = synthesize(p.schema, resolve, 0, [], p.name)
           }
           return Object.keys(out).length ? out : undefined
         }
@@ -433,7 +432,7 @@ export function generateFromDoc(
           title: ex.summary ?? key,
           summary: ex.description,
           source: 'spec',
-          ...paramsFor(false),
+          ...paramsFor(),
           body: bodyFor(sanitizeExample(ex.value)),
         })
       }
@@ -442,30 +441,16 @@ export function generateFromDoc(
           name: take('example'),
           title: 'Example',
           source: 'spec',
-          ...paramsFor(false),
+          ...paramsFor(),
           body: bodyFor(sanitizeExample(body.media.example)),
         })
       const plain = {
-        ...paramsFor(false),
+        ...paramsFor(),
         body: body?.schema
-          ? bodyFor(synthesize(body.schema, resolve, 0, [], '', undefined, false, true))
-          : undefined,
-      }
-      const dynamic = {
-        ...paramsFor(true),
-        body: body?.schema
-          ? bodyFor(synthesize(body.schema, resolve, 0, [], '', undefined, true, true))
+          ? bodyFor(synthesize(body.schema, resolve, 0, [], '', undefined, true))
           : undefined,
       }
       docs.push({ name: take('default'), title: 'Default', source: 'generated', ...plain })
-      if (JSON.stringify(dynamic) !== JSON.stringify(plain))
-        docs.push({
-          name: take('dynamic'),
-          title: 'Dynamic',
-          summary: 'Generated values, fresh on every play.',
-          source: 'generated',
-          ...dynamic,
-        })
       for (const d of docs)
         exampleFiles.push({
           path: `examples/${id}/${d.name}.example.json`,

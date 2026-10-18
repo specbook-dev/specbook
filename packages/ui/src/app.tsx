@@ -19,6 +19,7 @@ import {
   environmentNote,
   environmentRisk,
   environments,
+  fakerInUse,
   locale,
   newEnvironmentOpen,
   seed,
@@ -291,12 +292,17 @@ export function App() {
           {registry.loadFaker && (
             <span
               class="row muted"
-              title="Generated values such as {{faker.person.fullName}}: new on every run, or fixed so the same number always gives the same data"
+              title={
+                fakerInUse.value
+                  ? 'Generated values such as {{faker.person.fullName}}: new on every run, or fixed so the same number always gives the same data. `specbook test --seed` reproduces a run.'
+                  : 'Applies when the open request or flow uses {{faker.*}}'
+              }
             >
               <label class="row">
-                Synthetic data
+                Generated values
                 <select
-                  aria-label="Synthetic data"
+                  aria-label="Generated values"
+                  disabled={!fakerInUse.value}
                   value={seed.value === undefined ? 'random' : 'fixed'}
                   onChange={(e) => {
                     const fixed = (e.target as HTMLSelectElement).value === 'fixed'
@@ -313,6 +319,7 @@ export function App() {
                   class="seed-input"
                   aria-label="Seed number"
                   title="The same number gives the same data every run"
+                  disabled={!fakerInUse.value}
                   value={seed.value}
                   onInput={(e) => {
                     const n = (e.target as HTMLInputElement).valueAsNumber

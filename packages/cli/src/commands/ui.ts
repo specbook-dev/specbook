@@ -65,7 +65,12 @@ function uiConfig(project: Project, operations?: Set<string>): InlineConfig {
       rolldownOptions: { transform: { jsx: { runtime: 'automatic', importSource: 'preact' } } },
     },
     plugins: [
-      specbook({ projectRoot: project.root, outDir: project.config.codegen?.outDir, operations }),
+      specbook({
+        projectRoot: project.root,
+        outDir: project.config.codegen?.outDir,
+        operations,
+        faker: project.config.faker,
+      }),
     ],
     server: {
       fs: {

@@ -44,6 +44,9 @@ cookies are sent.
 `mock`; set `defaultEnv` to `"live"` (or the name of a server in the document) to start on that environment instead.
 The page keeps its own `<title>`.
 
+The viewer fills in a spec's examples and mock responses itself and ships no `faker`: a `{{faker.…}}` typed into a field is
+refused with a message. Generated values work in a Specbook project, where `specbook init` installs `@faker-js/faker`.
+
 | Situation | What to do |
 | --- | --- |
 | It is your API | Embed the viewer in your docs route. It runs on your origin, so there is no CORS and cookies are sent. |

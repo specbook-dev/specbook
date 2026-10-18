@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { environmentNames } from '@specbook/core'
 import { listEnvironmentFiles, readEnvironment, requestsDirFor } from '@specbook/vite'
 import { exampleLoadersFor } from '../examples'
+import { projectUsesFaker } from '../faker-use'
 import type { Loader } from '../load'
 import { unknownOperationsMessage } from '../ops'
 import type { Project } from '../project'
@@ -46,7 +47,9 @@ export async function testCommand(
       readEnvironment: (env) => readEnvironment(project.root, env),
       examples: exampleLoadersFor(project),
       mock: mockLoaderFor(project),
-      loadFaker: () => loadFaker(project),
+      // only a project that uses faker pays for importing it
+      loadFaker: async () =>
+        (await projectUsesFaker(project.root)) ? loadFaker(project) : undefined,
       readSource: (file) => {
         try {
           return readFileSync(file, 'utf8')
