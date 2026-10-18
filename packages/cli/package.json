@@ -1,6 +1,6 @@
 {
   "name": "@specbook/cli",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Specbook command line: init, add, generate, dev, build, test, bundle, check, secrets and preview.",
   "keywords": [
     "specbook",
