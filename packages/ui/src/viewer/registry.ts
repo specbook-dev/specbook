@@ -14,6 +14,8 @@ export interface ViewerGlobal {
   baseUrl?: string
   /** the environment to show first, when it is one the document offers (otherwise `mock`) */
   defaultEnv?: string
+  /** false on a page that is not the viewer's own (an embed), where the host's title stays */
+  setTitle?: boolean
   /** where the document came from, which decides whether a link to this view can be shared */
   source?: import('./share').ViewerSource
 }

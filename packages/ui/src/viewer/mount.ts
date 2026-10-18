@@ -21,6 +21,7 @@ export async function mountOpened(o: {
     open: o.result,
     baseUrl: o.baseUrl,
     defaultEnv: o.defaultEnv,
+    setTitle: o.setTitle,
     source:
       o.shareable === false
         ? undefined

@@ -879,7 +879,8 @@ describe('the embed script', () => {
     expect(await page.locator('.op-row').count()).toBeGreaterThan(10)
     // it is the host's page, so a "link back to ?spec=" is not offered, nor a link to our repository
     expect(await page.locator('a.gh-star').count()).toBe(0)
-    expect(await page.title()).toContain('Petstore')
+    // it is the host's page, so the host's title stays
+    expect(await page.title()).toBe('Docs')
     expect(await page.getByRole('button', { name: 'Share', exact: true }).count()).toBe(0)
     // the badge points back, with the host page's name
     expect(await page.locator('.overview .powered-by a').getAttribute('href')).toBe(

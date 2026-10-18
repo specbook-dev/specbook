@@ -87,7 +87,8 @@ export function applyBranding(
   }
   style.textContent = cfg ? brandCss(cfg) : ''
   const name = resolved.name ?? fallbackName
-  document.title = resolved.title ? `${name} · ${resolved.title}` : name
+  if (globalThis.__SPECBOOK_VIEWER__?.setTitle !== false)
+    document.title = resolved.title ? `${name} · ${resolved.title}` : name
   if (resolved.favicon || resolved.logo) {
     let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
     if (!link) {
