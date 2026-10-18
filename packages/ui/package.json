@@ -1,6 +1,6 @@
 {
   "name": "@specbook/ui",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "The Specbook docs app, spec viewer and embeddable specbook.js.",
   "keywords": [
     "specbook",
