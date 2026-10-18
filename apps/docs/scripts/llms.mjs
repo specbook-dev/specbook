@@ -32,6 +32,7 @@ export const DOCS = [
 
 export const OPTIONAL = [
   ['Embed the viewer and the play panel', `${SITE}/reference/embed/`],
+  ['Use with FastAPI', `${SITE}/reference/fastapi/`],
   ['Theming', `${SITE}/reference/theming/`],
   ['Source on GitHub', 'https://github.com/specbook-dev/specbook'],
 ]

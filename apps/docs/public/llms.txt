@@ -183,5 +183,6 @@ Markdown next to what it describes is shown in the UI: `requests/<service>/<Oper
 ## Optional
 
 - [Embed the viewer and the play panel](https://docs.specbook.dev/reference/embed/)
+- [Use with FastAPI](https://docs.specbook.dev/reference/fastapi/)
 - [Theming](https://docs.specbook.dev/reference/theming/)
 - [Source on GitHub](https://github.com/specbook-dev/specbook)

@@ -64,6 +64,9 @@ The script runs on your page's origin, so the spec and the API calls need no COR
 cookies. `spec` may be relative; `baseUrl` supplies the API address when the document has none; `defaultEnv`
 (`"live"`, or the name of a server in the document) is the environment shown first, where `mock` is the default.
 
+Using FastAPI? `pip install specbook-fastapi` serves the viewer from your app with one function, see
+[Use with FastAPI](https://docs.specbook.dev/reference/fastapi/).
+
 ## CORS: which option?
 
 | Situation | What to do |
@@ -354,7 +357,7 @@ The licence is set per package:
 
 | Package | Licence |
 | --- | --- |
-| `@specbook/core`, `@specbook/codegen`, `@specbook/ui` (the viewer, the embed and the libraries behind them) | [MIT](LICENSE) |
+| `@specbook/core`, `@specbook/codegen`, `@specbook/ui` (the viewer, the embed and the libraries behind them), and `specbook-fastapi` | [MIT](LICENSE) |
 | `@specbook/cli`, `@specbook/vite` (the project workflow tooling) | [FSL-1.1-MIT](packages/cli/LICENSE): free to use, including at work and in commercial projects. Each version becomes MIT two years after its release |
 
 Companies can use the CLI and the Vite plugin: in their projects, in CI, to build and publish their own

@@ -1,0 +1,81 @@
+---
+title: Use with FastAPI
+description: Serve the viewer from your FastAPI app with one function.
+---
+
+`specbook-fastapi` serves the Specbook viewer for your app's own OpenAPI document. The page it returns only loads the
+viewer, so the document and the API calls stay on your app's origin: no CORS, and the visitor's cookies are sent.
+
+```sh
+pip install specbook-fastapi
+```
+
+It needs Python 3.10 or newer and FastAPI.
+
+## Serve the viewer
+
+```python
+from fastapi import FastAPI
+from specbook_fastapi import add_specbook
+
+app = FastAPI()
+add_specbook(app)  # the viewer is at /specbook
+```
+
+To use it in place of FastAPI's own docs page, turn that off and take its route:
+
+```python
+app = FastAPI(docs_url=None, redoc_url=None)
+add_specbook(app, route="/docs")
+```
+
+The document's address and the page title come from the app, with the request's `root_path` in front of the address, so
+it works behind a prefix, a mount or a proxy. The route is left out of the OpenAPI document.
+
+## Your own route
+
+`get_specbook_html` returns an `HTMLResponse`:
+
+```python
+from specbook_fastapi import get_specbook_html
+
+@app.get("/docs", include_in_schema=False)
+async def docs():
+    return get_specbook_html(openapi_url=app.openapi_url, default_env="live")
+```
+
+## Options
+
+`add_specbook` takes `route` and `include_in_schema`, and passes every other keyword argument on to `get_specbook_html`.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `openapi_url` | `/openapi.json` | The OpenAPI document. `add_specbook` takes it from the app. |
+| `title` | `API docs` | The page title. `add_specbook` takes it from the app. |
+| `default_env` | `mock` | The environment shown first: `mock`, `live`, or the name of a server in the document. |
+| `base_url` | the page's own origin | Where live requests go when the document lists no server. |
+| `cdn` | `"specbook"` | Where the viewer loads from: the stable `v1` channel at `ui.specbook.dev`, or `"npm"` for `@specbook/ui` on jsDelivr. |
+| `version` | `v1` or the tested release | With `specbook`, the channel. With `npm`, a version or range of `@specbook/ui`. |
+| `host` | the host of `cdn` | A mirror, for example `https://unpkg.com`. |
+| `src` | none | The full address of `specbook.js`, for a copy you serve yourself. It overrides `cdn`, `version` and `host`. |
+| `nonce` | none | A CSP nonce for the viewer's script. |
+
+## Content-Security-Policy and self-hosting
+
+The page has no inline script. Under a strict policy, the viewer needs the same allowances as any embed. See
+[Embed and the play panel](/reference/embed/#content-security-policy). To load nothing from another host, unpack
+`specbook-viewer-<version>.zip` from a [release](https://github.com/specbook-dev/specbook/releases) (or `dist-viewer/`
+from `@specbook/ui`) into a folder, mount it with `StaticFiles`, and pass `src`:
+
+```python
+from fastapi.staticfiles import StaticFiles
+
+app.mount("/specbook-viewer", StaticFiles(directory="specbook-viewer"), name="specbook-viewer")
+add_specbook(app, route="/docs", src="/specbook-viewer/specbook.js")
+```
+
+## Privacy
+
+The viewer runs no analytics or tracking script, and your document and your API's responses stay in the visitor's
+browser. Loading the script from `ui.specbook.dev` or jsDelivr means that host sees the visitor's IP address and the file
+requests, as any CDN does. Self-hosting avoids that. The overview shows a small "Powered by Specbook" link to this site.
