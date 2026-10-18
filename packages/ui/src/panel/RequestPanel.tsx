@@ -13,7 +13,16 @@ import { engine, isStatic, registry, saveFile } from '../runtime'
 import { type Defs, type JsonSchema, propsOf, unwrap } from '../schema'
 import { statusClass, statusName } from '../status'
 import { kv } from '../storage'
-import { env, envSettingsOpen, envVarsVersion, features, locale, seed, version } from '../store'
+import {
+  env,
+  envSettingsOpen,
+  envVarsVersion,
+  fakerInUse,
+  features,
+  locale,
+  seed,
+  version,
+} from '../store'
 import { announcement, describeRun } from './announce'
 import { Body } from './Body'
 import { DraftCodeSample } from './CodeSample'
@@ -247,6 +256,29 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
       return []
     }
   }, [draft, encoding])
+
+  // the header's Generated values control applies while this request can use faker: a `{{faker.*}}` in what is
+  // typed, or an `init`/`data` function in a saved request
+  const usesFakerNow = useMemo(() => {
+    const input = saved?.def.input
+    if (Object.values(input?.init ?? {}).some((v) => typeof v === 'function')) return true
+    if (typeof input?.data === 'function') return true
+    if (!draft) return false
+    try {
+      const parts = requestParts(draft, encoding)
+      return [
+        ...collectPlaceholders([parts.path, parts.query, parts.headers, parts.data, vars]),
+      ].some((n) => n.startsWith('faker.'))
+    } catch {
+      return false
+    }
+  }, [saved, draft, encoding, vars])
+  useEffect(() => {
+    fakerInUse.value = usesFakerNow
+    return () => {
+      fakerInUse.value = false
+    }
+  }, [usesFakerNow])
 
   // placeholders nothing supplies: not in config or the environment's files. They stay listed while
   // you type, so the field you are filling does not disappear under you.

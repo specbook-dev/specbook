@@ -10,6 +10,8 @@ export const environmentRisk = signal<Record<string, 'production' | 'sandbox'>>(
 export const environmentNote = signal<Record<string, string>>({})
 export const locale = signal<string | undefined>(undefined)
 export const seed = signal<number | undefined>(undefined)
+/** Whether the request or flow that is open can use generated values; the header's control is enabled while it is. */
+export const fakerInUse = signal(false)
 /** Bumped when an environment's variables change, so what is derived from them (addresses, origins) is redone. */
 export const envVarsVersion = signal(0)
 /** Whether Environment settings is open; set from elsewhere to point a person at it. */

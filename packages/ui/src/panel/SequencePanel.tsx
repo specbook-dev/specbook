@@ -4,7 +4,7 @@ import { EnvBadge } from '../components/EnvBadge'
 import { defaultFor, type FieldSpec, specFromControl } from '../components/Fields'
 import type { SequenceInfo } from '../engine'
 import { engine } from '../runtime'
-import { env, locale, seed, version } from '../store'
+import { env, fakerInUse, locale, seed, version } from '../store'
 import { announcement, describeRun } from './announce'
 import { Failure } from './Checks'
 import { ControlsGrid } from './ControlsGrid'
@@ -79,6 +79,13 @@ export function SequencePanel({
   const hasGenerated = Object.values(specs).some((s) => s.generate)
   // a flow with inputs can run on their defaults alone, as `specbook test` does
   const hasInputs = Object.keys(specs).length > 0 || seq.nodes.some((n) => n.kind === 'input')
+
+  useEffect(() => {
+    fakerInUse.value = hasGenerated
+    return () => {
+      fakerInUse.value = false
+    }
+  }, [hasGenerated])
 
   /** Every input at its default; a generated one needs faker, which is made ready first. */
   const freshInputs = async () => {
