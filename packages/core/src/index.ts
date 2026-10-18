@@ -33,6 +33,7 @@ export {
   deepMerge,
   render,
   renderString,
+  rootName,
   TemplateError,
   usesFaker,
 } from './template'

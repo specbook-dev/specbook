@@ -1,4 +1,10 @@
-import { collectPlaceholders, type Encoding, type Example, type RunResult } from '@specbook/core'
+import {
+  collectPlaceholders,
+  type Encoding,
+  type Example,
+  type RunResult,
+  rootName,
+} from '@specbook/core'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { EnvBadge } from '../components/EnvBadge'
 import type { Variant } from '../engine'
@@ -235,7 +241,7 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
         .filter(
           (n) => !n.startsWith('faker.') && !n.startsWith('secrets.') && !n.startsWith('session.'),
         )
-        .map((n) => n.split('.')[0] as string)
+        .map(rootName)
         .filter((n, i, a) => a.indexOf(n) === i)
     } catch {
       return []

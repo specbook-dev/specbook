@@ -107,4 +107,40 @@ describe('add / check', () => {
       cwd.mockRestore()
     }
   }, 60_000)
+
+  it('counts `pets[0].name` as a use of `pets`: quiet when the request supplies it, a warning naming it when nothing does', async () => {
+    const dir = await tempProject()
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const cwd = vi.spyOn(process, 'cwd').mockReturnValue(dir)
+    try {
+      const { generateToDisk } = await import('@specbook/codegen')
+      await generateToDisk({
+        spec: join(dir, 'openapi/petstore.json'),
+        service: 'petstore',
+        outDir: join(dir, '.generated'),
+      })
+      await writeFile(
+        join(dir, 'requests/petstore/brackets.req.ts'),
+        `import { AddPet } from '#api/petstore'
+export default AddPet.request({
+  init: { pets: [{ name: 'Rex' }] },
+  data: { name: '{{pets[0].name}}', photoUrls: ['{{urls[0]}}'] },
+})
+`,
+      )
+      const loader = await createLoader(dir)
+      try {
+        const project = await loadProject(dir, loader)
+        await checkCommand(project, loader)
+        const said = log.mock.calls.map((c) => c.join(' ')).join('\n')
+        expect(said).toContain('"{{urls[0]}}" has no init value or config var')
+        expect(said).not.toContain('"{{pets[0].name}}"')
+      } finally {
+        await loader.close()
+      }
+    } finally {
+      log.mockRestore()
+      cwd.mockRestore()
+    }
+  }, 60_000)
 })

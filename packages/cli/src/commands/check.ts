@@ -11,6 +11,7 @@ import {
   isAbsoluteHttp,
   type OAuthSettings,
   oauthFor,
+  rootName,
 } from '@specbook/core'
 import { listEnvironmentFiles, readEnvironment } from '@specbook/vite'
 import fg from 'fast-glob'
@@ -166,9 +167,9 @@ export async function checkCommand(project: Project, loader: Loader): Promise<nu
       ...def.dataPatches,
     ])
     const init = new Set(Object.keys(def.input.init ?? {}))
-    const roots = new Set([...used].map((n) => n.split('.')[0] as string))
+    const roots = new Set([...used].map(rootName))
     for (const name of used) {
-      const root = name.split('.')[0] as string
+      const root = rootName(name)
       if (name.startsWith('secrets.')) {
         if (!declared.has(name.slice(8)))
           warnings.push(`[${rel}] secret "${name.slice(8)}" is not declared in config.secrets`)

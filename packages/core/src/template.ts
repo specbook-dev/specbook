@@ -2,8 +2,13 @@
 
 import { faker } from './faker'
 
-const WHOLE = /^\s*\{\{\s*([\w.$-]+)\s*\}\}\s*$/
-const EMBED = /\{\{\s*([\w.$-]+)\s*\}\}/g
+// a name is words joined by dots, and a position in an array can be a dot (`tags.0.name`) or brackets (`tags[0].name`)
+const NAME = String.raw`[\w.$\[\]-]+`
+const WHOLE = new RegExp(String.raw`^\s*\{\{\s*(${NAME})\s*\}\}\s*$`)
+const EMBED = new RegExp(String.raw`\{\{\s*(${NAME})\s*\}\}`, 'g')
+
+/** The variable a placeholder starts from: `tags` for `tags[0].name`, `pet` for `pet.category.name`. */
+export const rootName = (name: string): string => name.split(/[.[]/, 1)[0] as string
 
 /** Namespaces resolved at the transport boundary, never in the request model. */
 export const DEFERRED_NAMESPACES = ['secrets', 'session'] as const
@@ -39,11 +44,15 @@ export function usesFaker(value: unknown): boolean {
   return [...collectPlaceholders(value)].some(isFakerName)
 }
 
+/** `tags[0].name` is `tags.0.name`: a position in brackets is the same step as one after a dot. */
+const steps = (path: string) => path.replace(/\[(\d+)\]/g, '.$1').split('.')
+
 function lookup(scope: Record<string, unknown>, path: string): { found: boolean; value?: unknown } {
   if (isFakerName(path)) return fromFaker(path)
   let cur: unknown = scope
-  for (const part of path.split('.')) {
-    if (cur !== null && typeof cur === 'object' && part in (cur as object)) {
+  for (const part of steps(path)) {
+    // a value's own properties only: `toString` and `constructor` are not data, so a placeholder cannot reach them
+    if (cur !== null && typeof cur === 'object' && Object.hasOwn(cur as object, part)) {
       cur = (cur as Record<string, unknown>)[part]
     } else {
       return { found: false }

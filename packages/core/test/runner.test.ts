@@ -195,6 +195,29 @@ describe('runSequence', () => {
       assert.equal(ctx.captured.fetchedId, ['o0', 'o1'])
     })
 
+  it('reaches into a captured list with brackets, and counts the list as the variable used', async () => {
+    const pick = sequence({ id: 'pick', title: 'Pick' })
+      .step(
+        'List',
+        CreateOrder.request({
+          data: { itemCode: 'x', quantity: 1 },
+          capture: { items: () => [{ sku: 'BOOK-9' }, { sku: 'PEN-2' }] },
+        }),
+      )
+      .step(
+        'Order',
+        CreateOrder.request({
+          data: { itemCode: '{{items[1].sku}}', quantity: '{{items.length}}' },
+        }),
+      )
+    const { transport, calls } = fakeOrderApi()
+    const r = await runSequence(pick, { env: 'mock', transport })
+    expect(r.status).toBe('pass')
+    expect(calls[1]?.body).toEqual({ itemCode: 'PEN-2', quantity: 2 })
+    // `items[1].sku` and `items.length` both come from the captured `items`, listed once
+    expect(r.steps[1]?.uses?.map((u) => [u.key, u.source])).toEqual([['items', 'capture']])
+  })
+
   it('runs steps, each() and checks with captures flowing forward', async () => {
     const { transport, calls } = fakeOrderApi()
     const r = await runSequence(seq, { env: 'mock', transport })

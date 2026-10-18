@@ -729,6 +729,19 @@ describe('docs and play panel', () => {
     expect($('.response')?.textContent).toContain('200')
   })
 
+  it('asks for the variable a bracket path starts from, not for the path', async () => {
+    await mount()
+    await play('petstore/AddPet', 'default')
+    await waitFor(() => expect(editor()?.value).toContain('doggie'))
+    const ta = editor() as HTMLTextAreaElement
+    type(ta as unknown as HTMLInputElement, ta.value.replace('"doggie"', '"{{pets[0].name}}"'))
+    await waitFor(() => expect($('.needs-vars')?.textContent).toContain('pets'))
+    const asked = $('.needs-vars')?.textContent ?? ''
+    // one variable, `pets`: not `pets[0]` or `pets[0].name`
+    expect(asked).not.toContain('[0]')
+    expect(asked).not.toContain('.name')
+  })
+
   it('shows saved requests read-only', async () => {
     await mount()
     await play('petstore/AddPet', 'default')

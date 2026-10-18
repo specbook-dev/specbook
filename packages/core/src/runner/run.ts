@@ -11,6 +11,7 @@ import {
   isFakerName,
   isPlainObject,
   render,
+  rootName,
 } from '../template'
 import type {
   ApiResponse,
@@ -201,7 +202,7 @@ function usesOf(
   const out: VarUse[] = []
   for (const name of names) {
     if (isDeferred(name) || isFakerName(name)) continue
-    const key = name.split('.')[0] as string
+    const key = rootName(name)
     if (seen.has(key)) continue
     seen.add(key)
     for (let i = layers.length - 1; i >= 0; i--) {
