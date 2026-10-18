@@ -325,7 +325,6 @@ Try the example project (Petstore, Stripe, GitHub and a GraphQL API):
 
 ```sh
 cd apps/example
-pnpm exec specbook generate
 pnpm exec specbook dev
 ```
 
