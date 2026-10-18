@@ -514,6 +514,9 @@ function convertSchema(schema: Schema | undefined, refPrefix: string): Schema {
     }
     case 'array':
       return { ...meta, type: t('array'), items: rec(schema.items ?? {}) }
+    case 'null':
+      // OpenAPI 3.1 writes an optional field as `anyOf: [{ type: integer }, { type: 'null' }]`: the branch must stay a null
+      return { ...meta, type: 'null' }
     default: {
       if (!schema.properties && schema.additionalProperties === undefined && type !== 'object')
         return meta

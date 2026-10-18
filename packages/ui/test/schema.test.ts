@@ -83,3 +83,22 @@ describe('linePaths', () => {
     expect(paths).toContain('data.name')
   })
 })
+
+describe('an optional field written the OpenAPI 3.1 way', () => {
+  // what the conversion makes of `anyOf: [{ type: integer }, { type: 'null' }]` (FastAPI and Pydantic write every Optional so)
+  const owner = {
+    anyOf: [{ anyOf: [{ type: 'integer' }, PLACEHOLDER] }, { type: 'null' }],
+    title: 'Owner Id',
+  }
+  const pet = { type: 'object', properties: { owner_id: owner } }
+
+  it('accepts a null, an integer and a template', () => {
+    expect(validate({ owner_id: null }, pet, {}, { reportExtra: true })).toEqual([])
+    expect(validate({ owner_id: 7 }, pet, {}, { reportExtra: true })).toEqual([])
+    expect(validate({ owner_id: '{{owner}}' }, pet, {}, { reportExtra: true })).toEqual([])
+  })
+
+  it('still refuses what neither branch allows', () => {
+    expect(validate({ owner_id: 'seven' }, pet, {}).map((i) => i.path)).toEqual(['owner_id'])
+  })
+})

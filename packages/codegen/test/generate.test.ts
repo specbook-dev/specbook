@@ -547,6 +547,19 @@ describe('example quality', () => {
     ])
   })
 
+  it('keeps a null branch of anyOf as a null (OpenAPI 3.1 optional fields)', async () => {
+    const { toJsonSchema } = await import('../src/schema')
+    const out = toJsonSchema(
+      { anyOf: [{ type: 'integer' }, { type: 'null' }], title: 'Owner Id' },
+      '#/$defs/',
+    )
+    expect(out.anyOf).toEqual([
+      expect.objectContaining({ anyOf: expect.any(Array) }),
+      { type: 'null' },
+    ])
+    expect(out.title).toBe('Owner Id')
+  })
+
   it('ignores an example whose type contradicts its schema', async () => {
     const { response } = await run(
       {},
