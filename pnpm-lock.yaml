@@ -330,6 +330,10 @@ importers:
       uvu:
         specifier: 0.5.6
         version: 0.5.6
+    devDependencies:
+      '@faker-js/faker':
+        specifier: 9.3.0
+        version: 9.3.0
 
   packages/ui:
     dependencies:

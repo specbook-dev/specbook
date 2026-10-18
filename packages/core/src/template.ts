@@ -1,6 +1,6 @@
 // Template engine: `{{ name }}` placeholders, variable lookup only (no expressions).
 
-import { faker } from './faker'
+import { faker } from './faker-runtime'
 
 // a name is words joined by dots, and a position in an array can be a dot (`tags.0.name`) or brackets (`tags[0].name`)
 const NAME = String.raw`[\w.$\[\]-]+`

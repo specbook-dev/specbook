@@ -71,3 +71,19 @@ describe('types', () => {
     })
   })
 })
+
+describe('faker types', () => {
+  it('types the faker request files import', async () => {
+    const { faker } = await import('../src/faker')
+    // never called: the proxy needs an installed instance, and only the types are checked
+    const check = () => {
+      expectTypeOf(faker.person.firstName()).toBeString()
+      expectTypeOf(faker.number.int({ max: 5 })).toBeNumber()
+      // @ts-expect-error not a faker generator
+      faker.person.fistName()
+      // @ts-expect-error max is a number
+      faker.number.int({ max: 'x' })
+    }
+    expectTypeOf(check).toBeFunction()
+  })
+})

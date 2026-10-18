@@ -1,4 +1,4 @@
-import type { FakerConfig } from './faker'
+import type { FakerConfig } from './faker-runtime'
 import type { AuthProfile } from './runner/run'
 import type { SecretProvider, SecretRef } from './secrets'
 

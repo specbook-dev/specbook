@@ -5,7 +5,7 @@ import { chmod, mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { type Example, fakerLocaleNames } from '@specbook/core'
+import { type Example, fakerLocaleExports } from '@specbook/core'
 import { listEnvironmentFiles, readEnvironment, requestsDirFor } from '@specbook/vite'
 import { type Plugin, rolldown } from 'rolldown'
 import type { Loader } from '../load'
@@ -137,9 +137,7 @@ async function fakerSource(project: Project, sources: string): Promise<string | 
   }
   if (!project.config.faker && !/faker/.test(sources)) return undefined
   const cfg = project.config.faker ?? {}
-  const wanted = new Set(['Faker', ...fakerLocaleNames(cfg)])
-  for (const name of Object.keys(cfg.locales ?? {}))
-    for (const n of fakerLocaleNames(cfg, name)) wanted.add(n)
+  const wanted = new Set(['Faker', ...fakerLocaleExports(cfg)])
   const have = new Set(Object.keys(await import(pathToFileURL(entry).href)))
   const names = [...wanted].filter((n) => have.has(n)).sort()
   return `export { ${names.join(', ')} } from ${JSON.stringify(entry)}\n`
