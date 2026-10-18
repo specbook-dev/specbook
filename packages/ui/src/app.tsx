@@ -29,8 +29,11 @@ import {
 /** The picker's last entry: not an environment, a way to make one. */
 const NEW_ENVIRONMENT = '\u0000new-environment'
 
-// the hosted viewer is Specbook itself, so its header carries our mark unless the API brings a logo
-const ownMark = globalThis.__SPECBOOK_VIEWER__?.source ? markUrl : undefined
+/**
+ * The name and the mark go together: the project's or the API's own logo, else our mark beside our own name. A brand
+ * with a name of its own and no logo shows the name alone, since the mark would be the wrong product's.
+ */
+const logoOf = (b: { logo?: string; name?: string }) => b.logo ?? (b.name ? undefined : markUrl)
 
 /**
  * One API: its links leave the service out. The services' lists are fetched before the app first renders, not
@@ -253,10 +256,10 @@ export function App() {
     >
       <header class="header">
         <button type="button" class="brand" onClick={() => go({ kind: 'home' })}>
-          {(brand.value.logo ?? ownMark) && (
+          {logoOf(brand.value) && (
             <img
               class="brand-logo"
-              src={brand.value.logo ?? ownMark}
+              src={logoOf(brand.value)}
               alt=""
               style={
                 brand.value.logoBackground

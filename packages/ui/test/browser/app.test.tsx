@@ -263,6 +263,33 @@ describe('docs and play panel', () => {
     }
   })
 
+  it('puts our mark beside our own name, and no mark beside a name that is not ours', async () => {
+    const before = brand.value
+    brand.value = { links: [], ready: false }
+    try {
+      await mount()
+      await waitFor(() => expect(brand.value.ready).toBe(true))
+      // the default name: the name and the mark go together, however the viewer was opened
+      brand.value = { ...brand.value, name: undefined, logo: undefined }
+      await waitFor(() => expect($('.brand-name')?.textContent).toBe('Specbook'))
+      expect($('.brand .brand-logo')?.getAttribute('src')).toBeTruthy()
+      // a name of its own and no logo: the name alone
+      brand.value = { ...brand.value, name: 'Acme', logo: undefined }
+      await waitFor(() => expect($('.brand-name')?.textContent).toBe('Acme'))
+      expect($('.brand .brand-logo')).toBeNull()
+      // its own logo wins
+      brand.value = {
+        ...brand.value,
+        name: 'Acme',
+        logo: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>',
+      }
+      await waitFor(() => expect($('.brand .brand-logo')?.getAttribute('src')).toContain('svg'))
+    } finally {
+      brand.value = before
+      render(null, root)
+    }
+  })
+
   it('keeps the phone header inside the screen however long the product name is', async () => {
     const [w, h] = [window.innerWidth, window.innerHeight]
     await page.viewport(360, 800)
