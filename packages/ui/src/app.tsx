@@ -108,6 +108,8 @@ export function App() {
       .finally(loadRest)
     engine.environments(version.value).then((e) => {
       environments.value = e
+      const first = globalThis.__SPECBOOK_VIEWER__?.defaultEnv
+      if (first && e.includes(first)) env.value = first
     })
     engine.environmentRisks(version.value).then((r) => {
       environmentRisk.value = r

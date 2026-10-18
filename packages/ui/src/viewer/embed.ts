@@ -7,7 +7,8 @@
  *   <script type="module" src="https://ui.specbook.dev/v1/specbook.js"></script>
  *
  * The script takes the page over (it owns the document, as `/docs` does). `spec` may be relative.
- * `baseUrl` gives the API address when the document has none, `target` names another container.
+ * `baseUrl` gives the API address when the document has none, `target` names another container, and
+ * `defaultEnv` (`"live"` or the name of a server) picks the environment shown first instead of `mock`.
  */
 import { handleOAuthCallback } from '../oauth-callback'
 import { SpecWorker } from './client'
@@ -17,6 +18,7 @@ interface EmbedConfig {
   spec?: string
   baseUrl?: string
   target?: string
+  defaultEnv?: string
 }
 
 function readConfig(): EmbedConfig {
@@ -29,7 +31,11 @@ function readConfig(): EmbedConfig {
     }
   }
   const script = document.querySelector<HTMLScriptElement>('script[src$="specbook.js"][data-spec]')
-  return { spec: script?.dataset.spec, baseUrl: script?.dataset.baseUrl }
+  return {
+    spec: script?.dataset.spec,
+    baseUrl: script?.dataset.baseUrl,
+    defaultEnv: script?.dataset.defaultEnv,
+  }
 }
 
 function container(sel?: string): HTMLElement {
@@ -72,6 +78,7 @@ async function start() {
       worker,
       source: { kind: 'url', url },
       baseUrl: cfg.baseUrl,
+      defaultEnv: typeof cfg.defaultEnv === 'string' ? cfg.defaultEnv : undefined,
       shareable: false,
       setTitle: false,
     })

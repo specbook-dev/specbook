@@ -61,7 +61,8 @@ that broke is shown with what was expected and what came back, and the exit code
 ```
 
 The script runs on your page's origin, so the spec and the API calls need no CORS and carry the visitor's
-cookies. `spec` may be relative; `baseUrl` supplies the API address when the document has none.
+cookies. `spec` may be relative; `baseUrl` supplies the API address when the document has none; `defaultEnv`
+(`"live"`, or the name of a server in the document) is the environment shown first, where `mock` is the default.
 
 ## CORS: which option?
 

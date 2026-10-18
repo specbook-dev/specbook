@@ -12,6 +12,7 @@ export async function mountOpened(o: {
   worker: SpecWorker
   source: Source
   baseUrl?: string
+  defaultEnv?: string
   shareable?: boolean
   setTitle?: boolean
 }): Promise<void> {
@@ -19,6 +20,7 @@ export async function mountOpened(o: {
   const g: ViewerGlobal = {
     open: o.result,
     baseUrl: o.baseUrl,
+    defaultEnv: o.defaultEnv,
     source:
       o.shareable === false
         ? undefined

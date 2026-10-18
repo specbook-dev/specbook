@@ -846,6 +846,12 @@ describe('the embed script', () => {
 <script type="application/json" id="specbook-config">{"spec":"/openapi.json"}</script>
 <script type="module" src="${siteUrl}/v1/specbook.js"></script></body>`)
       }
+      if (p === '/docs-live') {
+        res.setHeader('content-type', 'text/html')
+        return void res.end(`<!doctype html><title>Docs</title><body><div id="app"></div>
+<script type="application/json" id="specbook-config">{"spec":"/openapi.json","baseUrl":"${hostUrl}","defaultEnv":"live"}</script>
+<script type="module" src="${siteUrl}/v1/specbook.js"></script></body>`)
+      }
       if (p === '/bare') {
         res.setHeader('content-type', 'text/html')
         return void res.end(
@@ -881,6 +887,20 @@ describe('the embed script', () => {
     )
     expect(errors).toEqual([])
     await page.close()
+  })
+
+  it('starts on mock, or on the environment defaultEnv names', async () => {
+    const env = (page: Page) => page.getByLabel('Environment', { exact: true }).inputValue()
+    const plain = await browser.newPage()
+    await plain.goto(`${hostUrl}/docs`)
+    await plain.waitForSelector('.op-row', { timeout: 30_000 })
+    expect(await env(plain)).toBe('mock')
+    await plain.close()
+    const live = await browser.newPage()
+    await live.goto(`${hostUrl}/docs-live`)
+    await live.waitForSelector('.op-row', { timeout: 30_000 })
+    await expect.poll(() => env(live)).toBe('live')
+    await live.close()
   })
 
   it('says what is wrong when no spec is configured', async () => {

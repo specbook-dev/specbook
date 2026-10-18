@@ -12,6 +12,8 @@ export interface ViewerGlobal {
   definitions(): Promise<Record<string, any>>
   /** the base URL the person gave, when the document has none of its own */
   baseUrl?: string
+  /** the environment to show first, when it is one the document offers (otherwise `mock`) */
+  defaultEnv?: string
   /** where the document came from, which decides whether a link to this view can be shared */
   source?: import('./share').ViewerSource
 }
