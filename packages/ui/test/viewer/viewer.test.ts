@@ -843,7 +843,7 @@ describe('Powered by Specbook', () => {
     const a = page.locator('.overview .powered-by a')
     await a.waitFor()
     expect(await a.innerText()).toBe('Powered by Specbook')
-    expect(await a.getAttribute('href')).toBe('https://ui.specbook.dev/?ref=127.0.0.1')
+    expect(await a.getAttribute('href')).toBe('https://docs.specbook.dev/?ref=127.0.0.1')
     await page.close()
   })
 })
@@ -901,7 +901,7 @@ describe('the embed script', () => {
     expect(await page.getByRole('button', { name: 'Share', exact: true }).count()).toBe(0)
     // the badge points back, with the host page's name
     expect(await page.locator('.overview .powered-by a').getAttribute('href')).toBe(
-      'https://ui.specbook.dev/?ref=127.0.0.1',
+      'https://docs.specbook.dev/?ref=127.0.0.1',
     )
     expect(errors).toEqual([])
     await page.close()

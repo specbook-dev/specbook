@@ -11,4 +11,4 @@ export function showBadge(o: { host: string; published: boolean; badge?: boolean
 
 /** The link back carries the host, so a site's referrals can be told apart without any tracking script. */
 export const badgeHref = (host: string) =>
-  `https://ui.specbook.dev/?ref=${encodeURIComponent(host)}`
+  `https://docs.specbook.dev/?ref=${encodeURIComponent(host)}`

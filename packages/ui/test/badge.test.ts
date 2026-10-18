@@ -16,7 +16,7 @@ describe('Powered by Specbook', () => {
   })
 
   it('links back with the host as the only referral', () => {
-    expect(badgeHref('docs.acme.com')).toBe('https://ui.specbook.dev/?ref=docs.acme.com')
-    expect(badgeHref('a b')).toBe('https://ui.specbook.dev/?ref=a%20b')
+    expect(badgeHref('docs.acme.com')).toBe('https://docs.specbook.dev/?ref=docs.acme.com')
+    expect(badgeHref('a b')).toBe('https://docs.specbook.dev/?ref=a%20b')
   })
 })
