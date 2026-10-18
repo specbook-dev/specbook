@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { collectPlaceholders, deepMerge, render, rootName, TemplateError } from '../src'
+import {
+  collectPlaceholders,
+  deepMerge,
+  FakerPlaceholderError,
+  render,
+  rootName,
+  setFaker,
+  TemplateError,
+} from '../src'
 
 describe('template', () => {
   const scope = { firstName: 'Ada', qty: 3, list: [1, 2], nested: { a: 'x' } }
@@ -107,4 +115,48 @@ describe('template', () => {
       l: [9],
     })
   })
+})
+
+describe('faker placeholders', () => {
+  const fake = {
+    person: { firstName: () => 'Ada' },
+    number: { int: () => 7 },
+    seed: () => 'seeded',
+  }
+  const withFaker = (fn: () => void) => {
+    setFaker(fake)
+    try {
+      fn()
+    } finally {
+      setFaker(undefined)
+    }
+  }
+
+  it('fills faker.<module>.<method>', () =>
+    withFaker(() => {
+      expect(render('{{faker.person.firstName}}', {})).toBe('Ada')
+      expect(render('id-{{ faker.number.int }}', {})).toBe('id-7')
+    }))
+
+  it('names a misspelt generator, not a missing variable', () =>
+    withFaker(() => {
+      const run = () => render('{{faker.person.fistName}}', {})
+      expect(run).toThrow(FakerPlaceholderError)
+      expect(run).toThrow(/Unknown faker generator "\{\{faker\.person\.fistName\}\}"/)
+      expect(run).not.toThrow(/Missing variable/)
+    }))
+
+  it('accepts only faker.<module>.<method>', () =>
+    withFaker(() => {
+      for (const bad of ['faker.person', 'faker.seed', 'faker.person.constructor', 'faker.a.b.c'])
+        expect(() => render(`{{${bad}}}`, {}), bad).toThrow(FakerPlaceholderError)
+    }))
+
+  it('refuses a call with arguments instead of sending it as it is', () =>
+    withFaker(() => {
+      expect(() => render('{{faker.number.int(5)}}', {})).toThrow(/takes no arguments|no arguments/)
+      expect(() => render({ a: ['x {{faker.number.int({max:5})}}'] }, {})).toThrow(
+        FakerPlaceholderError,
+      )
+    }))
 })

@@ -1,5 +1,5 @@
-import { Module } from 'node:module'
 import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { Module } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'

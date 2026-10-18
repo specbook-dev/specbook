@@ -27,16 +27,30 @@ export function isDeferred(name: string): boolean {
 
 export const isFakerName = (name: string) => name.startsWith('faker.')
 
+/** A `{{faker.…}}` that names no generator, or is not written as a bare `faker.<module>.<method>`. */
+export class FakerPlaceholderError extends TemplateError {
+  constructor(
+    variable: string,
+    override readonly message: string,
+  ) {
+    super(variable)
+    this.name = 'FakerPlaceholderError'
+  }
+}
+
 /** `faker.person.firstName` calls the generator on the active faker instance, fresh on every render. */
 function fromFaker(path: string): { found: boolean; value?: unknown } {
-  let parent: any = faker
-  let cur: any = faker
-  for (const part of path.split('.').slice(1)) {
-    parent = cur
-    cur = cur?.[part]
-    if (cur === undefined) return { found: false }
-  }
-  return { found: true, value: typeof cur === 'function' ? cur.call(parent) : cur }
+  const [, group, method, ...rest] = path.split('.')
+  const unknown = () =>
+    new FakerPlaceholderError(
+      path,
+      `Unknown faker generator "{{${path}}}": use faker.<module>.<method>`,
+    )
+  if (!group || !method || rest.length > 0) throw unknown()
+  const mod = (faker as Record<string, any>)[group]
+  const fn = typeof mod === 'object' && mod !== null ? mod[method] : undefined
+  if (typeof fn !== 'function' || method === 'constructor') throw unknown()
+  return { found: true, value: fn.call(mod) }
 }
 
 /** True when any placeholder in `value` needs the faker instance. */
@@ -61,7 +75,21 @@ function lookup(scope: Record<string, unknown>, path: string): { found: boolean;
   return { found: true, value: cur }
 }
 
+/** `{{faker.number.int(5)}}` does not read as a placeholder: refuse it rather than send it as it is. */
+function rejectFakerCall(s: string): void {
+  if (!s.includes('faker')) return
+  const left = /\{\{\s*(faker\.[\s\S]*?)(?:\}\}|$)/.exec(s.replace(EMBED, ''))
+  if (left) {
+    const name = (left[1] as string).trim()
+    throw new FakerPlaceholderError(
+      name,
+      `"{{${name}}}" is not a faker placeholder: placeholders take no arguments. Use faker in a request file for those.`,
+    )
+  }
+}
+
 export function renderString(s: string, scope: Record<string, unknown>): unknown {
+  rejectFakerCall(s)
   const whole = WHOLE.exec(s)
   if (whole) {
     const name = whole[1] as string
