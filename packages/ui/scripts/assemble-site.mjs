@@ -163,7 +163,8 @@ await writeFile(
 // no-referrer: spec URLs may carry tokens and must not leak in a Referer header.
 const csp = [
   "default-src 'self'",
-  "script-src 'self'",
+  // the beacon of Cloudflare Web Analytics, once Pages has it turned on for this site (connect-src is open already)
+  "script-src 'self' https://static.cloudflareinsights.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   'connect-src *',

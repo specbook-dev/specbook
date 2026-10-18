@@ -85,11 +85,15 @@ export function inlineStyleHashes(html) {
   return [...hashes]
 }
 
+/** Cloudflare Web Analytics: the beacon Pages adds to a page once it is turned on for the project, and where it reports to. */
+const ANALYTICS_SCRIPT = 'https://static.cloudflareinsights.com'
+const ANALYTICS_REPORT = 'https://cloudflareinsights.com'
+
 /** The `_headers` file: one strict policy for the pages, a looser one for the copied apps that call other origins. */
 export function headersFile(scriptHashes, styleHashes = []) {
   const base = [
     "default-src 'self'",
-    `script-src 'self' ${scriptHashes.join(' ')}`.trim(),
+    `script-src 'self' ${scriptHashes.join(' ')} ${ANALYTICS_SCRIPT}`.replace(/ +/g, ' '),
     `style-src 'self' ${styleHashes.join(' ')}`.trim(),
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob:",
@@ -102,7 +106,10 @@ export function headersFile(scriptHashes, styleHashes = []) {
     "frame-ancestors 'self'",
   ]
   // the landing page runs its example against the public Petstore, which answers any origin
-  const policy = [...base, "connect-src 'self' https://petstore3.swagger.io"].join('; ')
+  const policy = [
+    ...base,
+    `connect-src 'self' https://petstore3.swagger.io ${ANALYTICS_REPORT}`,
+  ].join('; ')
   // the viewer opens any address a visitor gives it, and the demo and QA portal can run against a real API
   // and they are the apps' own pages, which the viewer's production policy lets set inline styles
   const open = [
