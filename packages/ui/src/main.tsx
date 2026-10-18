@@ -2,6 +2,7 @@ import { loadManifests } from 'virtual:specbook/registry'
 import { render } from 'preact'
 import { App } from './app'
 import { handleOAuthCallback } from './oauth-callback'
+import { watchStaleChunks } from './stale-chunks'
 import { applyTheme } from './theme'
 import 'prism-code-editor/layout.css'
 import 'prism-code-editor/autocomplete.css'
@@ -11,6 +12,7 @@ import './styles/app.css'
 import './styles/panel.css'
 
 applyTheme()
+watchStaleChunks()
 // A sign-in's return leg is handed to the tab that started it; this page then has nothing to draw. Under the
 // viewer shell or an embed (which import this) that was settled before they got here, and running it again
 // would strip a host page's own `?code=&state=` that the embed deliberately left alone.
