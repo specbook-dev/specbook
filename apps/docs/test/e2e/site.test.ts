@@ -223,6 +223,28 @@ describe('the built site', () => {
     expect(pages).toBeGreaterThanOrEqual(PAGES.length)
   })
 
+  it('sends a visitor with a spec of their own to the viewer, in a new window, at any phone width', async () => {
+    for (const width of [320, 390, 1280]) {
+      const context = await browser.newContext({ viewport: { width, height: 800 } })
+      const { page } = await open(context, '/')
+      const link = page.locator('.hero-actions a', { hasText: 'Open your own spec' })
+      expect(await link.getAttribute('href'), `${width}`).toBe('https://ui.specbook.dev')
+      expect(await link.getAttribute('target')).toBe('_blank')
+      expect(await link.getAttribute('rel')).toContain('noopener')
+      expect(await link.locator('.sr-only').textContent()).toContain('opens in a new window')
+      // both hero buttons are on screen, and the page does not scroll sideways
+      const box = await link.boundingBox()
+      expect(box && box.x >= 0 && box.x + box.width <= width, `${width}: the button fits`).toBe(
+        true,
+      )
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true)
+      expect(await page.locator('.hero-actions a').count()).toBe(2)
+      await context.close()
+    }
+  })
+
   it('serves llms.txt as plain text, the guide an agent reads first', async () => {
     const res = await fetch(`${origin}/llms.txt`)
     expect(res.status).toBe(200)
