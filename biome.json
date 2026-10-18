@@ -16,7 +16,11 @@
       "!**/captures",
       "!**/.astro",
       "!**/openapi",
-      "!**/.turbo"
+      "!**/.turbo",
+      "!**/.venv",
+      "!**/.mypy_cache",
+      "!**/.ruff_cache",
+      "!**/.pytest_cache"
     ]
   },
   "formatter": {

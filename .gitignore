@@ -8,3 +8,13 @@ dist
 dist-viewer
 dist-site
 .astro
+
+# Python (integrations/fastapi)
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
