@@ -18,7 +18,9 @@ import { TEST_FLAGS, TEST_HELP, testOptions, UsageError } from './test-args'
 
 const HELP = `specbook <command>
 
-  init                         scaffold config, #api/* import and the environments folder
+  init                         scaffold config, #api/* import, the environments folder and an agent guide
+      --agents                 add a Specbook section to an existing AGENTS.md or CLAUDE.md (never edited otherwise)
+      --no-agents              skip the agent guide and AGENTS.md
   add <service> --spec <p|url> register an OpenAPI spec in the config and generate it; an address is downloaded to
                                openapi/ and recorded in openapi/sources.json
   add --refresh [service...]   download the recorded addresses again, say what changed and regenerate it
@@ -34,7 +36,7 @@ const HELP = `specbook <command>
 ${TEST_HELP}
   bundle [--out <file>]        compile the tests into one .mjs that runs with just node: for CI or ops, no install
       --tag <t>                only the requests and flows with this tag (repeatable)
-      --external <pkg>         leave a package as an import (it must be installed where the file runs; repeatable)
+      --external <pkg>         leave a package as an import (installed where the file runs; a browser cannot load it; repeatable)
   check                        validate specs, generated code drift, imported operations, placeholders and environment files
   secrets [--env <name>]       show where each declared secret resolves from (never values)
       --secrets-file <path>    include a dotenv file, as test would
@@ -53,6 +55,8 @@ async function main(): Promise<number> {
       out: { type: 'string' },
       external: { type: 'string', multiple: true },
       'no-open': { type: 'boolean' },
+      agents: { type: 'boolean' },
+      'no-agents': { type: 'boolean' },
       viewer: { type: 'boolean' },
       minimal: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
@@ -76,7 +80,13 @@ async function main(): Promise<number> {
     return await new Promise<number>(() => {}) // keep serving until killed
   }
   if (cmd === 'init') {
-    await initCommand(cwd)
+    if (values.agents && values['no-agents']) {
+      console.error('init: pass --agents or --no-agents, not both\n')
+      return 3
+    }
+    await initCommand(cwd, {
+      agents: values['no-agents'] ? false : values.agents ? true : undefined,
+    })
     return 0
   }
   if (!['generate', 'test', 'bundle', 'dev', 'build', 'add', 'check', 'secrets'].includes(cmd)) {

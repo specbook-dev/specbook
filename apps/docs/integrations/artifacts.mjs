@@ -132,6 +132,10 @@ export function headersFile(scriptHashes, styleHashes = []) {
     rule('/demo/specbook.js', ['Cache-Control: no-cache']),
     rule('/sw.js', ['Cache-Control: no-cache', 'Content-Type: text/javascript; charset=utf-8']),
     rule('/pagefind/*', ['Cache-Control: public, max-age=3600']),
+    rule('/llms.txt', [
+      'Content-Type: text/plain; charset=utf-8',
+      'Cache-Control: public, max-age=3600',
+    ]),
   ].join('\n')
 }
 

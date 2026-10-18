@@ -1,0 +1,170 @@
+# Specbook
+
+> Specbook turns an OpenAPI spec into typed requests and flows that run as your API docs, as tests in CI, and as a monitor against production. Requests and flows are TypeScript files in the project's repo. The same files run in the terminal (`specbook test`), as one bundled `.mjs` file (`specbook bundle`), and in the browser (the docs UI, the QA portal and the "Try it" panel).
+
+Use this file when you are asked to add or change requests, flows, checks or setup in a project that uses Specbook (`@specbook/cli`, `@specbook/core`). Needs Node 24.
+
+Words used here: an **operation** is one endpoint of the spec. A **request** is a `.req.ts` file that calls one operation. A **flow** is a `.seq.ts` file that runs requests in order.
+
+## Set up a project
+
+1. `npm install --save-dev @specbook/cli @specbook/core`
+2. `npx specbook init` creates `.specbook/specbook.config.ts`, `.specbook/environments/` and the `#api/*` import in `package.json`.
+3. `npx specbook add <service> --spec <path or URL>` registers a spec and generates its types. A URL is downloaded to `openapi/` and recorded in `openapi/sources.json`. Set the service's address in `vars` (for example `petstoreUrl`) in the config; each environment can override it in `.specbook/environments/<env>.env`.
+4. `npx specbook check` validates specs, imports and environment files. `npx specbook generate` regenerates types; `test`, `dev` and `build` do it when they need to.
+
+Never edit `.generated/`. Never put a secret in a file: name it in the config (`secrets: { API_KEY: {} }`) and read it as `{{secrets.API_KEY}}`; its value comes from an environment variable or a gitignored `<env>.secrets.env`.
+
+## Add a request
+
+Put it at `requests/<service>/<name>.req.ts`. Import the operation from `#api/<service>` and export the request as the default:
+
+```ts
+import { FindPetsByStatus } from '#api/petstore'
+
+export default FindPetsByStatus.request({
+  name: 'Find pets by status',
+  tags: ['smoke', 'monitor'],
+  query: { status: '{{status}}' },
+  init: { status: 'available' },
+  capture: { pets: (res) => (res.status === 200 ? res.data : []) },
+  assert: (res, { assert }) => {
+    assert.is(res.status, 200, 'ok')
+    if (res.status === 200) assert.ok(res.data.length > 0, 'returns at least one pet')
+  },
+})
+```
+
+- Find the operation first. Its export name is the spec's `operationId` in PascalCase (`getPetById` becomes `GetPetById`). Read
+  `.generated/<service>/index.ts` (read only) or the spec to see them all; your editor completes `import { ... } from '#api/<service>'`.
+- Fields: `name`, `tags`, `init` (default values), `path`, `query`, `headers`, `data` (the body), `capture`, `assert`, `safe`, `timeoutMs`.
+- Give every `{{name}}` the request uses a default in `init`. Then the request also runs on its own, and its `vars` are typed.
+- `{{name}}` is filled from `init`, a flow's inputs, values captured by earlier steps, and the config's `vars`.
+- Path, query and body are typed from the spec. Let the compiler tell you what is missing.
+- Add `tags: ['monitor']` to what should run against production.
+- `safe: true` marks a POST that only reads (a search, a GraphQL query) so it is allowed in a `--safe` run.
+
+## Asserts
+
+- A request with no `assert` passes when the response is 2xx (the check is listed as `status is 2xx`). An `assert` replaces that check, so state the status you expect, even a 404.
+- The helper is uvu's `assert` (`ok`, `is`, `equal`, `match`, `type`, `instance`, `throws`, with `not.` versions). Give every call a short label as its last argument: `assert.is(res.status, 200, 'order placed')`. The label is what the report shows.
+- Check `res.status` before reading `res.data`: `if (res.status === 200) { ... }`. Then `res.data` has the type the spec gives that response.
+- The second argument also gives `vars` (everything in scope plus this step's captures) and `req` (the request as sent).
+- Every check runs and is reported. A failed one shows expected against received.
+
+## Capture
+
+`capture: { orderId: (res, vars) => (res.status === 200 ? res.data.id : undefined) }` keeps a value from the response for later steps. Return plain, JSON-serializable data. In a flow the value is `ctx.captured.orderId` and `{{orderId}}` in a later request.
+
+## Pass whole values, not just ids
+
+A placeholder that is the whole string gives the value itself, with its type: an object, an array, a number, a boolean. Capture the thing
+and send it on:
+
+- `capture: { category: (res) => (res.status === 200 ? res.data.category : undefined) }`, then `data: { category: '{{category}}' }` sends
+  the object. An array of objects works the same way (`tags: '{{tags}}'`), and the whole body can be one placeholder: `data: '{{order}}'`.
+- Inside a longer string the value becomes text, and an object or array becomes JSON: `name: 'copy of {{category.name}}'`.
+- Reach into a value with dots and array positions: `{{pet.category.name}}`, `{{tags[0].id}}` (`{{tags.0.id}}` is the same), `{{grid[1][0]}}`.
+  `{{tags.length}}` is the count. A name or position that is not there, such as `{{tags[5].id}}`, fails the step with `Missing variable`,
+  and only a value's own fields are read (not `toString` or `constructor`). There are no expressions or filters: for anything computed,
+  do it in `capture`, which is a function, and capture the shaped result.
+- Whole objects belong in the JSON or form body. Path, query and header values are text: an array in a query repeats the key, but an
+  object there is sent as "[object Object]". Use one of its fields (`{{pet.category.name}}`) or build the string in `capture`.
+- A number stays a number. To send one as a string, capture `String(id)`.
+- A name that does not exist fails the step with `Missing variable "{{name}}"`.
+
+## Build a flow
+
+Put it at `sequences/<name>.seq.ts`, importing the requests it uses:
+
+```ts
+import { c, sequence } from '@specbook/core'
+import findPets from '../requests/petstore/find-pets.req'
+import placeOrder from '../requests/petstore/place-order.req'
+
+export default sequence({
+  id: 'adopt-pet',
+  title: 'Adopt a pet',
+  description: 'Find available pets, pick one, order it.',
+  tags: ['petstore', 'smoke'],
+  inputs: {
+    quantity: c.number({ default: 1, min: 1, description: 'How many to order.' }),
+  },
+})
+  .step('Find available pets', findPets) // captures `pets`
+  .input('Choose a pet', (ctx) => ({
+    petId: c.select(ctx.captured.pets, {
+      label: (p) => `${p.name} (#${p.id})`,
+      value: (p) => p.id as number,
+      default: 0,
+    }),
+  }))
+  .step('Place order', placeOrder) // sends { petId, quantity }
+```
+
+- `.step(name, request)`; the second argument may be `(ctx) => request`, where `ctx` has `inputs`, `captured`, `vars` and `env`.
+- `request.with({ ... })` changes a request for one step (for example its `assert`).
+- Also: `.input(name, ctx => controls)` asks a person for values, `.each(name, items, make)` repeats a request per item, `.check(name, fn)` asserts on the flow's state, `.use(otherFlow)` includes another flow.
+- Controls are `c.number`, `c.text`, `c.select`, `c.multiselect`, `c.boolean`, `c.date`, `c.object`, `c.array`. A flow also runs unattended in CI and as a monitor, so every input and every `.input()` control needs a default that makes sense with nobody to ask.
+- For generated data: `import { faker } from '@specbook/core/faker'` and use it in a default, for example `c.text({ default: () => faker.person.fullName() })`.
+- Each step is also a request you can run alone.
+
+### Recipe: list, check, pick, act
+
+For "fetch the products, assert there is at least one, pick one, add it to the cart with a quantity from the inputs":
+
+1. `requests/shop/list-products.req.ts`: the list operation, `assert` that `res.data.length > 0`, and capture the list:
+   `capture: { products: (res) => (res.status === 200 ? res.data : []) }`.
+2. `requests/shop/add-to-cart.req.ts`: the add operation with `init: { productId: 1, quantity: 1 }` and
+   `data: { productId: '{{productId}}', quantity: '{{quantity}}' }`.
+3. `sequences/add-to-cart.seq.ts`: `inputs: { quantity: c.number({ default: 1, min: 1 }) }`, then
+   `.step('List products', listProducts)`, `.input('Choose a product', (ctx) => ({ productId: c.select(ctx.captured.products, { label: (p) => p.name, value: (p) => p.id, default: 0 }) }))`,
+   then `.step('Add to cart', addToCart)`.
+4. Run it: `npx specbook test --grep "Add to cart"`, and `--input quantity=3` to try another value.
+
+Capture is declared on the request that makes the response, and the flow reads it as `ctx.captured.<name>`. Pick the way to choose:
+- To take the first item with nobody asked, capture it in the list request (`capture: { productId: (res) => (res.status === 200 ? res.data[0]?.id : undefined) }`)
+  and leave out `.input()`. The next request's `{{productId}}` is filled in.
+- To let a person choose in the portal, use `.input()` with `c.select`, as above. Automation is not asked and takes the default, the first item.
+
+## Mocks
+
+The `mock` environment (the default for `specbook test` and the UI) answers from the spec's examples with the request's values filled in, and needs no server. When a check needs data the example lacks, wrap the request in `withMock` from `@specbook/core`; the file's one export stays the default:
+
+```ts
+export default withMock(GetOrderById.request({ /* ... */ }), (req, res) => {
+  if (res.status === 200) res.data.status = 'placed'
+})
+```
+
+## Run it
+
+- `npx specbook test` runs everything against mock data. `--env staging` runs against a real environment. `--tag monitor`, `--grep <re>`, `--list`, `--input name=value`, `--retries 1` (a pass on retry is reported as flaky), `--timeout <ms>`.
+- Against production always pass `--safe`: a request that is not a GET, HEAD or OPTIONS is refused.
+- Exit codes: 0 passed, 1 a flow failed or errored, 2 it could not run (missing secrets, a missing spec), 3 usage.
+- `npx specbook dev` opens the UI; `npx specbook build --minimal` publishes a small portal of only the project's requests and flows for QA; `npx specbook bundle` writes one `.mjs` that runs with just node, for CI and ops.
+
+## Write isomorphic code
+
+Requests and flows run in three places: node (`specbook test`), the single-file bundle (`specbook bundle`, run with just node) and the
+browser (the docs UI, the QA portal and "Try it"). Everything they import must work in all three. A build and a green `specbook test`
+do not prove it: a request that needs Node builds cleanly and passes in node, and only fails when someone opens it in the portal.
+
+- Use what is already there: `fetch` (global), `@specbook/core` (`assert`, `faker` from `@specbook/core/faker`, the `c` controls) and
+  the language itself (`Date`, `Intl`, `URL`, `btoa`, `crypto.randomUUID()`). Prefer no new dependencies. A library such as lodash does
+  work in the browser, but it adds a lot of weight to the portal and the bundle for something a few lines of code do.
+- Do not use `Buffer`: in the browser it is "Buffer is not defined". Use `btoa`, `Uint8Array`, `TextEncoder` and `TextDecoder`.
+- Do not use Node built-ins (`fs`, `path`, `os`, `net`, `child_process`): in the browser the first call throws "externalized for browser
+  compatibility". For a file a request uploads, use the request's file `data`, which is embedded in the portal and the bundle.
+- Do not read `process.env`. In the browser it is empty and silently `undefined`, so a request that reads a secret from it sends nothing.
+  Use `{{secrets.NAME}}` for secrets and the config's `vars` (`{{name}}`) for everything else.
+- Do not use native addons, packages that `require()` a computed path, or packages that read their own files at run time.
+- If a new package is unavoidable, it must be plain ESM JavaScript with no install scripts and no Node built-ins. Prove it three ways:
+  `npx specbook test`, `npx specbook bundle`, and `npx specbook build --minimal` followed by running the request in the portal.
+- `specbook bundle --external <package>` is not a way around this. It leaves the import for node to resolve and a browser cannot, so a
+  request that needs it will not run in the portal. Do not use it for requests or flows. There is no node-only exception: if a request
+  cannot be written with `fetch` and plain code, tell the user instead of adding a Node-only dependency.
+
+## Notes beside the code (optional)
+
+Markdown next to what it describes is shown in the UI: `requests/<service>/<Operation>/README.md` for an operation, `<name>.req.md` beside a request, `<name>.seq.md` beside a flow. A heading made of one code span (`` ## `petId` ``) attaches its text to that field.

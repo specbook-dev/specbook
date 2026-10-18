@@ -90,7 +90,9 @@ beforeAll(async () => {
     }
     const h = headersFor(rules, path.split('?')[0])
     for (const [k, v] of h) res.setHeader(k, v)
-    res.setHeader('content-type', types[extname(hit.file)] ?? 'application/octet-stream')
+    // as Pages does: a Content-Type the headers file names wins over one guessed from the extension
+    if (!h.has('content-type'))
+      res.setHeader('content-type', types[extname(hit.file)] ?? 'application/octet-stream')
     res.statusCode = status
     res.end(await readFile(hit.file))
   })
@@ -219,6 +221,15 @@ describe('the built site', () => {
       0,
     )
     expect(pages).toBeGreaterThanOrEqual(PAGES.length)
+  })
+
+  it('serves llms.txt as plain text, the guide an agent reads first', async () => {
+    const res = await fetch(`${origin}/llms.txt`)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toMatch(/^text\/plain/)
+    const text = await res.text()
+    expect(text.startsWith('# Specbook')).toBe(true)
+    expect(text).toContain('## Write isomorphic code')
   })
 
   it('answers a missing page with the 404 page', async () => {

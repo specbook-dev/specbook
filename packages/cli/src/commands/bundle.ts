@@ -277,7 +277,7 @@ export async function bundleCommand(
       `Could not compile the tests into one file:\n${e instanceof Error ? e.message : e}`,
     )
     console.error(
-      'A package that cannot be compiled in (a native addon, a computed require) can stay an import: --external <package>.',
+      'A package that cannot be compiled in (a native addon, a computed require) can stay an import: --external <package>. A browser cannot load it, so replace it with fetch or plain code if the request must also run in the portal.',
     )
     return 2
   }

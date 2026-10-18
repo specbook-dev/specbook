@@ -2,8 +2,9 @@ import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ensureEnvironmentsDir } from '@specbook/vite'
+import { agentsStep } from './agents'
 
-export async function initCommand(cwd: string): Promise<void> {
+export async function initCommand(cwd: string, opts: { agents?: boolean } = {}): Promise<void> {
   const dir = join(cwd, '.specbook')
   await mkdir(dir, { recursive: true })
   const cfg = join(dir, 'specbook.config.ts')
@@ -64,4 +65,6 @@ export default defineConfig({
     )
     console.log(`✓ gitignored ${missing.join(', ')}`)
   }
+
+  await agentsStep(cwd, opts.agents)
 }

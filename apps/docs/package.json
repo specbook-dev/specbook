@@ -11,6 +11,7 @@
     "test": "vitest run --exclude test/e2e",
     "test:site": "vitest run --config vitest.e2e.config.ts",
     "readme:cli": "node scripts/readme-cli.mjs",
+    "llms": "node scripts/llms.mjs",
     "deploy": "npx --yes wrangler@4 pages deploy dist --project-name specbook-docs --branch main"
   },
   "dependencies": {

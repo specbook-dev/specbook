@@ -79,7 +79,8 @@
       "dependsOn": ["^build", "docs-demo#generate", "docs-demo#capture"]
     },
     "docs#test": {
-      "dependsOn": ["^build", "docs-demo#generate", "docs-demo#capture"]
+      "dependsOn": ["^build", "docs-demo#generate", "docs-demo#capture"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/cli/agent-guide.md"]
     },
     "docs-demo#capture": {
       "dependsOn": ["^build", "docs-demo#generate", "docs-demo#bundle"],

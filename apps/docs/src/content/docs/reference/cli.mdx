@@ -5,7 +5,7 @@ description: Every command and what it does.
 
 | Command | What it does |
 | --- | --- |
-| `specbook init` | Scaffolds the config, the `#api/*` import and an environments folder. |
+| `specbook init [--agents \| --no-agents]` | Scaffolds the config, the `#api/*` import and an environments folder, and writes `.specbook/agent-guide.md` for AI coding agents. It creates an `AGENTS.md` that points to the guide when the project has no `AGENTS.md` or `CLAUDE.md`, and never edits one that exists. `--agents` adds a marked Specbook section to an existing file, and a later run refreshes only that section. `--no-agents` skips the guide and `AGENTS.md`. |
 | `specbook add <service> --spec <path or url>` | Registers a spec and generates its code. An address is downloaded to `openapi/` and recorded in `openapi/sources.json`. |
 | `specbook add --refresh [service...]` | Downloads the recorded addresses again, reports what changed and regenerates. |
 | `specbook generate [service...]` | Generates types, operations, examples and metadata from the specs. `dev`, `build` and `test` do it when needed. |

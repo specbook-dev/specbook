@@ -149,7 +149,7 @@ Run the install above first; after that, `npx specbook` runs the installed copy.
 no project, `npx @specbook/cli preview <url|file>` works without installing anything.
 
 ```sh
-npx specbook init                # scaffold config, the #api/* import and an environments folder
+npx specbook init                # scaffold config, the #api/* import, an environments folder and an agent guide
 npx specbook add petstore --spec ./openapi/petstore.json   # or a URL: it is downloaded and recorded
 npx specbook generate            # types and mock examples from the specs; dev, build and test do it when needed
 npx specbook dev                 # the UI: docs, a play panel and a credential proxy
@@ -163,6 +163,14 @@ npx specbook preview <url|file>  # open any document in the UI, with no project
 
 `npx specbook build --viewer` also copies the spec viewer next to the site, for a team that serves it from its
 own host (open it with `?spec=<url>`).
+
+### For AI coding agents
+
+`specbook init` writes `.specbook/agent-guide.md`: how to add requests and flows, use `capture` and `assert`, and why requests and
+flows must be isomorphic (they run in node, in a single-file bundle and in the browser). If the project has no `AGENTS.md` or
+`CLAUDE.md`, it also creates an `AGENTS.md` that points to the guide. An existing instruction file is never changed unless you run
+`specbook init --agents`, which adds a marked section that a later run refreshes in place; `--no-agents` skips all of it. The same
+guide is served at [docs.specbook.dev/llms.txt](https://docs.specbook.dev/llms.txt).
 
 ### Test, and monitor
 

@@ -308,7 +308,8 @@ also leaves out documentation, branding and the UI. A `specbook-tests.mjs.sha256
 
 Build it once in your repository's pipeline and keep it as the artifact. Whatever your requests import is compiled in.
 A package that cannot be (a native addon, a computed `require`) is reported when you build, and can stay an import
-with `--external <package>`; it must then be installed where the file runs. Files that requests upload are embedded
+with `--external <package>`; it must then be installed where the file runs, and the request cannot run in the portal, because a
+browser cannot load it. Files that requests upload are embedded
 too; the build warns when they are large. If you use faker, the file carries just the locales your config names.
 
 For a failure, a bundle shows the request and response and the expected-and-received diff as `specbook test` does,
@@ -351,7 +352,8 @@ request. Logging in through an auth profile is always allowed.
 - **"Not operations of the spec".** A request imports a name the spec does not have: a typo, or an operation the
   spec dropped. `specbook check` lists where.
 - **A spec is missing in CI.** Commit it, or fetch it with `specbook add` / a pinned download before `specbook test`.
-- **The bundle will not compile.** The message names the import. Put the package behind `--external`, or replace it.
+- **The bundle will not compile.** The message names the import. Replace the package with `fetch` or plain code, so the request runs in
+  the browser too. `--external` leaves the import for node, so the request will not run in the portal.
 - **A portal call fails with a network error.** The API probably does not allow calls from the portal's address
   (CORS). Serve the portal from the API's own origin.
 - **A flow passes on retry.** It is flaky: look at the trace of its first attempt with `--trace always`.

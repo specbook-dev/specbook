@@ -11,6 +11,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
@@ -126,6 +127,14 @@ try {
   const bin = join(proj, 'node_modules/.bin/specbook')
   const sb = (args, label) => run(bin, args, proj, label)
   sb(['init'], 'specbook init')
+  // the agent guide ships in the tarball, and init puts it in the project with a pointer in AGENTS.md
+  const guide = join(proj, '.specbook/agent-guide.md')
+  if (!existsSync(guide))
+    fail('specbook init wrote no .specbook/agent-guide.md: is it in the CLI package files?')
+  else if (!readFileSync(guide, 'utf8').includes('## Write isomorphic code'))
+    fail('the installed agent guide has no isomorphic section')
+  else ok('init wrote the agent guide')
+  if (!existsSync(join(proj, 'AGENTS.md'))) fail('specbook init created no AGENTS.md')
   sb(
     [
       'add',

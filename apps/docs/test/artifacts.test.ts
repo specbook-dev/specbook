@@ -47,6 +47,12 @@ describe('the headers the site is served with', () => {
     expect(text).toMatch(/\/_astro\/\*\n\s+Cache-Control: public, max-age=31536000, immutable/)
   })
 
+  it('serves llms.txt as plain text, with a short cache', () => {
+    expect(headersFile([])).toMatch(
+      /\/llms\.txt\n\s+Content-Type: text\/plain; charset=utf-8\n\s+Cache-Control: public, max-age=3600/,
+    )
+  })
+
   it('sends the old addresses to where their content went', () => {
     expect(REDIRECTS).toContain('/testing-and-monitoring /test/ 301')
     expect(REDIRECTS).toContain('/discover / 301')
