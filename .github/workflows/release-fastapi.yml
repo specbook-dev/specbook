@@ -1,0 +1,59 @@
+name: Release specbook-fastapi
+
+# Push a tag `fastapi-vX.Y.Z` to publish integrations/fastapi to PyPI. It uses PyPI trusted publishing (no token): the
+# project must list this repository, this workflow file and the `pypi` environment as a publisher.
+#   git tag fastapi-v0.1.0 && git push origin fastapi-v0.1.0
+# The tag must equal the version in integrations/fastapi/pyproject.toml. The npm packages release separately (release.yml).
+on:
+  push:
+    tags: ['fastapi-v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: integrations/fastapi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: '3.13'
+      - name: The tag is the package's version
+        run: |
+          version=$(uv run --no-project python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          if [ "fastapi-v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match version ${version} in pyproject.toml"
+            exit 1
+          fi
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest -W error
+      - run: uv build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: integrations/fastapi/dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: pypi
+    permissions:
+      id-token: write # trusted publishing: PyPI accepts this workflow's identity, no token to store
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
