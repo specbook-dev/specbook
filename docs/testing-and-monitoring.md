@@ -170,6 +170,18 @@ export default sequence({
   listed in the config's `faker`), and `--seed 42` makes a run repeatable, which is how you reproduce a failure that
   depended on the data. `--input fullName="Ada Lovelace"` pins one.
 
+Generated values are available wherever a project runs, and only paid for where they are used:
+
+- `specbook init` adds `@faker-js/faker` to the project's `devDependencies`, and `faker` from `@specbook/core/faker`
+  is typed, so a misspelt generator fails `tsc`.
+- QA can also type `{{faker.person.firstName}}` into any field in the portal. A placeholder names a generator
+  (`faker.<module>.<method>`) and takes no arguments; a misspelt one stops the run with a message and sends nothing.
+- A build includes faker and the locales listed in the config's `faker` (and `en`), and a browser downloads it only
+  when a run uses it. `specbook test` and `specbook bundle` leave it out when nothing the tests reach uses it.
+- In the portal the **Generated values** control in the header (new each run, or fixed with a seed) is on while the
+  open request or flow uses faker. Use the seed from a failed `specbook test --seed 42` to see the same data there.
+- The hosted viewer at ui.specbook.dev has no faker and refuses `{{faker.*}}`.
+
 ### Running them
 
 ```sh

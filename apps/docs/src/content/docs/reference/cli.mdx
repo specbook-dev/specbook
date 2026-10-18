@@ -30,6 +30,7 @@ description: Every command and what it does.
 | `--safe` | Refuses requests that may change data. Use it against production. |
 | `--reporter list\|json\|junit\|github\|ndjson[:path]` | Chooses reporters. Repeat the flag to use several. |
 | `--input k=v`, `--var k=v` | Sets a flow input, or a variable. A variable can override an address. |
+| `--seed n`, `--locale l` | Makes the generated values (`faker`) repeatable, or in another language. A failed run's data can be reproduced in the portal or `specbook ui` with the same number. |
 
 Exit codes: 0 when everything passed, 1 when a flow failed or errored, 2 when the run could not start (missing
 secrets, a missing spec, an import that is not an operation) and 3 for a usage error.

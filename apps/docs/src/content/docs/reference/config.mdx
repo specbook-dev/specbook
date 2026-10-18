@@ -14,6 +14,6 @@ description: What the config file holds.
 | `timeoutMs` | How long a request waits for an answer, in the CLI and in the browser. Default 30000; `0` waits as long as it takes. |
 | `auth` | Profiles that apply a credential, such as headers built from `{{secrets.NAME}}`, or an OAuth flow. |
 | `secrets` | The secrets the project uses, by name. |
-| `faker` | `{ locales, default }`, the locales generated values can use. |
+| `faker` | `{ locales, default }`, the locales generated values can use. A build ships only these (and `en`). |
 | `branding` | The name, title, tagline, logo, accent colors and links of a published site. |
 | `codegen` | `outDir` and `importPrefix`, if the defaults (`.generated` and `#api`) do not suit. |
