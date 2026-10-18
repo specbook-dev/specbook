@@ -85,3 +85,29 @@ jobs:
       - run: pnpm --filter docs exec playwright install --with-deps chromium
       - run: scripts/ci-retry.sh 300 pnpm test:site
         timeout-minutes: 15
+
+  # The Python package (integrations/fastapi): lint, format, types, tests and a build, on the oldest and a recent Python.
+  # It has no pnpm dependencies, so it runs beside the others.
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.13']
+    defaults:
+      run:
+        working-directory: integrations/fastapi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: integrations/fastapi/uv.lock
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest -W error
+      - run: uv build
