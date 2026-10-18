@@ -74,6 +74,5 @@ export async function scanExamples(
   return { examples, assets }
 }
 
-/** Spec and project examples first, then the generated default and dynamic ones. */
-const order = (e: ExampleEntry) =>
-  e.source === 'project' ? 0 : e.name === 'default' ? 2 : e.name === 'dynamic' ? 3 : 1
+/** Project examples first, then the spec's, then the generated default. */
+const order = (e: ExampleEntry) => (e.source === 'project' ? 0 : e.name === 'default' ? 2 : 1)

@@ -520,21 +520,17 @@ describe('docs and play panel', () => {
     await waitFor(() => expect($('.response .conf')?.textContent).toContain('Matches spec'))
   })
 
-  it('lists spec, generated and dynamic examples and switches between them', async () => {
+  it('lists the spec and generated examples, and no dynamic one', async () => {
     await mount()
     await play('petstore/AddPet')
     const select = $<HTMLSelectElement>('.request-panel select') as HTMLSelectElement
     const names = [...select.options].map((o) => o.value)
-    expect(names).toEqual(expect.arrayContaining(['ex:default', 'ex:dynamic']))
+    expect(names).toContain('ex:default')
+    expect(names).not.toContain('ex:dynamic')
 
     type(select, 'ex:default', 'change')
     await waitFor(() => expect(editor()?.value).toContain('"doggie"'))
-    type(select, 'ex:dynamic', 'change')
-    await waitFor(() => expect(editor()?.value).toContain('{{faker.'))
-    await send()
-    expect($('.response .state-badge')?.textContent).toMatch(/200/)
-    const body = $('.response .body-editor textarea') as HTMLTextAreaElement
-    expect(body.value).not.toContain('{{faker')
+    expect(editor()?.value).not.toContain('{{faker')
   })
 
   it('keeps the field documentation on screen, docked to the bottom of the pane, in a short window', async () => {

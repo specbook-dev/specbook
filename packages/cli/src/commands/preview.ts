@@ -33,7 +33,7 @@ async function link(root: string, name: string) {
     await mkdir(dirname(dest), { recursive: true })
     await symlink(dir, dest, 'dir')
   } catch {
-    /* optional: without faker, dynamic examples still show but placeholders are not filled */
+    /* optional: without faker, {{faker.*}} placeholders are not filled */
   }
 }
 

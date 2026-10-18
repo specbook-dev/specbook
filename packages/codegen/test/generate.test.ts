@@ -33,7 +33,7 @@ describe('petstore 3.0', () => {
     )
     expect(paths).toContain('operations/AddPet.ts')
     expect(paths).toContain('examples/AddPet/default.example.json')
-    expect(paths).toContain('examples/AddPet/dynamic.example.json')
+    expect(paths.some((p) => p.endsWith('dynamic.example.json'))).toBe(false)
     expect(paths).toContain('examples/AddPet/200.response.json')
     expect(paths.some((p) => /^examples\/[^/]+\.json$/.test(p))).toBe(false)
     expect(paths).toContain('tags/pet.ts')
@@ -56,9 +56,6 @@ describe('petstore 3.0', () => {
     expect(def).toMatchObject({ name: 'default', source: 'generated' })
     expect(def.body.name).toBe('doggie')
     expect(def.body.status).toBe('available')
-    const dyn = read('examples/AddPet/dynamic.example.json')
-    expect(dyn.body.name).toBe('{{faker.word.noun}}')
-    expect(dyn.body.status).toBe('available')
     const get = read('examples/GetPetById/default.example.json')
     expect(get.path).toEqual({ petId: expect.any(Number) })
   })
@@ -66,12 +63,13 @@ describe('petstore 3.0', () => {
   it('lists examples in the manifest', async () => {
     const { operations } = await generate({ spec: fx('petstore3.json'), service: 'petstore' })
     const add = operations.find((o) => o.id === 'AddPet')
-    expect(add?.examples.map((e) => e.name)).toEqual(expect.arrayContaining(['default', 'dynamic']))
+    expect(add?.examples.map((e) => e.name)).toContain('default')
+    expect(add?.examples.map((e) => e.name)).not.toContain('dynamic')
   })
 })
 
-describe('dynamic examples', () => {
-  it('treats a name next to an email as a person', async () => {
+describe('generated examples never carry faker placeholders', () => {
+  it('has no dynamic example and no placeholder in the default', async () => {
     const spec = {
       openapi: '3.0.3',
       info: { title: 'T', version: '1' },
@@ -99,14 +97,12 @@ describe('dynamic examples', () => {
       },
     }
     const { files } = await generate({ spec, service: 'svc' })
-    const dyn = JSON.parse(
-      files.find((f) => f.path === 'examples/CreateUser/dynamic.example.json')?.content ?? 'null',
+    expect(files.some((f) => f.path.endsWith('dynamic.example.json'))).toBe(false)
+    const def = JSON.parse(
+      files.find((f) => f.path === 'examples/CreateUser/default.example.json')?.content ?? 'null',
     )
-    expect(dyn.body).toEqual({
-      name: '{{faker.person.fullName}}',
-      email: '{{faker.internet.email}}',
-      role: 'admin',
-    })
+    expect(JSON.stringify(def)).not.toContain('{{faker')
+    expect(def.body.role).toBe('admin')
   })
 })
 

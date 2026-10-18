@@ -945,36 +945,6 @@ describe('mock data from the first request', () => {
   })
 })
 
-describe('faker in the viewer', () => {
-  it('fills {{faker.*}} in a Dynamic example when it is sent', async () => {
-    const { page, errors } = await open(spec('petstore3.json'))
-    await ready(page)
-    await goOp(page, 'swagger-petstore-openapi-3-0/AddPet')
-    // the Dynamic example holds placeholders; choose it
-    await page.locator('.rq-example label.row select').selectOption({ label: 'dynamic' })
-    await page.waitForFunction(
-      () =>
-        (
-          document.querySelector(
-            '.request-panel .body-editor textarea',
-          ) as HTMLTextAreaElement | null
-        )?.value.includes('{{faker.'),
-      undefined,
-      { timeout: 10_000 },
-    )
-    await page.getByRole('button', { name: 'Send' }).click()
-    await page.waitForSelector('.result-chip', { timeout: 20_000 })
-    // sent as filled-in values: no placeholder is left in what went out
-    await page.getByRole('tab', { name: 'Request' }).click()
-    await page.getByRole('button', { name: 'Sent' }).click()
-    const sent = await page.locator('.sent-view').innerText()
-    expect(sent).not.toContain('{{faker.')
-    expect(await page.locator('.result-chip').innerText()).toMatch(/^[1-3]\d\d/)
-    expect(errors).toEqual([])
-    await page.close()
-  })
-})
-
 describe('the repository link and the share icon', () => {
   it('links to the repository from the landing page and the viewer', async () => {
     const page = await browser.newPage()
