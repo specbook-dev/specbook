@@ -1,5 +1,5 @@
 # #region install
-npm install --save-dev @specbook/cli @specbook/core
+npm install --save-dev @specbook/cli @specbook/core @faker-js/faker
 # #endregion install
 
 # #region develop
