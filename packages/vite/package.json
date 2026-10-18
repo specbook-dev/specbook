@@ -1,6 +1,6 @@
 {
   "name": "@specbook/vite",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "The Specbook plugin for Vite: the registry, the docs UI hooks and the dev server credential proxy.",
   "keywords": [
     "specbook",
