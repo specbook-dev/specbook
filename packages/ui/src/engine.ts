@@ -26,6 +26,7 @@ import {
   runSequence,
   type Sequence,
   type SpecbookConfig,
+  setFaker,
   type Transport,
   usesFaker,
   withMock,
@@ -75,6 +76,8 @@ export interface Registry {
   loadConfig: (v: number) => Promise<{ default: any }>
   /** Project's @faker-js/faker (ESM), when installed. */
   loadFaker?: ((v: number) => Promise<Record<string, any>>) | null
+  /** Said when a run uses `{{faker.*}}` and there is no faker (the hosted viewer ships none). */
+  fakerUnavailable?: string
   mode?: 'dev' | 'static'
   /** variables from `.specbook/environments/<env>.env`, baked in at build time */
   environmentVars?: Record<string, Record<string, string>>
@@ -138,6 +141,20 @@ const text = (v: unknown) =>
   v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')
 
 export function createEngine(reg: Registry, opts: EngineOptions = {}) {
+  // no faker to load: a `{{faker.*}}` ends the run with the registry's message, not "install @faker-js/faker"
+  if (!reg.loadFaker && reg.fakerUnavailable) {
+    const message = reg.fakerUnavailable
+    setFaker(
+      new Proxy(
+        {},
+        {
+          get() {
+            throw new Error(message)
+          },
+        },
+      ),
+    )
+  }
   const mockLoader = {
     statuses: (service: string, opId: string) =>
       reg.manifests[service]?.operations.find((o) => o.id === opId)?.statuses ?? [],

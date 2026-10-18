@@ -34,22 +34,4 @@ export async function mountOpened(o: {
   globalThis.__SPECBOOK_VIEWER__ = g
   if (o.setTitle !== false) document.title = `${o.result.title} · Specbook`
   await import('../main')
-  warmFaker()
-}
-
-/**
- * Mock responses are generated with the spec, so the first mock request needs no faker. Faker (a
- * sizeable chunk) is only used by "Dynamic" examples and `{{faker.*}}` values, so it is fetched when the
- * page has been idle for a moment instead of up front: by the time someone picks Dynamic it is cached.
- */
-function warmFaker() {
-  if ((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData)
-    return
-  const idle: (f: () => void) => void =
-    (window as unknown as { requestIdleCallback?: (f: () => void) => void }).requestIdleCallback ??
-    ((f) => setTimeout(f, 1500))
-  idle(() => {
-    // the registry's loader is the same import the run would make
-    void import('./registry').then((r) => r.loadFaker()).catch(() => {})
-  })
 }

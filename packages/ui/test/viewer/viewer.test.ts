@@ -808,6 +808,11 @@ describe('what the viewer ships', () => {
     const has = (needle: string) => out.some((src) => src.includes(needle))
     // what the viewer is for is there: the generator's own strings and the UI's
     expect(has('This is not an OpenAPI 3 or Swagger 2 document')).toBe(true)
+    // no faker: not the library, and no chunk of it (a typed {{faker.*}} is refused instead)
+    expect(
+      await readdir(join(dist, 'v1/assets')).then((f) => f.filter((n) => /faker/.test(n))),
+    ).toEqual([])
+    expect(has('Aaliyah'), 'faker’s English name data is in the bundle').toBe(false)
     for (const server of [
       'not reachable through this proxy',
       'cross-site requests are not accepted',
@@ -928,19 +933,22 @@ describe('mock data from the first request', () => {
     await page.waitForSelector('.result-chip:has-text("200")', { timeout: 20_000 })
     await page.getByRole('tab', { name: 'Response' }).click()
     expect(await page.locator('.response .body-editor').innerText()).toContain('"name"')
+    // well past the point where an idle prefetch would have run
+    await page.waitForTimeout(3000)
     await page.close()
-    expect(fakerAsked).toBeGreaterThanOrEqual(0)
+    expect(fakerAsked).toBe(0)
   })
 
-  it('fetches faker once the page is idle, so a Dynamic example is ready', async () => {
-    const page = await browser.newPage()
-    let fetched = false
-    page.on('request', (r) => {
-      if (/\/assets\/faker-.*\.js$/.test(r.url())) fetched = true
-    })
-    await page.goto(`${siteUrl}/v1/?${spec('petstore3.json')}`)
+  it('refuses a typed {{faker.*}} instead of sending it', async () => {
+    const { page, errors } = await open(spec('petstore3.json'))
     await ready(page)
-    await expect.poll(() => fetched, { timeout: 15_000 }).toBe(true)
+    await goOp(page, 'swagger-petstore-openapi-3-0/AddPet')
+    const body = page.locator('.request-panel .body-editor textarea')
+    await body.fill('{"name":"{{faker.person.firstName}}","photoUrls":["x"]}')
+    await page.getByRole('button', { name: 'Send' }).click()
+    await page.waitForSelector('.result-chip', { timeout: 20_000 })
+    expect(await page.locator('.response').innerText()).toContain('not in the hosted viewer')
+    expect(errors).toEqual([])
     await page.close()
   })
 })
