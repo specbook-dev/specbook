@@ -21,6 +21,9 @@ const is2xx = (s: number) => s >= 200 && s < 300
 /** The loader may hand out one object to every caller, and a hook edits what it is given. */
 const copy = <T>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T))
 
+/** A header that carries a credential: an API key or a token (`X-Api-Key`, `X-Shopify-Access-Token`), a secret or a client id (Plaid's `PLAID-SECRET`, `PLAID-CLIENT-ID`). */
+const CREDENTIAL_HEADER = /api[-_]?key|token|secret|client[-_]?id/i
+
 export function createMockTransport(opts: MockTransportOptions): Transport {
   const sleep =
     opts.sleep ??
@@ -46,7 +49,7 @@ export function createMockTransport(opts: MockTransportOptions): Transport {
     if (
       hints?.secured &&
       !req.headers.authorization &&
-      !Object.keys(req.headers).some((h) => /api[-_]?key|token/i.test(h)) &&
+      !Object.keys(req.headers).some((h) => CREDENTIAL_HEADER.test(h)) &&
       req.mockStatus === undefined &&
       all.includes(401)
     ) {

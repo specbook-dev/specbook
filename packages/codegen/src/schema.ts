@@ -1,4 +1,13 @@
 // OpenAPI schema -> TypeScript type source, and deterministic example synthesis.
+import {
+  clearHintCaches,
+  fits,
+  fromDescription,
+  fromPattern,
+  nullable,
+  PLACEHOLDER_VALUE,
+  type ValueIndex,
+} from './hints'
 
 export type Schema = Record<string, any>
 
@@ -138,8 +147,8 @@ const ERROR_MESSAGES: Record<number, string> = {
   503: 'Service unavailable',
 }
 
-/** `status` is the response code being illustrated; -1 means "an error, code unknown" (a `default` response). */
-function exampleString(key: string, format?: string, status?: number): string {
+/** A value for a string `format`, when it has one. */
+function byFormat(format?: string): string | undefined {
   switch (format) {
     case 'date-time':
       return '2024-05-14T09:30:00Z'
@@ -165,7 +174,28 @@ function exampleString(key: string, format?: string, status?: number): string {
     case 'binary':
       return 'example'
   }
-  const k = key.toLowerCase()
+}
+
+/** `status` is the response code being illustrated; -1 means "an error, code unknown" (a `default` response). */
+function exampleString(key: string, format?: string, status?: number): string {
+  return ruleString(key, format, status) ?? (key ? `Example ${humanize(key)}` : 'Example text')
+}
+
+/** What the name and format rules give, or undefined when none of them applies (what is left is the "Example …" text). */
+function ruleString(key: string, format?: string, status?: number): string | undefined {
+  const id = `${key}|${format}|${status}`
+  const had = named.get(id)
+  if (had !== undefined) return had === null ? undefined : had
+  const out = chooseString(key, format, status)
+  named.set(id, out ?? null)
+  return out
+}
+let named = new Map<string, string | null>()
+
+function chooseString(key: string, format?: string, status?: number): string | undefined {
+  const formatted = byFormat(format)
+  if (formatted !== undefined) return formatted
+  const k = key.replace(/([a-z\d])([A-Z])/g, '$1_$2').toLowerCase()
   const isError = status !== undefined && (status === -1 || status >= 400)
   if (isError) {
     if (/^(message|detail|reason|error_?description|title)$/.test(k)) {
@@ -180,6 +210,9 @@ function exampleString(key: string, format?: string, status?: number): string {
         : 'request_failed'
     if (/^(documentation_?url)$/.test(k)) return 'https://docs.example.com/errors'
   }
+  // a link to an image names its file type (`image_url_png`)
+  const image = /^(.*?)_?(?:url|uri|link)_(png|svg|jpe?g|gif|webp)$/.exec(k)
+  if (image) return `https://api.example.com/${image[1] || 'image'}.${image[2]}`
   if (/(^|_)(url|uri|href|link)$/.test(k) || k.endsWith('url')) {
     const base = k.replace(/_?(html_)?(url|uri|href|link)$/, '').replace(/_/g, '/')
     return `https://${k.includes('html') ? 'example.com' : 'api.example.com'}${base ? `/${base}` : ''}`
@@ -189,17 +222,19 @@ function exampleString(key: string, format?: string, status?: number): string {
     [/^(login|username|user_name|handle)$/, 'octocat'],
     [/^first_?name$|^given_?name$/, 'Jane'],
     [/^last_?name$|^family_?name|^surname$/, 'Doe'],
-    [/^(full_?name|display_?name|customer_?name)$/, 'Jane Doe'],
+    [/^(full_?name|display_?name|customer_?name)$|(^|_)holder_name$/, 'Jane Doe'],
     [/^name$/, 'Example name'],
     [/^title$/, 'Example title'],
     [/^(description|summary|bio|about)$/, 'A short description of this item.'],
-    [/^(body|content|text|comment|note|notes)$/, 'Example text content.'],
+    [/^(body|content|text|comment|note|notes)$|_text$/, 'Example text content.'],
+    [/_html$/, '<p>Example text content.</p>'],
+    [/^(homepage|website|site_url)$/, 'https://example.com'],
     [/^(message|detail|reason)$/, 'The operation completed successfully.'],
     [/^(error|error_?description)$/, 'Something went wrong.'],
     [/node_?id$/, 'MDQ6VXNlcjE='],
     [/(^|_)sha$|commit_?id$|^oid$/, 'a3f5c1e9b7d24c68f0e1a2b3c4d5e6f708192a3b'],
     [/^ref$/, 'refs/heads/main'],
-    [/^(branch|default_branch)$/, 'main'],
+    [/(^|_)branch$/, 'main'],
     [/^(color|colour)$/, '0e8a16'],
     [/^language$/, 'TypeScript'],
     [/^(phone|phone_?number|mobile)$/, '+1-555-0100'],
@@ -209,26 +244,38 @@ function exampleString(key: string, format?: string, status?: number): string {
     [/^(postal_?code|zip|zip_?code)$/, '98101'],
     [/^(line1|address|street|address_?line_?1)$/, '123 Main Street'],
     [/^line2$/, 'Suite 400'],
-    [/^currency$/, 'usd'],
-    [/^(company|organization|org)$/, 'Example Inc.'],
-    [/^(token|access_?token|api_?key|secret)$/, 'example_token_8f3a2b'],
+    [/(^|_)currency$/, 'usd'],
+    [/^(company|organization)$/, 'Example Inc.'],
+    [/^org$/, 'octo-org'],
+    [/(^|_)(token|api_?key|secret)$/, 'example_token_8f3a2b'],
     [/^(version|api_?version)$/, '1.0.0'],
     [/^(locale|lang)$/, 'en-US'],
     [/^(timezone|time_?zone)$/, 'America/Los_Angeles'],
     [/^(type|kind|category)$/, 'standard'],
     [/^(status|state)$/, 'active'],
+    [/^last4$/, '4242'],
+    [/^owner$/, 'octocat'],
+    [/^repo$/, 'hello-world'],
+    [/(^|_)slug$/, 'my-slug'],
+    [/fingerprint$/, 'Xt5EWLLDS7FJjR1c'],
+    [/^number$/, '0001'],
+    [/^(topic|tag)$/, 'api'],
     [/^object$/, 'object'],
     [/(^|_)id$/, 'a1b2c3d4'],
     [/(^|_)(at|date|time|timestamp)$/, '2024-05-14T09:30:00Z'],
   ]
   for (const [re, v] of rules) if (re.test(k)) return v
-  return k ? `Example ${humanize(key)}` : 'Example text'
 }
 
 function exampleNumber(key: string, integer: boolean, min?: number): number {
   const k = key.toLowerCase()
   if (/(^|_)(created|updated|deleted|expires|arrival|paid|canceled)(_at)?$|_at$|timestamp$/.test(k))
     return 1715679000
+  if (integer && /(^|_)(start|end|arrival|due|effective)_date$/.test(k)) return 1715679000
+  if (/(^|_)(exp|expiry|expiration)_year$|^year$/.test(k)) return k === 'year' ? 2024 : 2030
+  if (/(^|_)(exp|expiry|expiration)_month$/.test(k)) return 12
+  if (k === 'month') return 5
+  if (k === 'day') return 14
   if (/^(amount|total|subtotal|price|balance)(_.*)?$/.test(k)) return integer ? 2000 : 19.99
   if (/(^|_)(count|total_count|number)$/.test(k) || k.endsWith('_count')) return 3
   if (k === 'quantity' || k === 'qty') return 1
@@ -247,11 +294,141 @@ function exampleBoolean(key: string): boolean {
   )
 }
 
+/** The value a schema's own example, `const` or (3.1) first `examples` entry gives. */
+const exampleOf = (s: Schema | undefined) =>
+  s?.const ?? s?.example ?? (Array.isArray(s?.examples) ? s.examples[0] : undefined)
+
+/** A string for a field: what the spec says (description, the same field elsewhere), then the name rules, kept inside the schema's limits. */
+function stringValue(schema: Schema, key: string, status?: number, index?: ValueIndex): string {
+  const failing = status !== undefined && (status === -1 || status >= 400)
+  const ok = (v: unknown): v is string => typeof v === 'string' && fits(schema, v)
+  let v: unknown
+  if (!failing) {
+    let named = described.get(schema)
+    if (named === undefined) {
+      named = fromDescription(schema.description) ?? ''
+      described.set(schema, named)
+    }
+    v = named || undefined
+    if (!ok(v)) v = byFormat(schema.format)
+    if (!ok(v) && index) v = index.get(key).find(ok)
+  }
+  if (!ok(v)) v = ruleString(key, schema.format, status)
+  if (!ok(v) && !failing && index) v = index.weak(key).find(ok)
+  if (!ok(v)) v = exampleString(key, schema.format, status)
+  let out = v as string
+  if (!fits(schema, out) && schema.pattern) out = fromPattern(schema.pattern) ?? out
+  if (schema.maxLength !== undefined) out = out.slice(0, schema.maxLength)
+  if (schema.minLength !== undefined && out.length < schema.minLength)
+    out = out.padEnd(schema.minLength, out.slice(-1) || 'a')
+  return out
+}
+let described = new WeakMap<object, string>()
+
+/** Forgets what one generation run worked out, so a long-lived page or worker does not keep it. */
+export function clearExampleCaches() {
+  named = new Map()
+  described = new WeakMap()
+  inherited = new WeakMap()
+  embedded = new WeakMap()
+  clearHintCaches()
+}
+
+/** A number for a field, inside the schema's bounds and a multiple of `multipleOf`. */
+function numberValue(schema: Schema, key: string, integer: boolean, index?: ValueIndex): number {
+  const step = integer ? 1 : 0.01
+  let lo = schema.minimum as number | undefined
+  if (typeof schema.exclusiveMinimum === 'number') lo = schema.exclusiveMinimum + step
+  else if (schema.exclusiveMinimum === true && lo !== undefined) lo += step
+  let hi = schema.maximum as number | undefined
+  if (typeof schema.exclusiveMaximum === 'number') hi = schema.exclusiveMaximum - step
+  else if (schema.exclusiveMaximum === true && hi !== undefined) hi -= step
+  const bounded = { type: integer ? 'integer' : 'number', minimum: lo, maximum: hi }
+  if (schema.format === 'unix-time') return 1715679000
+  const borrowed = index?.get(key).find((v) => fits(bounded, v))
+  let n = (borrowed as number | undefined) ?? exampleNumber(key, integer, lo)
+  if (lo !== undefined && n < lo) n = lo
+  if (hi !== undefined && n > hi) n = hi
+  const m = schema.multipleOf
+  if (typeof m === 'number' && m > 0) {
+    n = Math.ceil(n / m) * m
+    if (hi !== undefined && n > hi) n = Math.floor(hi / m) * m
+    n = Number(n.toFixed(10))
+  }
+  return n
+}
+
+/** A branch that has no description of its own reads the wrapper's (`anyOf: [{ type: string }, …]` described as "ID of the customer"). */
+let inherited = new WeakMap<object, Schema>()
+function describedAs(pick: Schema, wrapper: Schema): Schema {
+  if (pick.$ref || pick.description !== undefined || !wrapper.description) return pick
+  const had = inherited.get(pick)
+  if (had) return had
+  const merged = { ...pick, description: wrapper.description }
+  inherited.set(pick, merged)
+  return merged
+}
+
+/** An object with an `id` and several fields of its own: another resource, not a part of this one. */
+const RESOURCE_FIELDS = 5
+
+/**
+ * Whether a schema is another resource embedded by value: a resource, a list of them, or a `{ data: [...] }`
+ * wrapper around them. An expandable reference (`anyOf: [string, resource]`) is not: the string is what is shown.
+ */
+let embedded = new WeakMap<object, boolean>()
+function embeds(
+  s: Schema | undefined,
+  resolve: (ref: string) => Schema | undefined,
+  d = 0,
+): boolean {
+  if (!s || d > 6) return false
+  const known = embedded.get(s)
+  if (known !== undefined) return known
+  let yes = false
+  if (s.$ref) yes = embeds(resolve(s.$ref), resolve, d + 1)
+  else if (s.allOf) yes = s.allOf.some((b: Schema) => embeds(b, resolve, d + 1))
+  else if (s.oneOf || s.anyOf) {
+    const branches: Schema[] = s.oneOf ?? s.anyOf
+    yes = embeds(branches.find((b) => b.type !== 'null') ?? branches[0], resolve, d + 1)
+  } else if (s.type === 'array') yes = embeds(s.items, resolve, d + 1)
+  else if (s.properties) {
+    const props = s.properties as Record<string, Schema>
+    yes =
+      ('id' in props && Object.keys(props).length >= RESOURCE_FIELDS) ||
+      (!!props.data && embeds(props.data, resolve, d + 1))
+  }
+  embedded.set(s, yes)
+  return yes
+}
+
+/** What an error response is made of besides its required fields and spec values. */
+const ERROR_KEYS =
+  /^(message|code|type|param|detail|errors?|documentation_url|doc_url|status|title|reason|error_description|request_id)$/i
+
+/** The properties of an error object worth showing: required ones, spec values, and the usual error fields. */
+function errorKeys(
+  schema: Schema,
+  props: Record<string, Schema>,
+  resolve: (ref: string) => Schema | undefined,
+): Set<string> {
+  const keep = new Set<string>(schema.required ?? [])
+  for (const [k, v] of Object.entries(props)) {
+    const s = v.$ref ? resolve(v.$ref) : v
+    if (
+      ERROR_KEYS.test(k) ||
+      exampleOf(s) !== undefined ||
+      exampleOf(v) !== undefined ||
+      s?.default !== undefined ||
+      s?.enum?.length
+    )
+      keep.add(k)
+  }
+  return keep
+}
+
 /** Deepest nesting of objects and arrays an example goes into before it settles for an empty one. */
 const MAX_DEPTH = 6
-
-/** Spec examples that are just the type name (Swagger editor defaults and the like) carry no information. */
-const PLACEHOLDER_VALUE = /^(string|str|<string>|\{string\}|string\d+|null)$/i
 
 /**
  * Replaces placeholder leaves inside a spec-provided example (`"string"`, `"0"`) with a sensible value for the
@@ -276,30 +453,6 @@ export function sanitizeExample(
   return value
 }
 
-/** Whether `value` has the JSON type the schema declares (schemas with no plain `type` always fit). */
-function fits(schema: Schema, value: unknown): boolean {
-  if (Array.isArray(schema.enum) && value !== null && !schema.enum.includes(value)) return false
-  const type = Array.isArray(schema.type)
-    ? schema.type.find((t: string) => t !== 'null')
-    : schema.type
-  if (value === null) return true
-  switch (type) {
-    case 'string':
-      return typeof value === 'string'
-    case 'integer':
-    case 'number':
-      return typeof value === 'number'
-    case 'boolean':
-      return typeof value === 'boolean'
-    case 'array':
-      return Array.isArray(value)
-    case 'object':
-      return typeof value === 'object' && !Array.isArray(value)
-    default:
-      return true
-  }
-}
-
 /** A hard stop for chains of *required* objects, which is all an example follows past MAX_DEPTH. */
 const HARD_DEPTH = 14
 
@@ -317,10 +470,11 @@ export function synthesize(
   key = '',
   status?: number,
   sparse = false,
+  index?: ValueIndex,
 ): unknown {
   if (!schema) return null
   const again = (s: Schema | undefined, k = key, d = depth, sn = seen) =>
-    synthesize(s, resolve, d, sn, k, status, sparse)
+    synthesize(s, resolve, d, sn, k, status, sparse, index)
   if (schema.$ref) {
     const target = resolve(schema.$ref)
     // a reference back into itself carries on as "required fields only", which the depth rules then end
@@ -328,10 +482,11 @@ export function synthesize(
     return again(target, key, depth, [...seen, schema.$ref])
   }
   // a spec example that contradicts its own schema (a string field whose example is an array) is ignored
-  if (schema.example !== undefined && fits(schema, schema.example))
-    return schema.enum
-      ? schema.example
-      : sanitizeExample(schema.example, key, schema.format, status)
+  const given = exampleOf(schema)
+  if (given !== undefined && fits(schema, given))
+    return schema.enum || schema.const !== undefined
+      ? given
+      : sanitizeExample(given, key, schema.format, status)
   if (schema.default !== undefined && fits(schema, schema.default)) return schema.default
   // an enum that lists "" (Stripe's way to clear a field) is not best shown as an empty value
   if (schema.enum?.length) return schema.enum.find((v: unknown) => v !== '') ?? schema.enum[0]
@@ -343,23 +498,46 @@ export function synthesize(
     }
     return merged
   }
-  const pick = schema.oneOf?.[0] ?? schema.anyOf?.[0]
-  if (pick) return again(pick)
+  const branches: Schema[] | undefined = schema.oneOf ?? schema.anyOf
+  // OpenAPI 3.1 writes an optional field as `anyOf: [{ type: 'null' }, ...]`: the first real branch shows the field
+  const pick = branches?.find((b) => b.type !== 'null') ?? branches?.[0]
+  if (pick) {
+    const out = again(describedAs(pick, schema))
+    const prop = schema.discriminator?.propertyName
+    if (prop && pick.$ref && out && typeof out === 'object' && !Array.isArray(out)) {
+      const mapped = Object.entries<string>(schema.discriminator.mapping ?? {}).find(
+        ([, ref]) => ref === pick.$ref,
+      )?.[0]
+      const value = mapped ?? (pick.$ref as string).split('/').pop()
+      const declared = resolve(pick.$ref)?.properties?.[prop]
+      if (!declared?.enum || declared.enum.includes(value))
+        (out as Record<string, unknown>)[prop] = value
+    }
+    return out
+  }
   const type = Array.isArray(schema.type)
     ? schema.type.find((t: string) => t !== 'null')
     : schema.type
   switch (type) {
     case 'string':
-      return exampleString(key, schema.format, status)
+      return stringValue(schema, key, status, index)
     case 'integer':
-      return exampleNumber(key, true, schema.minimum)
+      return numberValue(schema, key, true, index)
     case 'number':
-      return exampleNumber(key, false, schema.minimum)
+      return numberValue(schema, key, false, index)
     case 'boolean':
       return exampleBoolean(key)
-    case 'array':
-      if (depth >= MAX_DEPTH) return []
-      return [again(schema.items, singular(key), depth + 1)]
+    case 'array': {
+      if (depth >= MAX_DEPTH || schema.maxItems === 0) return []
+      // as many items as the schema asks for, distinct when it says they must be
+      const first = again(schema.items, singular(key), depth + 1)
+      const count = Math.min(Math.max(1, schema.minItems ?? 1), 5)
+      return Array.from({ length: count }, (_, i) =>
+        i && schema.uniqueItems && (typeof first === 'string' || typeof first === 'number')
+          ? `${first}${i + 1}`
+          : first,
+      )
+    }
     default: {
       if (schema.properties || type === 'object') {
         const out: Record<string, unknown> = {}
@@ -380,9 +558,25 @@ export function synthesize(
           'lastName',
           'username',
         ].some((p) => p in props)
-        const keep = sparse ? sparseKeys(schema, props, resolve) : undefined
+        // an error is its required fields, spec values and the usual error fields, not every resource it could point to
+        const failing = status !== undefined && (status === -1 || status >= 400)
+        const keep = sparse
+          ? sparseKeys(schema, props, resolve)
+          : failing
+            ? errorKeys(schema, props, resolve)
+            : undefined
         for (const [k, v] of Object.entries<Schema>(props)) {
           if (keep && !keep.has(k)) continue
+          // a server's own fields are not sent, and a secret it is given is not shown, unless the schema needs them
+          const own = v.$ref ? resolve(v.$ref) : v
+          const needed = (schema.required as string[] | undefined)?.includes(k)
+          if (!needed && (status === undefined ? own?.readOnly : own?.writeOnly)) continue
+          if (!needed && own?.deprecated) continue
+          // another resource embedded by value is shown as what it is when absent: null where allowed, else left out
+          if (!needed && status !== undefined && !failing && embeds(v, resolve)) {
+            if (nullable(v, resolve)) out[k] = null
+            continue
+          }
           const hint = person && k === 'name' ? 'full_name' : k
           out[k] = again(v, hint, depth + 1)
         }
@@ -420,7 +614,8 @@ function sparseKeys(
   const keep = new Set<string>(schema.required ?? [])
   for (const [k, v] of Object.entries(props)) {
     const s = v.$ref ? resolve(v.$ref) : v
-    const known = s?.example !== undefined || s?.default !== undefined || v.example !== undefined
+    const known =
+      exampleOf(s) !== undefined || s?.default !== undefined || exampleOf(v) !== undefined
     if (known || s?.enum?.length) keep.add(k)
   }
   // top up with a few plain scalars so the example still shows the shape of the object
@@ -487,7 +682,10 @@ function convertSchema(schema: Schema | undefined, refPrefix: string): Schema {
     const declared = Array.isArray(schema.type) ? schema.type[0] : schema.type
     const body: Schema = {
       ...(declared && declared !== 'string' ? { type: declared } : {}),
-      enum: schema.nullable ? [...schema.enum, null] : schema.enum,
+      enum:
+        schema.nullable || (Array.isArray(schema.type) && schema.type.includes('null'))
+          ? [...schema.enum.filter((v: unknown) => v !== null), null]
+          : schema.enum,
     }
     return schema.enum.every((v: unknown) => typeof v === 'string')
       ? withPlaceholder(body)

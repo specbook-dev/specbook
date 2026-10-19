@@ -1,4 +1,6 @@
+import { conforms, makeValueIndex } from './hints'
 import {
+  clearExampleCaches,
   jsdoc,
   objectType,
   pascal,
@@ -234,6 +236,22 @@ export function generateFromDoc(
   operations: ManifestOperation[]
   metas: Record<string, OperationMeta>
 } {
+  try {
+    return generateAll(doc, opts, flags)
+  } finally {
+    clearExampleCaches()
+  }
+}
+
+function generateAll(
+  doc: any,
+  opts: Omit<GenerateOptions, 'spec'>,
+  flags: GenerateFlags,
+): {
+  files: GeneratedFile[]
+  operations: ManifestOperation[]
+  metas: Record<string, OperationMeta>
+} {
   const core = opts.corePackage ?? '@specbook/core'
   const ts = !flags.dataOnly
   const metas: Record<string, OperationMeta> = {}
@@ -252,6 +270,20 @@ export function generateFromDoc(
   }
   const firstExample = (examples: Record<string, any> | undefined) =>
     resolveAny<any>(Object.values(examples ?? {})[0])?.value
+
+  // what the spec says about a field elsewhere in the document; read on first use
+  const index = makeValueIndex(doc)
+  /**
+   * The response example the spec gives, when it has one. The one `example` is shown as written; a named one only
+   * when it satisfies the response schema, since specs' own examples often leave out a required field.
+   */
+  const specExample = (media: any, schema: Schema, status: number): unknown => {
+    if (media?.example !== undefined) return sanitizeExample(media.example, '', undefined, status)
+    const named = firstExample(media?.examples)
+    if (named === undefined) return undefined
+    const value = sanitizeExample(named, '', undefined, status)
+    return conforms(schema, value, resolve) ? value : undefined
+  }
 
   const files: GeneratedFile[] = []
   const operations: ManifestOperation[] = []
@@ -360,9 +392,9 @@ export function generateFromDoc(
             hasDefault = true
             if (ts) defaultType = tsType(found.schema, '  ', 'T.')
             defaultSchema = toJsonSchema(found.schema, `${defsId}#/$defs/`)
-            const example = found.media?.example
-              ? sanitizeExample(found.media.example, '', undefined, -1)
-              : synthesize(found.schema, resolve, 0, [], '', -1)
+            const example =
+              specExample(found.media, found.schema, -1) ??
+              synthesize(found.schema, resolve, 0, [], '', -1, false, index)
             exampleFiles.push({
               path: `examples/${id}/default.response.json`,
               content: `${JSON.stringify(example, null, 2)}\n`,
@@ -380,9 +412,9 @@ export function generateFromDoc(
             `${code}: ${found?.schema ? tsType(found.schema, '  ', 'T.') : 'unknown'}`,
           )
         if (found?.schema) {
-          const example = found.media?.example
-            ? sanitizeExample(found.media.example, '', undefined, Number(code))
-            : synthesize(found.schema, resolve, 0, [], '', Number(code))
+          const example =
+            specExample(found.media, found.schema, Number(code)) ??
+            synthesize(found.schema, resolve, 0, [], '', Number(code), false, index)
           exampleFiles.push({
             path: `examples/${id}/${code}.response.json`,
             content: `${JSON.stringify(example, null, 2)}\n`,
@@ -406,7 +438,8 @@ export function generateFromDoc(
           const out: Record<string, unknown> = {}
           for (const p of group(where)) {
             if (p.example !== undefined) out[p.name] = p.example
-            else if (p.required) out[p.name] = synthesize(p.schema, resolve, 0, [], p.name)
+            else if (p.required)
+              out[p.name] = synthesize(p.schema, resolve, 0, [], p.name, undefined, false, index)
           }
           return Object.keys(out).length ? out : undefined
         }
@@ -447,7 +480,7 @@ export function generateFromDoc(
       const plain = {
         ...paramsFor(),
         body: body?.schema
-          ? bodyFor(synthesize(body.schema, resolve, 0, [], '', undefined, true))
+          ? bodyFor(synthesize(body.schema, resolve, 0, [], '', undefined, true, index))
           : undefined,
       }
       docs.push({ name: take('default'), title: 'Default', source: 'generated', ...plain })

@@ -50,6 +50,16 @@ describe('mock transport', () => {
     const r = await runRequest(GetOrder.request({ path: { id: 'x' } }), { env: 'mock', transport })
     expect(r.steps[0]?.response?.status).toBe(401)
   })
+  it('a credential in a header named for a secret or a client id counts as one', async () => {
+    const r = await runRequest(
+      GetOrder.request({
+        path: { id: 'x' },
+        headers: { 'PLAID-CLIENT-ID': 'c', 'PLAID-SECRET': 's' },
+      }),
+      { env: 'mock', transport },
+    )
+    expect(r.steps[0]?.response?.status).toBe(200)
+  })
   it('does not touch the example the loader hands out', async () => {
     const shared = { id: 'a', owner: 'shared', status: 'approved' }
     const t = createMockTransport({ loader: { statuses: () => [200], example: () => shared } })

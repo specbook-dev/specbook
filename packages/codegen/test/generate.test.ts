@@ -586,3 +586,381 @@ describe('examples', () => {
     expect(synthesize({ type: 'string', enum: ['a', 'b'] }, resolve)).toBe('a')
   })
 })
+
+describe('values derived from the spec', () => {
+  const none = () => undefined
+  const make = async () => (await import('../src/schema')).synthesize
+  const hints = () => import('../src/hints')
+
+  it('reads const and the first of examples', async () => {
+    const synthesize = await make()
+    expect(synthesize({ type: 'string', const: 'fixed' }, none)).toBe('fixed')
+    expect(synthesize({ type: 'string', examples: ['first', 'second'] }, none)).toBe('first')
+  })
+
+  it('takes a value a description names, and ignores one it does not', async () => {
+    const { fromDescription } = await hints()
+    expect(fromDescription('Name of the bank (e.g., `WELLS FARGO`).')).toBe('WELLS FARGO')
+    expect(fromDescription('Can be `amex`, `visa` or `unknown`.')).toBe('amex')
+    expect(fromDescription('The options are:  \n**For a team:**  \n * `secret` - hidden')).toBe(
+      'secret',
+    )
+    expect(fromDescription('Defaults to the `id` of the Payment Intent.')).toBeUndefined()
+    expect(fromDescription('Defaults to `false` when unset.')).toBeUndefined()
+    const synthesize = await make()
+    expect(
+      synthesize(
+        { type: 'string', description: 'The card brand, e.g. `visa`.' },
+        none,
+        0,
+        [],
+        'brand',
+      ),
+    ).toBe('visa')
+  })
+
+  it('borrows an example the spec gives the same field elsewhere, but not for a generic name', async () => {
+    const { makeValueIndex } = await hints()
+    const synthesize = await make()
+    const index = makeValueIndex({
+      components: {
+        schemas: {
+          User: {
+            type: 'object',
+            properties: {
+              username: { type: 'string', example: 'theUser' },
+              name: { type: 'string', example: 'Rex' },
+              quantity: { type: 'integer', example: 7 },
+            },
+          },
+        },
+      },
+    })
+    const s = { type: 'string' }
+    expect(synthesize(s, none, 0, [], 'username', undefined, false, index)).toBe('theUser')
+    expect(synthesize(s, none, 0, [], 'name', undefined, false, index)).toBe('Example name')
+    expect(synthesize({ type: 'integer' }, none, 0, [], 'quantity', undefined, false, index)).toBe(
+      7,
+    )
+  })
+
+  it('answers a pattern, and keeps to length limits', async () => {
+    const { fromPattern } = await hints()
+    const synthesize = await make()
+    for (const p of [
+      '^sha256:[a-f0-9]{64}$',
+      'prefix_[a-zA-Z0-9]{32}',
+      '[a-z]+_token_[0-9]+',
+      '^(a|b)\\d{2}$',
+    ])
+      expect(new RegExp(p).test(fromPattern(p) as string)).toBe(true)
+    expect(fromPattern('(?=x)y')).toBeUndefined()
+    const code = synthesize(
+      { type: 'string', pattern: '^[A-Z]{3}-\\d{4}$' },
+      none,
+      0,
+      [],
+      'ref',
+    ) as string
+    expect(code).toMatch(/^[A-Z]{3}-\d{4}$/)
+    expect(synthesize({ type: 'string', maxLength: 4 }, none, 0, [], 'zen')).toHaveLength(4)
+    expect(synthesize({ type: 'string', minLength: 12 }, none, 0, [], 'zen')).toHaveLength(12)
+  })
+
+  it('keeps numbers inside their bounds and multiples', async () => {
+    const synthesize = await make()
+    expect(
+      synthesize({ type: 'integer', minimum: 5000, maximum: 9000 }, none, 0, [], 'amount'),
+    ).toBe(5000)
+    expect(synthesize({ type: 'integer', maximum: 10 }, none, 0, [], 'amount')).toBe(10)
+    expect(synthesize({ type: 'integer', exclusiveMinimum: 0 }, none, 0, [], 'x')).toBe(1)
+    expect(synthesize({ type: 'integer', multipleOf: 25 }, none, 0, [], 'x')).toBe(25)
+  })
+
+  it('writes as many array items as the schema needs, and none when it allows none', async () => {
+    const synthesize = await make()
+    const items = { type: 'string' }
+    expect(synthesize({ type: 'array', items, minItems: 3 }, none, 0, [], 'tags')).toHaveLength(3)
+    const unique = synthesize(
+      { type: 'array', items, minItems: 2, uniqueItems: true },
+      none,
+      0,
+      [],
+      'tags',
+    ) as string[]
+    expect(new Set(unique).size).toBe(2)
+    expect(synthesize({ type: 'array', items, maxItems: 0 }, none, 0, [], 'tags')).toEqual([])
+  })
+
+  it('leaves out read-only fields of a request and write-only fields of a response', async () => {
+    const synthesize = await make()
+    const schema = {
+      type: 'object',
+      required: ['secret'],
+      properties: {
+        id: { type: 'integer', readOnly: true },
+        token: { type: 'string', writeOnly: true },
+        secret: { type: 'string', writeOnly: true },
+        note: { type: 'string' },
+      },
+    }
+    expect(Object.keys(synthesize(schema, none) as object)).toEqual(['token', 'secret', 'note'])
+    expect(Object.keys(synthesize(schema, none, 0, [], '', 200) as object)).toEqual([
+      'id',
+      'secret',
+      'note',
+    ])
+  })
+
+  it('shows the real branch of a nullable anyOf, and sets a discriminator', async () => {
+    const synthesize = await make()
+    const resolve = (ref: string) =>
+      ref.endsWith('Cat')
+        ? { type: 'object', properties: { kind: { type: 'string' }, lives: { type: 'integer' } } }
+        : undefined
+    expect(
+      synthesize({ anyOf: [{ type: 'null' }, { type: 'integer' }] }, none, 0, [], 'count'),
+    ).toBe(3)
+    const pet = synthesize(
+      {
+        oneOf: [{ $ref: '#/components/schemas/Cat' }],
+        discriminator: { propertyName: 'kind', mapping: { feline: '#/components/schemas/Cat' } },
+      },
+      resolve,
+    ) as Record<string, unknown>
+    expect(pet.kind).toBe('feline')
+  })
+
+  it('reads the standard a description cites, and invents no values of its own', async () => {
+    const { fromDescription } = await hints()
+    const synthesize = await make()
+    expect(fromDescription('Three-letter ISO currency code, in lowercase.')).toBe('usd')
+    expect(fromDescription('Two-letter country code ([ISO 3166-1 alpha-2](https://x)).')).toBe('US')
+    expect(fromDescription('The last four digits of the card.')).toBe('4242')
+    expect(
+      fromDescription('The close-out date in ISO 8601 format. E.g. 2023-12-31 for the 31st.'),
+    ).toBe('2023-12-31')
+    expect(
+      fromDescription('Three-letter [ISO code for the currency](https://x) it is charged in.'),
+    ).toBe('usd')
+    expect(fromDescription('The display name of the currency.')).toBeUndefined()
+    expect(synthesize({ type: 'string' }, none, 0, [], 'settlement_currency')).toBe('usd')
+    expect(fromDescription('Last four characters of the IBAN.')).toBe('4242')
+    expect(fromDescription('A date string in YYYY-MM-DD format.')).toBe('2024-05-14')
+    expect(fromDescription('ID of the mandate used to make this payment.')).toBe('a1b2c3d4')
+    expect(fromDescription('Unique identifier for the object.')).toBe('a1b2c3d4')
+    expect(fromDescription('The URL of the mandate.')).toBe('https://example.com/resource')
+    expect(fromDescription("The customer's phone number.")).toBe('+1-555-0100')
+    expect(fromDescription('Whether the holder is verified, see the docs.')).toBeUndefined()
+    const s = (description: string) => ({ type: 'string', description })
+    expect(synthesize(s('Three-letter ISO currency code.'), none, 0, [], 'default_currency')).toBe(
+      'usd',
+    )
+    // a status the spec does not list is not guessed from the field's last word
+    expect(synthesize({ type: 'string' }, none, 0, [], 'petStatus')).toBe('Example pet status')
+  })
+
+  it('gives a link to an image a file of the type its name says', async () => {
+    const synthesize = await make()
+    const s = { type: 'string' }
+    expect(synthesize(s, none, 0, [], 'image_url_png')).toBe('https://api.example.com/image.png')
+    expect(synthesize(s, none, 0, [], 'qr_code_url_svg')).toBe(
+      'https://api.example.com/qr_code.svg',
+    )
+  })
+
+  it('uses a named response example from the spec', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'specbook-named-'))
+    dirs.push(dir)
+    const spec = join(dir, 'api.json')
+    await writeFile(
+      spec,
+      JSON.stringify({
+        openapi: '3.0.3',
+        info: { title: 'N', version: '1' },
+        paths: {
+          '/pets': {
+            get: {
+              operationId: 'ListPets',
+              responses: {
+                '200': {
+                  description: 'ok',
+                  content: {
+                    'application/json': {
+                      schema: { type: 'object', properties: { nickname: { type: 'string' } } },
+                      examples: { rex: { value: { nickname: 'Rex' } } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+    )
+    const { files } = await generate({ spec, service: 'n' })
+    const ex = files.find((f) => f.path === 'examples/ListPets/200.response.json')
+    expect(JSON.parse(ex?.content ?? 'null')).toEqual({ nickname: 'Rex' })
+  })
+})
+
+describe('round 2: what the spec still says', () => {
+  const none = () => undefined
+  const loaded = async () => ({
+    ...(await import('../src/schema')),
+    ...(await import('../src/hints')),
+  })
+  const string = { type: 'string' }
+
+  it('reads the description a wrapper gives its string branch', async () => {
+    const { synthesize } = await loaded()
+    const wrapper = {
+      description: 'The ID of the customer that owns this.',
+      anyOf: [{ type: 'string', maxLength: 5000 }, { $ref: '#/components/schemas/customer' }],
+    }
+    expect(synthesize(wrapper, none, 0, [], 'customer')).toBe('a1b2c3d4')
+  })
+
+  it('borrows an enum or described value from the same field elsewhere, after the name rules, and not for status', async () => {
+    const { synthesize, makeValueIndex } = await loaded()
+    const index = makeValueIndex({
+      components: {
+        schemas: {
+          Card: {
+            type: 'object',
+            properties: {
+              brand: { type: 'string', enum: ['visa', 'amex'] },
+              funding: {
+                type: 'string',
+                description: 'Card funding type. Can be `credit` or `debit`.',
+              },
+              status: { type: 'string', enum: ['pending'] },
+            },
+          },
+        },
+      },
+    })
+    const call = (key: string) => synthesize(string, none, 0, [], key, undefined, false, index)
+    expect(call('brand')).toBe('visa')
+    expect(call('funding')).toBe('credit')
+    expect(call('status')).toBe('active')
+    // a name rule beats a borrowed enum value
+    const country = makeValueIndex({ properties: { country: { type: 'string', enum: ['AT'] } } })
+    expect(synthesize(string, none, 0, [], 'country', undefined, false, country)).toBe('US')
+  })
+
+  it('writes unix times and the parts of a date as such', async () => {
+    const { synthesize } = await loaded()
+    const int = { type: 'integer' }
+    expect(synthesize({ ...int, format: 'unix-time' }, none, 0, [], 'whenever')).toBe(1715679000)
+    expect(synthesize(int, none, 0, [], 'exp_year')).toBe(2030)
+    expect(synthesize(int, none, 0, [], 'exp_month')).toBe(12)
+    expect(synthesize(int, none, 0, [], 'start_date')).toBe(1715679000)
+  })
+
+  it('keeps an error to its required fields, spec values and the usual error fields', async () => {
+    const { synthesize } = await loaded()
+    const resource = {
+      type: 'object',
+      properties: Object.fromEntries(['id', 'a', 'b', 'c', 'd'].map((k) => [k, string])),
+    }
+    const error = {
+      type: 'object',
+      required: ['type'],
+      properties: {
+        type: { type: 'string', enum: ['card_error'] },
+        message: string,
+        charge: string,
+        payment_intent: resource,
+      },
+    }
+    expect(Object.keys(synthesize(error, none, 0, [], '', 402) as object)).toEqual([
+      'type',
+      'message',
+    ])
+    // a success keeps the plain optional field an error leaves out
+    expect(Object.keys(synthesize(error, none, 0, [], '', 200) as object)).toEqual([
+      'type',
+      'message',
+      'charge',
+    ])
+  })
+
+  it('leaves out a deprecated property unless it is required', async () => {
+    const { synthesize } = await loaded()
+    const schema = {
+      type: 'object',
+      required: ['old'],
+      properties: {
+        old: { ...string, deprecated: true },
+        older: { ...string, deprecated: true },
+        current: string,
+      },
+    }
+    expect(Object.keys(synthesize(schema, none) as object)).toEqual(['old', 'current'])
+  })
+
+  it('shows another resource embedded by value as null, or leaves it out, but keeps small value objects', async () => {
+    const { synthesize } = await loaded()
+    const resource = {
+      type: 'object',
+      properties: Object.fromEntries(['id', 'a', 'b', 'c', 'd'].map((k) => [k, string])),
+    }
+    const tag = { type: 'object', properties: { id: { type: 'integer' }, name: string } }
+    const schema = {
+      type: 'object',
+      required: ['owner'],
+      properties: {
+        owner: resource,
+        discount: { ...resource, nullable: true },
+        subscriptions: {
+          type: 'object',
+          properties: { object: string, data: { type: 'array', items: resource } },
+        },
+        sources: { type: 'array', items: resource },
+        category: tag,
+        customer: { anyOf: [string, resource] },
+      },
+    }
+    const out = synthesize(schema, none, 0, [], '', 200) as Record<string, unknown>
+    expect(Object.keys(out)).toEqual(['owner', 'discount', 'category', 'customer'])
+    expect(out.discount).toBeNull()
+    expect(typeof out.customer).toBe('string')
+    // a request or an error is not a response to embed anything in
+    expect(Object.keys(synthesize(schema, none) as object)).toContain('subscriptions')
+  })
+
+  it('shows a spec response example only when it satisfies the schema', async () => {
+    const { conforms } = await loaded()
+    const schema = {
+      type: 'object',
+      required: ['login'],
+      properties: { login: string, reason: { type: ['string', 'null'] } },
+    }
+    expect(conforms(schema, { login: 'a', reason: null }, none)).toBe(true)
+    expect(conforms(schema, { reason: 'x' }, none)).toBe(false)
+    expect(conforms(schema, { login: 1 }, none)).toBe(false)
+    // checked against the first branch of its own kind, as the viewer does
+    const union = {
+      oneOf: [
+        { type: 'object', required: ['a'] },
+        { type: 'object', required: ['b'] },
+      ],
+    }
+    expect(conforms(union, { b: 1 }, none)).toBe(false)
+    expect(conforms(union, { a: 1 }, none)).toBe(true)
+  })
+
+  it('keeps a null in a nullable enum written as a type list', async () => {
+    const { toJsonSchema } = await loaded()
+    const json = toJsonSchema({ type: ['string', 'null'], enum: ['a', 'b'] }, '#/') as any
+    expect(JSON.stringify(json)).toContain('null')
+  })
+
+  it('does not invent a type for a field named for one', async () => {
+    const { synthesize } = await loaded()
+    expect(synthesize(string, none, 0, [], 'pet_type')).toBe('Example pet type')
+    expect(synthesize(string, none, 0, [], 'org')).toBe('octo-org')
+    expect(synthesize(string, none, 0, [], 'master_branch')).toBe('main')
+  })
+})
