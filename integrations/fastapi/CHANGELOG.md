@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `cdn="npm"` loads `@specbook/ui` 0.7.0 by default (the release this package was tested with).
+
 ## 0.1.1
 
 - `cdn="npm"` loads `@specbook/ui` 0.6.1 by default (the release this package was tested with).
