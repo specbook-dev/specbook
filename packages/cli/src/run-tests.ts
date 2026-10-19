@@ -30,7 +30,6 @@ import {
   installFaker,
   MissingSecretsError,
   maskDeep,
-  type PreparedRequest,
   type RequestDef,
   type RunEvent,
   type RunResult,

@@ -97,6 +97,17 @@ body.site {
 .site a:hover {
   text-decoration-color: currentColor;
 }
+/* links that are not prose: brand, buttons, tiles and the next-page links keep their own colour and no underline */
+.site .brand,
+.site .btn,
+.site .tile,
+.site .next a {
+  color: var(--text);
+  text-decoration: none;
+}
+.site .btn.primary {
+  color: var(--accent-ink);
+}
 .site :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
@@ -127,8 +138,6 @@ body.site {
   gap: 10px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--text) !important;
-  text-decoration: none !important;
   flex: none;
 }
 .brand svg {
@@ -325,9 +334,7 @@ h2.title {
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--raised);
-  color: var(--text) !important;
   font: 600 15px / 1 var(--font);
-  text-decoration: none !important;
   cursor: pointer;
 }
 .btn:hover {
@@ -336,7 +343,6 @@ h2.title {
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--accent-ink) !important;
   box-shadow: 0 8px 30px -8px var(--glow);
 }
 .btn.primary:hover {
@@ -362,8 +368,6 @@ h2.title {
     var(--surface),
     color-mix(in srgb, var(--surface) 70%, var(--bg))
   );
-  color: var(--text) !important;
-  text-decoration: none !important;
   transition:
     transform 160ms ease,
     border-color 160ms ease,
@@ -530,8 +534,6 @@ ol.steps li::before {
 .next a {
   display: grid;
   gap: 4px;
-  text-decoration: none !important;
-  color: var(--text) !important;
 }
 .next small {
   font: 600 11px / 1 var(--mono);

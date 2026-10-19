@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   defineOperation,
-  type PreparedRequest,
   type RawResponse,
   runRequest,
   runSequence,
