@@ -150,8 +150,8 @@ The command line turns a project's specs into types, examples, a docs site and r
 npm install --save-dev @specbook/cli @specbook/core @faker-js/faker
 ```
 
-Run the install above first; after that, `npx specbook` runs the installed copy. To look at a document with
-no project, `npx @specbook/cli preview <url|file>` works without installing anything.
+Run the install above first: `npx specbook` runs the copy in your `node_modules`. With nothing installed, use
+the scoped name, for example `npx @specbook/cli preview <url|file>`.
 
 ```sh
 npx specbook init                # scaffold config, the #api/* import, an environments folder and an agent guide
