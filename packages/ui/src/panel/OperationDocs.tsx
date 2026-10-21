@@ -15,6 +15,7 @@ export interface DocOp {
   summary?: string
   tags: string[]
   statuses: number[]
+  mockVariants?: Record<string, { name: string; title?: string }[]>
 }
 
 interface LongDocs {
@@ -154,6 +155,9 @@ export function OperationDocs({
                 {op.statuses.map((s) => (
                   <li>
                     <span class={`state-badge ${statusClass(s)}`}>{s}</span> {statusName(s)}
+                    {op.mockVariants?.[String(s)]?.map((v) => (
+                      <span class="muted"> · {v.title ?? v.name}</span>
+                    ))}
                   </li>
                 ))}
               </ul>

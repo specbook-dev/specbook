@@ -25,6 +25,8 @@ declare module 'virtual:specbook/registry' {
         summary?: string
         tags: string[]
         statuses: number[]
+        /** the answers a status offers when its example file holds several, by status */
+        mockVariants?: Record<string, { name: string; title?: string; tag?: string }[]>
         /** the spec requires credentials */
         secured?: boolean
       }[]

@@ -95,6 +95,8 @@ export interface RunInput {
   version: number
   /** Forced mock status per run (mock env only). */
   mockStatus?: number
+  /** With `mockStatus`: the variant of that status that answers, by name. */
+  mockVariant?: string
   inputs?: Record<string, unknown>
   vars?: Record<string, unknown>
   onEvent?: (e: RunEvent) => void
@@ -823,7 +825,10 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
       await fakerReady(i.version, i.locale, i.seed)
     const o = await baseOptions(i)
     if (target.kind === 'sequence') return runSequence(target, o)
-    return runRequest(target, i.env === 'mock' ? { ...o, mockStatus: i.mockStatus } : o)
+    return runRequest(
+      target,
+      i.env === 'mock' ? { ...o, mockStatus: i.mockStatus, mockVariant: i.mockVariant } : o,
+    )
   }
 
   /** `base` keeps its init/capture/assert and mock hook; `overrides` replace path/query/headers/data. */

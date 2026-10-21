@@ -434,6 +434,48 @@ describe('the hosted viewer opens a spec at run time', () => {
     await page.close()
   })
 
+  it('offers each variant of a status in Respond with, and answers the one picked', async () => {
+    const { page } = await open(spec('bookstore.json'))
+    await ready(page)
+    await goOp(page, 'bookstore/ListShelf')
+    const picker = page.getByLabel('Mock response')
+    const options = await picker.locator('option').allInnerTexts()
+    expect(options.map((o) => o.replace(/\s+/g, ' ').trim())).toEqual([
+      'Default',
+      '200 OK',
+      '409 Conflict · OutOfStock',
+      '409 Conflict · Discontinued',
+    ])
+
+    // the second variant answers: its status, its body, and the check against the response schema
+    await picker.selectOption({ label: '409 Conflict · Discontinued' })
+    await page.waitForSelector('.result-chip:has-text("409")', { timeout: 20_000 })
+    await page.waitForFunction(
+      () => document.body.innerText.includes('"DISCONTINUED"'),
+      undefined,
+      {
+        timeout: 10_000,
+      },
+    )
+    await page.waitForSelector('.response .conf:has-text("Matches spec")', { timeout: 10_000 })
+    expect(await page.locator('.response').first().innerText()).not.toContain('OUT_OF_STOCK')
+
+    // the first variant is the other option
+    await picker.selectOption({ label: '409 Conflict · OutOfStock' })
+    await page.waitForFunction(
+      () => document.body.innerText.includes('"OUT_OF_STOCK"'),
+      undefined,
+      {
+        timeout: 10_000,
+      },
+    )
+
+    // Default goes back to the 200: it must not replay the status that was forced before
+    await picker.selectOption({ label: 'Default' })
+    await page.waitForSelector('.result-chip:has-text("200")', { timeout: 20_000 })
+    await page.close()
+  })
+
   it('sends a live request straight to the API with the key typed in the page', async () => {
     const { page } = await open(spec('live/openapi.json'))
     await ready(page)
