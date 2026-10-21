@@ -4,6 +4,7 @@ import {
   jsdoc,
   objectType,
   pascal,
+  propKey,
   type Schema,
   safeIdent,
   sanitizeExample,
@@ -12,7 +13,7 @@ import {
   toJsonSchema,
   tsType,
 } from './schema'
-import { unionOf } from './union'
+import { flatProps, nameOf, pinnedValue, subtypeTag, unionOf } from './union'
 
 export interface GenerateOptions {
   /** Path/URL to the spec, or an already-parsed object. */
@@ -371,6 +372,21 @@ function generateAll(
   const files: GeneratedFile[] = []
   const operations: ManifestOperation[] = []
 
+  // The value that tells a variant apart is its type, so a flow can narrow on it (`item.kind === 'album'`): a base
+  // holds the `discriminator` and the variants only extend it, and a union can hold its own.
+  const tags = new Map<string, { prop: string; value: string }>()
+  if (ts) {
+    const ctx = { resolve }
+    for (const [name, schema] of Object.entries(schemas)) {
+      const own = subtypeTag(`#/components/schemas/${name}`, ctx)
+      if (own) tags.set(pascal(name), own)
+      const union = unionOf(schema, ctx)
+      if (union?.tagSource === 'discriminator' && union.tagProp)
+        for (const b of union.branches)
+          if (b.schema.$ref && b.tag !== undefined)
+            tags.set(pascal(nameOf(b.schema.$ref)), { prop: union.tagProp, value: b.tag })
+    }
+  }
   const typeBlocks: string[] = []
   for (const [name, schema] of ts ? Object.entries(schemas) : []) {
     const id = pascal(name)
@@ -383,6 +399,18 @@ function generateAll(
       (schema.type === 'object' || (!schema.type && schema.properties)) &&
       schema.properties
     const body = isObj ? objectType(schema) : undefined
+    const tag = tags.get(id)
+    // a variant that already pins the property itself (an `enum` of one value) says it
+    const pinned =
+      tag && pinnedValue(flatProps({ $ref: `#/components/schemas/${name}` }, { resolve })[tag.prop])
+    if (tag && pinned === undefined) {
+      const base = body ?? tsType(schema)
+      const whole = schema.oneOf || schema.anyOf ? `(${base})` : base
+      typeBlocks.push(
+        `${jsdoc(schema)}export type ${id} = ${whole} & { ${propKey(tag.prop)}: ${JSON.stringify(tag.value)} }`,
+      )
+      continue
+    }
     typeBlocks.push(
       body?.startsWith('{')
         ? `${jsdoc(schema)}export interface ${id} ${body}`

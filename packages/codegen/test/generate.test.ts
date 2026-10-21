@@ -507,6 +507,70 @@ describe('generated code compiles against @specbook/core', () => {
   )
 })
 
+describe('discriminator values are types', () => {
+  const types = async () => {
+    const { files } = await generate({ spec: fx('bookstore.json'), service: 'books' })
+    return files.find((f) => f.path === 'types.ts')?.content ?? ''
+  }
+
+  it('gives each variant the value that tells it apart, whichever way the document maps it', async () => {
+    const t = await types()
+    // a bare-name mapping, a full-ref mapping, and a subtype the mapping leaves out (named by itself)
+    expect(t).toContain('} & { kind: "book" }')
+    expect(t).toContain('} & { kind: "album" }')
+    expect(t).toContain('} & { kind: "Zine" }')
+  })
+
+  it('leaves what is not a variant alone, and a variant that pins the value itself', async () => {
+    const t = await types()
+    expect(t).toContain('export interface Media {')
+    expect(t).toContain('export interface Shelf {')
+    // OutOfStock says `error: "OUT_OF_STOCK"` itself
+    expect(t).not.toContain('& { error:')
+  })
+
+  it('lets a flow narrow a union on it', async () => {
+    const outDir = await mkdtemp(join(tmpdir(), 'specbook-gen-'))
+    dirs.push(outDir)
+    await generateToDisk({ spec: fx('bookstore.json'), service: 'books', outDir })
+    // `pages` is on a book and `tracks` on an album: only a literal `kind` lets the compiler tell them apart
+    const narrow = join(outDir, 'books/narrow.ts')
+    await writeFile(
+      narrow,
+      `import type * as T from './types'
+export const size = (m: T.Book | T.Album) => (m.kind === 'book' ? m.pages : m.tracks)
+`,
+    )
+    const tsconfig = join(outDir, 'tsconfig.json')
+    await writeFile(
+      tsconfig,
+      JSON.stringify({
+        compilerOptions: {
+          noEmit: true,
+          strict: true,
+          skipLibCheck: true,
+          target: 'ES2022',
+          module: 'ESNext',
+          moduleResolution: 'Bundler',
+          lib: ['ES2022', 'DOM'],
+          types: [],
+          paths: { '@specbook/core': [coreEntry] },
+        },
+        files: [join(outDir, 'books/index.ts'), narrow],
+      }),
+    )
+    const tsc = resolve(__dirname, '../node_modules/.bin/tsc')
+    const r = await run(tsc, ['-p', tsconfig]).catch((e) => e)
+    expect(r.stdout ?? String(r)).toBe('')
+  }, 60_000)
+
+  it('writes a constant as the one value it allows', async () => {
+    const { tsType } = await import('../src/schema')
+    expect(tsType({ const: 'a' })).toBe('"a"')
+    expect(tsType({ type: 'object', properties: { v: { const: 3 } } }, '')).toContain('v?: 3')
+  })
+})
+
 describe('request editor JSON Schemas', () => {
   it('emits shared definitions and a small per-operation request schema with docs', async () => {
     const { files } = await generate({ spec: fx('petstore3.json'), service: 'petstore' })

@@ -62,6 +62,8 @@ export function tsType(schema: Schema | undefined, indent = '', p = ''): string 
   let base: string
   if (schema.enum) {
     base = schema.enum.map((v: unknown) => JSON.stringify(v)).join(' | ') || 'never'
+  } else if (schema.const !== undefined) {
+    base = JSON.stringify(schema.const)
   } else if (schema.allOf) {
     base = schema.allOf.map((s: Schema) => paren(tsType(s, indent, p))).join(' & ')
   } else if (schema.oneOf || schema.anyOf) {
