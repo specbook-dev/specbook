@@ -93,6 +93,76 @@ export function unwrap(schema: JsonSchema | undefined, defs: Defs, depth = 0): J
   return s
 }
 
+/**
+ * The branch of a union that `value` is: the one its tag names, else (no tag, several object branches) the one
+ * it fits best. Undefined for a schema that is no union, a value that is no object, or one that names no branch.
+ */
+export function variantOf(
+  schema: JsonSchema | undefined,
+  value: unknown,
+  defs: Defs,
+): UnionBranch | undefined {
+  if (!isObjectValue(value)) return undefined
+  const u = unionFor(schema, defs)
+  if (!u) return undefined
+  if (u.tagProp) {
+    const named = u.branches.find(
+      (b) => b.tag !== undefined && b.tag === value[u.tagProp as string],
+    )
+    if (named) return named
+    if (value[u.tagProp] !== undefined) return undefined
+  }
+  const objects = u.branches.filter((b) => kindOf(unwrap(b.schema, defs)) === 'object')
+  if (objects.length < 2) return objects[0]
+  const budget = { left: BRANCH_BUDGET }
+  let best: { b: UnionBranch; n: number } | undefined
+  for (const b of objects) {
+    if (budget.left <= 0) break
+    budget.left--
+    const n = validate(value, b.schema, defs, { reportExtra: true }, '', 1, budget).length
+    if (!best || n < best.n) best = { b, n }
+    if (n === 0) break
+  }
+  return best?.b ?? objects[0]
+}
+
+/** A node's schema as it is used: refs followed, `allOf` flattened, and a union the variant `value` is. */
+export function nodeSchema(schema: JsonSchema, value: unknown, defs: Defs): JsonSchema {
+  const named = variantOf(schema, value, defs)
+  return named
+    ? unwrap(withMeta(named.schema, resolveRef(schema, defs)), defs)
+    : unwrap(schema, defs)
+}
+
+const NAMES_SHOWN = 3
+
+/** What a union is called in a type column: `Book | Album`, all but the first few counted (the rest in `title`). */
+export function unionLabel(u: UnionInfo, defs: Defs): { text: string; title?: string } {
+  const names = u.branches.map((b) => b.name ?? kindOf(unwrap(b.schema, defs)))
+  if (names.length <= NAMES_SHOWN) return { text: names.join(' | ') }
+  return {
+    text: `${names.slice(0, NAMES_SHOWN).join(' | ')} | +${names.length - NAMES_SHOWN} more`,
+    title: names.join(' | '),
+  }
+}
+
+/** The type column's text for a property schema: `string · uuid`, `string[]`, `Book | Album`, `(Book | Album)[]`. */
+export function typeInfo(schema: JsonSchema, defs: Defs): { text: string; title?: string } {
+  const u = unwrap(schema, defs)
+  const kind = kindOf(u)
+  if (kind === 'array') {
+    const inner = unionFor(u.items, defs)
+    if (inner) {
+      const { text, title } = unionLabel(inner, defs)
+      return { text: `(${text})[]`, title }
+    }
+    return { text: `${kindOf(unwrap(u.items, defs))}[]` }
+  }
+  const un = unionFor(schema, defs)
+  if (un) return unionLabel(un, defs)
+  return { text: u.format ? `${kind} · ${u.format}` : kind }
+}
+
 export function kindOf(schema: JsonSchema): Kind {
   const t = Array.isArray(schema.type) ? schema.type.find((x: string) => x !== 'null') : schema.type
   if (
@@ -145,8 +215,9 @@ export function childSchema(
   schema: JsonSchema,
   key: string | number,
   defs: Defs,
+  value?: unknown,
 ): JsonSchema | undefined {
-  const s = unwrap(schema, defs)
+  const s = nodeSchema(schema, value, defs)
   if (typeof key === 'number') return s.items
   if (s.properties?.[key]) return s.properties[key]
   if (s.additionalProperties && typeof s.additionalProperties === 'object')
@@ -437,15 +508,36 @@ export function linePaths(text: string): (KeyPath | undefined)[] {
   return out
 }
 
+/** The part of `value` at `key`, when it has one. */
+const valueIn = (value: unknown, key: string | number): unknown =>
+  typeof key === 'number'
+    ? Array.isArray(value)
+      ? value[key]
+      : undefined
+    : isObjectValue(value)
+      ? value[key]
+      : undefined
+
+/** The part of `value` at `path`. */
+export const valueAt = (value: unknown, path: KeyPath): unknown =>
+  path.reduce<unknown>((v, k) => valueIn(v, k), value)
+
+/**
+ * The schema at `path`. With the `value` the path is in, a union on the way is the variant that value names
+ * (what an editor has typed so far is enough: only the property that tells the variants apart matters).
+ */
 export function schemaAt(
   root: JsonSchema | undefined,
   path: KeyPath,
   defs: Defs,
+  value?: unknown,
 ): JsonSchema | undefined {
   let s = root
+  let v = value
   for (const k of path) {
     if (!s) return undefined
-    s = childSchema(s, k, defs)
+    s = childSchema(s, k, defs, v)
+    v = valueIn(v, k)
   }
   return s
 }

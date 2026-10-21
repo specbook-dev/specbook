@@ -84,6 +84,15 @@
   table.fields tr:last-child td {
     border-bottom: 0;
   }
+  /* a heading for one variant of a union: its fields are the rows under it */
+  table.fields tr.variant td {
+    padding-block: 5px;
+    background: var(--sb-surface-raised);
+  }
+  table.fields .variant-name {
+    font-weight: 600;
+    color: var(--sb-text);
+  }
   .statuses,
   .examples,
   .steps {

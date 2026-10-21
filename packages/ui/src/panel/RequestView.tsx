@@ -33,9 +33,14 @@ function SentBody({ body, docs }: { body: unknown; docs?: RequestDocs }) {
   const doc = useMemo(() => {
     const p = paths[line]
     return p && docs
-      ? withNote(fieldDoc(docs.schema, docs.defs, p, ['data']), docs.notes, 'data', pathString(p))
+      ? withNote(
+          fieldDoc(docs.schema, docs.defs, p, ['data'], body),
+          docs.notes,
+          'data',
+          pathString(p),
+        )
       : undefined
-  }, [paths, line, docs])
+  }, [paths, line, docs, body])
   return (
     <>
       <BodyEditor

@@ -92,12 +92,20 @@ export function Body({
   const [line, setLine] = useState(0)
   const paths = useMemo(() => linePaths(draft.body), [draft.body])
   const documented = encoding === 'json' || encoding === 'form'
+  // what has been typed, when it is JSON yet: a union in the schema is the variant it names
+  const typed = useMemo(() => {
+    try {
+      return JSON.parse(draft.body)
+    } catch {
+      return undefined
+    }
+  }, [draft.body])
   const doc: Doc | undefined = useMemo(() => {
     const p = paths[line]
     return p && documented
-      ? withNote(fieldDoc(schema, defs, p, ['data']), notes, 'data', pathString(p))
+      ? withNote(fieldDoc(schema, defs, p, ['data'], typed), notes, 'data', pathString(p))
       : undefined
-  }, [paths, line, schema, defs, documented, notes])
+  }, [paths, line, schema, defs, documented, notes, typed])
   const complete = useMemo(
     () =>
       documented && schema

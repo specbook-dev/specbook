@@ -12,12 +12,19 @@ export interface JsonCursor {
   prefix: string
   /** key mode: properties the object already has */
   existing: Set<string>
+  /** the string values the object at the cursor already has (`{ kind: "album" }`), which tell the variants of a union apart */
+  values: Record<string, string>
+  /**
+   * What was written so far on the way to the cursor: each enclosing object with its string values, nested as
+   * they are in the document. Enough for the schema to follow a union by its tag; never the whole document.
+   */
+  skeleton: unknown
   /** key mode in a string: a `:` already follows, so only the key is replaced */
   hasColon: boolean
 }
 
 type Frame =
-  | { t: 'o'; key?: string; expectKey: boolean; keys: Set<string> }
+  | { t: 'o'; key?: string; expectKey: boolean; keys: Set<string>; values: Record<string, string> }
   | { t: 'a'; index: number }
 
 const WORD = /[\w$.+-]/
@@ -63,11 +70,11 @@ export function jsonCursor(text: string, pos: number): JsonCursor | undefined {
         t.key = value
         t.keys.add(value)
         t.expectKey = false
-      }
+      } else if (t?.t === 'o' && t.key !== undefined) t.values[t.key] = value
       i = j + 1
       continue
     }
-    if (c === '{') stack.push({ t: 'o', expectKey: true, keys: new Set() })
+    if (c === '{') stack.push({ t: 'o', expectKey: true, keys: new Set(), values: {} })
     else if (c === '[') stack.push({ t: 'a', index: 0 })
     else if (c === '}' || c === ']') stack.pop()
     else if (c === ',') {
@@ -110,6 +117,26 @@ export function jsonCursor(text: string, pos: number): JsonCursor | undefined {
       } else path.push(f.index)
     }
     const f = top()
-    return { ...c, path, existing: f?.t === 'o' ? f.keys : new Set<string>() }
+    // the objects and lists on the way, innermost first: each holds what it has and the one inside it
+    let inner: unknown
+    for (let k = stack.length - 1; k >= 0; k--) {
+      const g = stack[k] as Frame
+      if (g.t === 'o') {
+        const o: Record<string, unknown> = { ...g.values }
+        if (inner !== undefined && g.key !== undefined) o[g.key] = inner
+        inner = o
+      } else {
+        const a: unknown[] = []
+        if (inner !== undefined) a[g.index] = inner
+        inner = a
+      }
+    }
+    return {
+      ...c,
+      path,
+      existing: f?.t === 'o' ? f.keys : new Set<string>(),
+      values: f?.t === 'o' ? f.values : {},
+      skeleton: inner,
+    }
   }
 }

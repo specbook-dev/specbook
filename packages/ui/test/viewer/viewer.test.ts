@@ -406,6 +406,34 @@ describe('the hosted viewer opens a spec at run time', () => {
     await page.close()
   })
 
+  it('shows each variant of a polymorphic list: the response, its check, and the docs', async () => {
+    const { page } = await open(spec('bookstore.json'))
+    await ready(page)
+    await goOp(page, 'bookstore/ListShelf')
+    await page.getByRole('button', { name: 'Send' }).click()
+    await page.waitForSelector('.result-chip:has-text("200")', { timeout: 20_000 })
+    await page.waitForSelector('.response .conf:has-text("Matches spec")', { timeout: 10_000 })
+    // one item of each kind, each tagged by the discriminator the document maps it to
+    await page.waitForFunction(
+      () =>
+        /"kind": "book"[\s\S]*"kind": "album"[\s\S]*"kind": "Zine"/.test(document.body.innerText),
+      undefined,
+      { timeout: 10_000 },
+    )
+
+    // the request body names its variants instead of saying "object", with a heading for each
+    await goOp(page, 'bookstore/AddItems')
+    await page.getByRole('tab', { name: 'Docs' }).click()
+    await page.waitForSelector('.doc table.fields tr.variant', { timeout: 10_000 })
+    expect(
+      await page.locator('.doc table.fields tr.variant .variant-name').allInnerTexts(),
+    ).toEqual(['Book', 'Album', 'Zine'])
+    expect(await page.locator('.doc table.fields').first().innerText()).toContain(
+      '(Book | Album | Zine)[]',
+    )
+    await page.close()
+  })
+
   it('sends a live request straight to the API with the key typed in the page', async () => {
     const { page } = await open(spec('live/openapi.json'))
     await ready(page)

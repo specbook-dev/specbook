@@ -5,10 +5,12 @@ import {
   type JsonSchema,
   type KeyPath,
   kindOf,
+  nodeSchema,
   pathString,
   propsOf,
   schemaAt,
-  unwrap,
+  typeInfo,
+  valueAt,
 } from './schema'
 
 export interface FieldDoc {
@@ -24,18 +26,24 @@ export interface FieldDoc {
   deprecated?: boolean
 }
 
-/** What the API documents about the field at `path` (relative to `prefix`, e.g. `['data']` for a body). */
+/**
+ * What the API documents about the field at `path` (relative to `prefix`, e.g. `['data']` for a body). With
+ * `value`, the body that `prefix` leads to, a union on the way is the variant that body names.
+ */
 export function fieldDoc(
   root: JsonSchema | undefined,
   defs: Defs,
   path: KeyPath,
   prefix: KeyPath = [],
+  value?: unknown,
 ): FieldDoc | undefined {
   if (!root) return undefined
-  const full = [...prefix, ...path]
-  const schema = full.length === 0 ? root : schemaAt(root, full, defs)
+  const base = schemaAt(root, prefix, defs)
+  if (!base) return undefined
+  const at = (p: KeyPath) => schemaAt(base, p, defs, value)
+  const schema = at(path)
   if (!schema) return undefined
-  const u = unwrap(schema, defs)
+  const u = nodeSchema(schema, valueAt(value, path), defs)
   // the cursor is on the outermost brace: say what the whole body is, when the spec does
   if (path.length === 0) {
     const text = typeof u.description === 'string' ? u.description.trim() : ''
@@ -49,19 +57,21 @@ export function fieldDoc(
     }
   }
   const key = path[path.length - 1]
-  const parent = schemaAt(root, full.slice(0, -1), defs)
-  const kind = kindOf(u)
-  const item = kind === 'array' ? kindOf(unwrap(u.items, defs)) : undefined
+  const parent = at(path.slice(0, -1))
   return {
     path: pathString(path),
-    type: item ? `${item}[]` : u.format ? `${kind} · ${u.format}` : kind,
+    type: typeInfo(schema, defs).text,
     required:
       typeof key === 'string' &&
       !!parent &&
-      propsOf(parent, defs).some((p) => p.name === key && p.required),
+      propsOf(nodeSchema(parent, valueAt(value, path.slice(0, -1)), defs), defs).some(
+        (p) => p.name === key && p.required,
+      ),
     enum: Array.isArray(u.enum) ? u.enum.map(String) : undefined,
     description: describe(u),
-    parent: parent ? describe(unwrap(parent, defs)) : undefined,
+    parent: parent
+      ? describe(nodeSchema(parent, valueAt(value, path.slice(0, -1)), defs))
+      : undefined,
     deprecated: u.deprecated === true || undefined,
   }
 }
