@@ -40,6 +40,8 @@ export default defineConfig({
   oxc: { jsx: { runtime: 'automatic', importSource: 'preact' } },
   resolve: {
     alias: [
+      // the page is at the root of `viewer/` and loads `../src/viewer/main.tsx`: the dev server takes that for `/src/...`
+      { find: /^\/src\//, replacement: `${resolve(here, 'src')}/` },
       { find: 'virtual:specbook/registry', replacement: resolve(here, 'src/viewer/registry.ts') },
       // a built project fills its manifests from this; the viewer's registry already has its one
       { find: 'virtual:specbook/manifests', replacement: resolve(here, 'src/viewer/manifests.ts') },
