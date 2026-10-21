@@ -1,6 +1,8 @@
 // JSON Schema helpers for the annotated request/response views: resolve refs, unwrap the
 // "{{variable}}" placeholder alternative, describe nodes, and validate a value against a schema.
 
+import { nameOf, type UnionBranch, type UnionInfo, unionOf } from '@specbook/codegen/union'
+
 export type JsonSchema = Record<string, any>
 export type Defs = Record<string, any> | undefined
 
@@ -40,6 +42,19 @@ export function resolveRef(schema: JsonSchema | undefined, defs: Defs): JsonSche
     s = withMeta(target, s)
   }
   return s
+}
+
+/**
+ * The union a schema is, with its branches and how they are told apart (see `@specbook/codegen/union`).
+ * Follows `$ref` to the definition itself, not a copy, so what is worked out for it is kept.
+ */
+export function unionFor(schema: JsonSchema | undefined, defs: Defs): UnionInfo | undefined {
+  let s = schema
+  for (let i = 0; i < 12 && s?.$ref; i++) s = defs?.$defs?.[nameOf(String(s.$ref))]
+  return unionOf(s, {
+    resolve: (ref) => defs?.$defs?.[nameOf(ref)],
+    ignore: isPlaceholderSchema,
+  })
 }
 
 /**
@@ -169,6 +184,76 @@ export interface ValidateOptions {
   reportExtra?: boolean
 }
 
+/** How many branches one `validate` call may try on values that do not say which branch they are. */
+const BRANCH_BUDGET = 200
+
+interface Budget {
+  left: number
+}
+
+const isObjectValue = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === 'object' && !Array.isArray(v)
+
+/**
+ * The branch of a union an object is, and when it cannot be one, why. A value that carries the property
+ * that tells the branches apart (`kind`, `error`) is judged as the branch it names, and a name that is no
+ * branch's is the one thing said about it. Without such a property, the branch it fits best is the one
+ * (fewest issues, the first on a tie), and a value that fits none says so.
+ */
+function pickVariant(
+  u: UnionInfo,
+  schema: JsonSchema,
+  value: Record<string, unknown>,
+  defs: Defs,
+  opts: ValidateOptions,
+  path: string,
+  depth: number,
+  budget: Budget,
+): { schema: JsonSchema } | { issues: Issue[] } {
+  const outer = resolveRef(schema, defs)
+  const as = (b: UnionBranch) => ({ schema: unwrap(withMeta(b.schema, outer), defs) })
+  if (u.tagProp) {
+    const given = value[u.tagProp]
+    const tags = u.branches.map((b) => b.tag).filter((t): t is string => t !== undefined)
+    if (given !== undefined && !isTemplate(given)) {
+      const named = u.branches.find((b) => b.tag === given)
+      if (named) return as(named)
+      if (tags.length === u.branches.length)
+        return {
+          issues: [
+            {
+              path: path ? `${path}.${u.tagProp}` : u.tagProp,
+              kind: 'enum',
+              message: `must be one of: ${tags.join(' · ')}`,
+            },
+          ],
+        }
+    }
+  }
+  // objects only compete with objects; anything else is the old way (the first branch of that kind)
+  const objects = u.branches.filter((b) => kindOf(unwrap(b.schema, defs)) === 'object')
+  const first = objects[0]
+  if (!first) return { schema: pickBranch(schema, value, defs) }
+  if (objects.length === 1) return as(first)
+  let best: { b: UnionBranch; issues: Issue[] } | undefined
+  for (const b of objects) {
+    if (budget.left <= 0) break
+    budget.left--
+    const issues = validate(value, b.schema, defs, opts, path, depth + 1, budget)
+    if (!best || issues.length < best.issues.length) best = { b, issues }
+    if (issues.length === 0) break
+  }
+  if (!best) return as(first)
+  if (best.issues.length <= 2) return { issues: best.issues }
+  const names = objects.map((b) => b.name ?? 'object').join(' | ')
+  return {
+    issues: [
+      { path: path || '(root)', kind: 'type', message: `matches none of: ${names}` },
+      ...best.issues.slice(0, 2),
+    ],
+  }
+}
+
 export function validate(
   value: unknown,
   schema: JsonSchema | undefined,
@@ -176,10 +261,17 @@ export function validate(
   opts: ValidateOptions = {},
   path = '',
   depth = 0,
+  budget: Budget = { left: BRANCH_BUDGET },
 ): Issue[] {
   if (!schema || depth > 12) return []
   if (isTemplate(value)) return [] // a {{variable}} stands for any value
-  const s = pickBranch(schema, value, defs)
+  const union = isObjectValue(value) ? unionFor(schema, defs) : undefined
+  let s: JsonSchema
+  if (union && isObjectValue(value)) {
+    const picked = pickVariant(union, schema, value, defs, opts, path, depth, budget)
+    if ('issues' in picked) return picked.issues
+    s = picked.schema
+  } else s = pickBranch(schema, value, defs)
   const issues: Issue[] = []
   const at = path || '(root)'
   const nullable = Array.isArray(s.type) && s.type.includes('null')
@@ -207,9 +299,9 @@ export function validate(
       }
       for (const [k, v] of Object.entries(obj)) {
         const p = path ? `${path}.${k}` : k
-        if (props[k]) issues.push(...validate(v, props[k], defs, opts, p, depth + 1))
+        if (props[k]) issues.push(...validate(v, props[k], defs, opts, p, depth + 1, budget))
         else if (s.additionalProperties && typeof s.additionalProperties === 'object')
-          issues.push(...validate(v, s.additionalProperties, defs, opts, p, depth + 1))
+          issues.push(...validate(v, s.additionalProperties, defs, opts, p, depth + 1, budget))
         else if (
           opts.reportExtra &&
           s.additionalProperties !== true &&
@@ -223,7 +315,7 @@ export function validate(
       if (got !== 'array')
         return [{ path: at, kind: 'type', message: `expected array, got ${got}` }]
       ;(value as unknown[]).forEach((item, i) => {
-        issues.push(...validate(item, s.items, defs, opts, `${path}[${i}]`, depth + 1))
+        issues.push(...validate(item, s.items, defs, opts, `${path}[${i}]`, depth + 1, budget))
       })
       return issues
     }
