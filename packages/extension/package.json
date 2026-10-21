@@ -1,6 +1,6 @@
 {
   "name": "@specbook/extension",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "The Specbook browser extension: lets Specbook pages call the APIs you allow, from your browser.",
   "license": "MIT",
