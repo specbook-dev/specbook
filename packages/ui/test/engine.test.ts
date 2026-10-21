@@ -1,6 +1,6 @@
 import { defineOperation, sequence, withMock } from '@specbook/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createEngine, pickRunnable } from '../src/engine'
+import { createEngine, pickRunnable, willPreflight } from '../src/engine'
 
 const GetPet = defineOperation<{
   params: { path: { petId: string } }
@@ -423,7 +423,7 @@ describe('an API the extension has not been allowed to call', () => {
     expect(r).not.toContain('probably does not allow calls from this page')
   })
 
-  it('never sends a change that way: it asks first', async () => {
+  it('tries a change that a browser would check first, directly too', async () => {
     const f = vi.fn(async () => new Response('{}', { status: 200 }))
     vi.stubGlobal('fetch', f)
     const Add = defineOperation<{
@@ -435,7 +435,30 @@ describe('an API the extension has not been allowed to call', () => {
       { ...live, operations: { 'pets/Add': async () => ({ Add }) } },
       { extension: async () => refusing as never },
     ).run(Add.request({ data: { name: 'x' } }), { env: 'live', version: 0 })
-    expect(r.status).toBe('error')
-    expect(f).not.toHaveBeenCalled()
+    expect(r.status).toBe('pass')
+    expect(f).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('which changes a browser sends without asking the API first', () => {
+  const ask = (method: string, encoding: string, headers: Record<string, string> = {}) =>
+    willPreflight({ method, encoding, headers })
+
+  it('checks PUT, PATCH, DELETE, and a POST with JSON or a header of its own', () => {
+    expect(ask('PUT', 'none')).toBe(true)
+    expect(ask('PATCH', 'json')).toBe(true)
+    expect(ask('DELETE', 'none')).toBe(true)
+    expect(ask('POST', 'json')).toBe(true)
+    expect(ask('POST', 'graphql')).toBe(true)
+    expect(ask('POST', 'form', { Authorization: 'Bearer x' })).toBe(true)
+    expect(ask('POST', 'form', { 'content-type': 'application/json' })).toBe(true)
+  })
+
+  it('does not check a plain POST: it goes out, so it is not tried that way', () => {
+    expect(ask('POST', 'form')).toBe(false)
+    expect(ask('POST', 'multipart')).toBe(false)
+    expect(ask('POST', 'text')).toBe(false)
+    expect(ask('POST', 'none')).toBe(false)
+    expect(ask('POST', 'json', { 'Content-Type': 'text/plain; charset=utf-8' })).toBe(false)
   })
 })

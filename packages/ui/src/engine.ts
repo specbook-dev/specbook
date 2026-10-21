@@ -149,6 +149,40 @@ const text = (v: unknown) =>
 
 /** What a browser may send to an API without the person's say-so (as the extension's read-only default). */
 const READS = new Set(['GET', 'HEAD', 'OPTIONS'])
+const SIMPLE_HEADERS = new Set(['accept', 'accept-language', 'content-language', 'content-type'])
+const SIMPLE_TYPES = new Set([
+  'application/x-www-form-urlencoded',
+  'multipart/form-data',
+  'text/plain',
+])
+
+/**
+ * Whether a browser asks the API's permission (a CORS preflight) before sending this request. If it
+ * does and the API does not answer yes, the request never leaves the page, so trying it directly cannot
+ * reach an API that blocks browsers. Only a plain POST, with a form or text body (or none) and no
+ * header of its own, goes out unasked.
+ */
+export function willPreflight(req: {
+  method: string
+  encoding: string
+  headers: Record<string, string>
+}) {
+  const method = req.method.toUpperCase()
+  if (READS.has(method)) return false
+  if (method !== 'POST') return true
+  const headers = Object.fromEntries(
+    Object.entries(req.headers).map(([k, v]) => [k.toLowerCase(), v]),
+  )
+  if (Object.keys(headers).some((k) => !SIMPLE_HEADERS.has(k))) return true
+  const type = (
+    headers['content-type'] ??
+    (req.encoding === 'json' || req.encoding === 'graphql' ? 'application/json' : 'text/plain')
+  )
+    .split(';')[0]
+    ?.trim()
+    .toLowerCase()
+  return !SIMPLE_TYPES.has(type ?? '')
+}
 
 export function createEngine(reg: Registry, opts: EngineOptions = {}) {
   // no faker to load: a `{{faker.*}}` ends the run with the registry's message, not "install @faker-js/faker"
@@ -465,11 +499,11 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     return routed
 
     /**
-     * A read of an API the person has not allowed yet is tried straight from the page first, as it was
+     * A call to an API the person has not allowed yet is tried straight from the page first, as it was
      * before the extension was installed: one that sends CORS headers just works. Only when that is blocked
      * too does the call fail with the offer to allow it (the extension's own refusal, not the bare CORS
-     * error). A change is never tried that way: a browser sends a simple POST even when it then hides the
-     * answer, so the API would have acted on a call the person never allowed.
+     * error). A change a browser would send without asking the API first (a plain POST) is not tried that
+     * way: the API would act on it even though the page never sees the answer.
      */
     function directFirst(viaExtension: Transport, straight: Transport): Transport {
       return async (req, signal) => {
@@ -479,7 +513,7 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
           if (
             !(e instanceof WireError) ||
             e.code !== 'not-allowed' ||
-            !READS.has(req.method.toUpperCase())
+            !(READS.has(req.method.toUpperCase()) || willPreflight(req))
           )
             throw e
           try {
