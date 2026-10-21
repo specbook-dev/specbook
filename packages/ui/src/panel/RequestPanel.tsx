@@ -713,7 +713,13 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
             )}
           </div>
           <div class="tab-pane" hidden={active !== 'response'}>
-            <ResponseView step={step} error={error} schemas={respSchemas} defs={defs} />
+            <ResponseView
+              step={step}
+              error={error}
+              schemas={respSchemas}
+              defs={defs}
+              services={[service]}
+            />
           </div>
         </div>
       </div>

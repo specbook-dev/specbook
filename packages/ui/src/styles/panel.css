@@ -746,6 +746,31 @@
     background: var(--sb-warning-subtle);
     font-size: 12.5px;
   }
+  .ext-nudge {
+    margin: var(--sb-space-2) 0 0;
+    padding: var(--sb-space-2) var(--sb-space-3);
+    border: 1px solid color-mix(in srgb, var(--sb-warning) 35%, var(--sb-border));
+    border-radius: var(--sb-radius-control);
+    background: var(--sb-warning-subtle);
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+  }
+  /* the text, and its button beside it when there is room or on its own line when there is not */
+  .ext-nudge-action {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sb-space-2) var(--sb-space-3);
+  }
+  .ext-nudge-action > span {
+    min-width: 0;
+  }
+  /* a thumb needs a larger target than a pointer */
+  @media (max-width: 820px), (pointer: coarse) {
+    .ext-nudge .btn {
+      min-height: 40px;
+    }
+  }
   .needs-vars.ok {
     border-color: var(--sb-border);
     background: var(--sb-surface);

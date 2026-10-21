@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// The five published packages always share one version.
+// The five published packages, and the (unpublished) browser extension whose manifest takes its version from
+// its package.json, always share one version.
 //   node scripts/version.mjs            check that they agree (exit 1 if not)
 //   node scripts/version.mjs 0.2.0      set them all (a leading "v" is dropped, so a tag works as is)
 //   node scripts/version.mjs --expect v0.2.0
@@ -9,7 +10,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const names = ['core', 'codegen', 'vite', 'ui', 'cli']
+const names = ['core', 'codegen', 'vite', 'ui', 'cli', 'extension']
 const files = names.map((n) => join(root, 'packages', n, 'package.json'))
 const expect = process.argv[2] === '--expect'
 const arg = process.argv[expect ? 3 : 2]?.replace(/^v/, '')

@@ -299,11 +299,59 @@ describe('who makes the call', () => {
       )
       expect(step?.error).toMatch(/could not reach petstore/)
       expect(step?.error).toMatch(/CORS/)
-      // the way out is the embed on the API's own origin; nothing is promised that does not exist
+      // the way out in the message is the embed on the API's own origin; the extension is offered by the
+      // response panel, from the hint, so the message does not repeat it
       expect(step?.error).toMatch(/Embed the viewer/)
-      expect(step?.error).not.toMatch(/extension|specbook dev/i)
+      expect(step?.error).not.toMatch(/extension/i)
+      expect(step?.errorHint).toEqual({ code: 'cors', origin })
+      // the dev server is not offered as the fix for a hosted page
+      expect(step?.error).not.toMatch(/specbook dev/i)
     } finally {
       secretStore.remove(origin, 'PETSTORE_API_KEY')
+    }
+  })
+
+  it('an extension that is installed but out of date is told apart in the hint', async () => {
+    const old: ExtensionBridge = {
+      version: 0,
+      send: async () => ({ v: 1, type: 'pong', version: 0 }),
+    }
+    const engine = createEngine({ ...reg, mode: 'static' } as never, { extension: async () => old })
+    secretStore.set(origin, 'PETSTORE_API_KEY', 'k')
+    try {
+      const step = await withFetch(
+        () => {
+          throw new TypeError('Failed to fetch')
+        },
+        () => send(engine),
+      )
+      expect(step?.errorHint).toEqual({ code: 'outdated', origin })
+    } finally {
+      secretStore.remove(origin, 'PETSTORE_API_KEY')
+    }
+  })
+
+  it("offers nothing when the call worked, or the API is on the page's own origin", async () => {
+    secretStore.set(origin, 'PETSTORE_API_KEY', 'k')
+    secretStore.set(location.origin, 'PETSTORE_API_KEY', 'k')
+    try {
+      // an API that allows the page answers, so there is nothing to offer
+      const worked = await withFetch(ok, () =>
+        send(createEngine({ ...reg, mode: 'static' } as never)),
+      )
+      expect(worked?.errorHint).toBeUndefined()
+      // a failure on the page's own origin is not CORS
+      const failed = await withFetch(
+        () => {
+          throw new TypeError('Failed to fetch')
+        },
+        () => send(createEngine({ ...cfgWith('/api/v3'), mode: 'static' } as never)),
+      )
+      expect(failed?.error).toBeDefined()
+      expect(failed?.errorHint).toBeUndefined()
+    } finally {
+      secretStore.remove(origin, 'PETSTORE_API_KEY')
+      secretStore.remove(location.origin, 'PETSTORE_API_KEY')
     }
   })
 })

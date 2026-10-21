@@ -1,0 +1,29 @@
+{
+  "name": "@specbook/extension",
+  "version": "0.7.0",
+  "private": true,
+  "description": "The Specbook browser extension: lets Specbook pages call the APIs you allow, from your browser.",
+  "license": "MIT",
+  "homepage": "https://ui.specbook.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/specbook-dev/specbook.git",
+    "directory": "packages/extension"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "icons": "node scripts/icons.mjs"
+  },
+  "dependencies": {
+    "@specbook/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/chrome": "0.3.5",
+    "esbuild": "0.27.7",
+    "playwright": "1.64.0",
+    "typescript": "7.0.2"
+  }
+}

@@ -35,6 +35,7 @@
     "build:viewer": "vite build --config vite.viewer.config.ts",
     "dev:viewer": "vite --config vite.viewer.config.ts",
     "test:viewer": "pnpm run build:viewer && vitest run --config vitest.viewer.config.ts",
+    "test:extension": "pnpm --filter @specbook/extension build && pnpm run build:viewer && vitest run --config vitest.extension.config.ts",
     "test:oauth": "pnpm --filter @specbook/cli build && pnpm run build:viewer && vitest run --config vitest.oauth.config.ts",
     "build:site": "pnpm run build:viewer && node scripts/assemble-site.mjs",
     "deploy:site": "pnpm run build:viewer && node scripts/assemble-site.mjs --previous https://ui.specbook.dev && npx --yes wrangler@4 pages deploy dist-site --project-name specbook-ui --branch main",

@@ -305,3 +305,73 @@ describe('a sign-in’s token exchange', () => {
     })
   })
 })
+
+describe('what the extension is needed for', () => {
+  const cfg = (extra: object = {}) => ({
+    ...reg,
+    mode: 'static' as const,
+    loadConfig: async () => ({
+      default: {
+        project: 'p',
+        services: {
+          shop: { spec: 'x', baseUrl: { live: 'https://api.acme.com/v1' }, auth: 'gate' },
+          local: { spec: 'x', baseUrl: { live: '/api' } },
+        },
+        auth: {
+          gate: {
+            apply: { headers: { authorization: 'Bearer {{secrets.TOKEN}}' } },
+            oauth: {
+              authorizationUrl: 'https://auth.acme.com/authorize',
+              tokenUrl: 'https://auth.acme.com/token',
+            },
+          },
+        },
+        ...extra,
+      },
+    }),
+  })
+  const bridge = (granted: string[], version = 1) => ({
+    version,
+    send: async (call: { type: string; apiOrigins?: string[] }) => ({
+      v: 1 as const,
+      type: 'status' as const,
+      granted: (call.apiOrigins ?? []).filter((o) => granted.includes(o)),
+      missing: (call.apiOrigins ?? []).filter((o) => !granted.includes(o)),
+    }),
+  })
+
+  it('names the API and its sign-in provider, never a same-origin service', async () => {
+    const engine = createEngine(cfg(), { extension: async () => bridge([]) as never })
+    const s = await engine.extensionState('live', 0)
+    expect(s.state).toBe('ready')
+    expect(s.needed.sort()).toEqual(['https://api.acme.com', 'https://auth.acme.com'])
+    expect(s.missing.sort()).toEqual(['https://api.acme.com', 'https://auth.acme.com'])
+  })
+
+  it('reports only what is still missing', async () => {
+    const engine = createEngine(cfg(), {
+      extension: async () => bridge(['https://api.acme.com']) as never,
+    })
+    expect((await engine.extensionState('live', 0, ['shop'])).missing).toEqual([
+      'https://auth.acme.com',
+    ])
+  })
+
+  it('has nothing to say for mock, for a proxy, or for a service on this origin', async () => {
+    const e = createEngine(cfg(), { extension: async () => bridge([]) as never })
+    expect((await e.extensionState('mock', 0)).state).toBe('none')
+    expect((await e.extensionState('live', 0, ['local'])).state).toBe('none')
+    const dev = createEngine(
+      { ...cfg(), mode: 'dev' as const },
+      { extension: async () => bridge([]) as never },
+    )
+    expect((await dev.extensionState('live', 0)).state).toBe('none')
+  })
+
+  it('tells absent from out of date', async () => {
+    const absent = createEngine(cfg(), { extension: async () => undefined })
+    expect((await absent.extensionState('live', 0)).state).toBe('absent')
+    const old = createEngine(cfg(), { extension: async () => bridge([], 0) as never })
+    expect((await old.extensionState('live', 0)).state).toBe('outdated')
+  })
+})

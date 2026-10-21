@@ -12,7 +12,15 @@ import { ResponseView } from './ResponseView'
  * The selected step of a run, laid out like an operation: a bar with method, URL and result, then
  * Request and Response tabs (the response checked against the operation's schema).
  */
-export function StepExchange({ step, note }: { step: StepResult; note?: string }) {
+export function StepExchange({
+  step,
+  note,
+  services,
+}: {
+  step: StepResult
+  note?: string
+  services?: string[]
+}) {
   const [tab, setTab] = useState<'request' | 'response'>('response')
   const [schemas, setSchemas] = useState<Record<string, JsonSchema>>()
   const [defs, setDefs] = useState<Defs>()
@@ -110,7 +118,7 @@ export function StepExchange({ step, note }: { step: StepResult; note?: string }
           )}
         </div>
         <div class="tab-pane" hidden={tab !== 'response'}>
-          <ResponseView step={step} schemas={schemas} defs={defs} hideRequest />
+          <ResponseView step={step} schemas={schemas} defs={defs} hideRequest services={services} />
         </div>
       </div>
     </div>

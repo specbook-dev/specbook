@@ -1,17 +1,59 @@
 import {
   createFetchTransport,
+  MissingSecretsError,
   requestToWire,
   type Transport,
   WIRE_VERSION,
   type WireCall,
+  type WireErrorCode,
   type WireReply,
   wireToResponse,
 } from '@specbook/core'
 
 /**
+ * Where to get the extension: the docs page with the install steps, which links the download. A store listing
+ * replaces this.
+ */
+const INSTALL_URL = 'https://docs.specbook.dev/reference/browser-extension/'
+
+/**
+ * Where this browser gets the extension, or undefined when there is nothing to install: it is built for
+ * Chromium on a computer (Chrome, Edge, Brave), so Firefox, Safari and phones are not sent to a download
+ * that cannot work for them.
+ */
+export function extensionInstallUrl(
+  userAgent: string | undefined = globalThis.navigator?.userAgent,
+): string | undefined {
+  const ua = userAgent ?? ''
+  const chromium = /(Chrome|Chromium|Edg)\//.test(ua)
+  const phone = /Mobile|Android|iPhone|iPad|CriOS|EdgiOS|FxiOS/.test(ua)
+  return chromium && !phone ? INSTALL_URL : undefined
+}
+
+/** The extension said no, with a reason the page can act on. */
+export class WireError extends Error {
+  constructor(
+    readonly code: WireErrorCode,
+    message: string,
+    /** the API origin the call was for */
+    readonly origin?: string,
+  ) {
+    super(message)
+    this.name = 'WireError'
+  }
+
+  /** What the page can offer the person, for a refusal they can fix (the run keeps it with the failed step). */
+  get hint(): { code: string; origin?: string } | undefined {
+    return this.code === 'not-allowed' || this.code === 'read-only'
+      ? { code: this.code, origin: this.origin }
+      : undefined
+  }
+}
+
+/**
  * The page's side of the browser extension. The extension (its own package, not built yet) makes the
  * outbound call from its service worker with the user's grant, using `handleWireFetch` from core, so the
- * policy and secret substitution are the ones the dev server and a hosted proxy run.
+ * policy is the one the dev server and a hosted proxy run. The extension holds no keys: the page supplies them.
  *
  * A bridge is anything that can carry a `WireCall` to it and bring a `WireReply` back: a content script
  * relaying `postMessage`, or a test double.
@@ -28,6 +70,9 @@ declare global {
 }
 
 const CHANNEL = 'specbook'
+
+/** Added to a response that came through the extension; the response panel notes it. */
+export const VIA_HEADER = 'x-specbook-via'
 
 /** `postMessage` to a content script that answers on the same window. */
 function windowBridge(version: number): ExtensionBridge {
@@ -67,12 +112,54 @@ export async function detectExtension(waitMs = 250): Promise<ExtensionBridge | u
   if (injected) return injected
   if (typeof window === 'undefined') return undefined
   const bridge = windowBridge(WIRE_VERSION)
-  const timeout = new Promise<undefined>((r) => setTimeout(() => r(undefined), waitMs))
-  const pong = await Promise.race([
-    bridge.send({ v: 1, type: 'ping' }).catch(() => undefined),
-    timeout,
-  ])
-  return pong?.type === 'pong' ? { ...bridge, version: pong.version } : undefined
+  // an abort takes the listener off the window, so a page with no extension does not collect one per look
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), waitMs)
+  try {
+    const pong = await bridge.send({ v: 1, type: 'ping' }, ctl.signal)
+    return pong.type === 'pong' ? { ...bridge, version: pong.version } : undefined
+  } catch {
+    return undefined
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Whether the extension speaks a protocol this page can use. An extension from before a protocol change
+ * answers `ping` but cannot be relied on for what came after, so the page tells the person to update it
+ * rather than send it calls it may mishandle. A newer extension is fine: the protocol only adds fields.
+ */
+export const extensionLevel = (bridge: ExtensionBridge): 'ready' | 'outdated' =>
+  bridge.version >= WIRE_VERSION ? 'ready' : 'outdated'
+
+/** Which of these API origins the person has allowed for this page. Asks nobody anything. */
+export async function wireStatus(
+  bridge: ExtensionBridge,
+  apiOrigins: string[],
+): Promise<{ granted: string[]; missing: string[] }> {
+  const r = await bridge.send({ v: 1, type: 'status', apiOrigins })
+  if (r.type !== 'status') return { granted: [], missing: apiOrigins }
+  return { granted: r.granted, missing: r.missing }
+}
+
+/**
+ * Ask the extension to put the missing origins in front of the person, or with `writes` to ask whether this
+ * page may change data at origins it may already read. It answers at once, not on their reply.
+ */
+export async function wireGrant(
+  bridge: ExtensionBridge,
+  apiOrigins: string[],
+  opts?: { writes?: boolean },
+): Promise<{ granted: string[]; missing: string[] }> {
+  const r = await bridge.send({
+    v: 1,
+    type: 'grant',
+    apiOrigins,
+    ...(opts?.writes ? { writes: true } : {}),
+  })
+  if (r.type !== 'status') return { granted: [], missing: apiOrigins }
+  return { granted: r.granted, missing: r.missing }
 }
 
 let counter = 0
@@ -93,9 +180,23 @@ export function extensionTransport(
       { v: 1, type: 'fetch', id, req: await requestToWire(req) },
       init?.signal ?? undefined,
     )
-    if (reply.type === 'error') throw new Error(reply.message)
+    if (reply.type === 'error') {
+      if (reply.code === 'missing-secrets')
+        throw new MissingSecretsError(
+          reply.message
+            .replace(/^Missing secrets:\s*/, '')
+            .split(',')
+            .map((n) => n.trim())
+            .filter(Boolean),
+        )
+      const origin = new URL(req.url).origin
+      throw new WireError(reply.code, reply.message, origin)
+    }
     if (reply.type !== 'response') throw new Error('unexpected reply from the extension')
-    return wireToResponse(reply.res)
+    const res = wireToResponse(reply.res)
+    // so the response panel can say it came through the extension
+    res.headers.set(VIA_HEADER, 'extension')
+    return res
   }
   return createFetchTransport({ baseUrl: baseOf, fetch: carry })
 }

@@ -5,6 +5,8 @@ export {
   type ProxyEvent,
   type ProxyTarget,
   parseRoute,
+  REFUSAL_HEADER,
+  type Refusal,
   type RouteDeps,
 } from './forward'
 export {
@@ -20,6 +22,7 @@ export {
   decodeWireBody,
   encodeWireBody,
   handleWireFetch,
+  parseWireCall,
   requestToWire,
   responseToWire,
   WIRE_VERSION,
@@ -33,3 +36,8 @@ export {
   wireToRequest,
   wireToResponse,
 } from './wire'
+export {
+  createWireHandler,
+  type WireAuditEvent,
+  type WireHost,
+} from './wire-host'

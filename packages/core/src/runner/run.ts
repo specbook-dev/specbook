@@ -525,6 +525,12 @@ async function execute(
   } catch (e: any) {
     result.status = 'error'
     result.error = e instanceof Error ? e.message : String(e)
+    const hint = e?.hint
+    if (hint && typeof hint.code === 'string')
+      result.errorHint = {
+        code: hint.code,
+        ...(typeof hint.origin === 'string' ? { origin: hint.origin } : {}),
+      }
   }
   result.durationMs = (rt.o.now?.() ?? now0()) - t0
   emit(rt, { type: 'step:end', name, status: result.status })

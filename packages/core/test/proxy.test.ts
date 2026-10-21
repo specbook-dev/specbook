@@ -348,14 +348,24 @@ describe('the extension side (wire)', () => {
     expect(u.seen).toHaveLength(1)
   })
 
-  it('reaches a local address the user allowed, and names a missing secret', async () => {
+  it('refuses a local address by default, even when the origin was granted, and reaches it when opted in', async () => {
     const u = upstream()
     const local = await requestToWire(new Request('http://localhost:4001/ping'))
-    const r = await handleWireFetch(
+    const refused = await handleWireFetch(
       { v: 1, type: 'fetch', id: 'a', req: local },
       { allow: () => true, fetch: u.fetch },
     )
+    expect(refused).toMatchObject({ type: 'error', code: 'blocked' })
+    expect(u.seen).toHaveLength(0)
+    const r = await handleWireFetch(
+      { v: 1, type: 'fetch', id: 'a', req: local },
+      { allow: () => true, fetch: u.fetch, policy: { allowPrivateHosts: true } },
+    )
     expect(r.type).toBe('response')
+  })
+
+  it('names a missing secret', async () => {
+    const u = upstream()
     const need = await requestToWire(
       new Request('https://api.example.com/x', { headers: { authorization: '{{secrets.NOPE}}' } }),
     )

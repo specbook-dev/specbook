@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // The files a release carries for teams that host the viewer themselves, or that vet what they install:
-// the built viewer as a zip (it runs from any path), and a checksum file for everything in the folder.
+// the built viewer as a zip (it runs from any path), the browser extension as a zip to load unpacked, and a
+// checksum file for everything in the folder.
 //
 //   node scripts/release-assets.mjs <version> [--out release-assets]
 //
-// Needs `pnpm --filter @specbook/ui build:viewer` first, and the `zip` command.
+// Needs `pnpm --filter @specbook/ui build:viewer` and `pnpm --filter @specbook/extension build` first, and the
+// `zip` command.
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -16,6 +18,7 @@ const version = process.argv[2]?.replace(/^v/, '')
 const outFlag = process.argv.indexOf('--out')
 const out = resolve(outFlag > -1 ? process.argv[outFlag + 1] : join(root, 'release-assets'))
 const viewer = join(root, 'packages/ui/dist-viewer')
+const extension = join(root, 'packages/extension/dist/chromium')
 
 if (!version || !/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) {
   console.error('usage: node scripts/release-assets.mjs <version> [--out <dir>]')
@@ -28,15 +31,27 @@ if (!existsSync(join(viewer, 'index.html'))) {
   process.exit(2)
 }
 
+if (!existsSync(join(extension, 'manifest.json'))) {
+  console.error(
+    `the extension is not built (${extension}). Run pnpm --filter @specbook/extension build first.`,
+  )
+  process.exit(2)
+}
+
 rmSync(out, { recursive: true, force: true })
 mkdirSync(out, { recursive: true })
 const zip = join(out, `specbook-viewer-${version}.zip`)
 // zipped from inside the folder, so index.html sits at the root and the archive unpacks into any directory
-const z = spawnSync('zip', ['-qr', zip, '.'], { cwd: viewer, encoding: 'utf8' })
-if (z.status !== 0) {
-  console.error(`zip failed: ${z.stderr || z.error?.message}`)
-  process.exit(1)
+function pack(file, cwd) {
+  const z = spawnSync('zip', ['-qr', file, '.'], { cwd, encoding: 'utf8' })
+  if (z.status !== 0) {
+    console.error(`zip failed: ${z.stderr || z.error?.message}`)
+    process.exit(1)
+  }
 }
+pack(zip, viewer)
+// the extension's files sit at the zip's root, as a browser's "load unpacked" and a store both expect
+pack(join(out, `specbook-extension-chromium-${version}.zip`), extension)
 
 const sums = readdirSync(out)
   .sort()

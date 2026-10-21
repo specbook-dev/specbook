@@ -6,14 +6,21 @@ import { version } from './store'
 
 export const registry = reg
 
-// looking for the extension costs a short wait when it is absent, so a run does not repeat it
+// Looking for the extension costs a short wait when it is absent, so a run does not repeat it. An
+// extension that was found is remembered for a while; one that was not is only for a few seconds, and is
+// looked for again as soon as the tab is shown (the person went to a store and came back).
 let found: { at: number; bridge: ExtensionBridge | undefined } | undefined
 const extension = async () => {
-  if (found && Date.now() - found.at < 30_000) return found.bridge
+  const ttl = found?.bridge ? 30_000 : 4_000
+  if (found && Date.now() - found.at < ttl) return found.bridge
   const bridge = await detectExtension()
   found = { at: Date.now(), bridge }
   return bridge
 }
+if (typeof document !== 'undefined')
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && !found?.bridge) found = undefined
+  })
 
 /**
  * A page with no project files keeps the environments a person makes in the browser: per spec in the
@@ -29,7 +36,10 @@ const environmentStore =
       )
     : undefined
 
-export const engine = createEngine(reg as never, { extension, environmentStore })
+export const engine = createEngine(reg as never, {
+  extension,
+  environmentStore,
+})
 
 export const isStatic = reg.mode === 'static'
 

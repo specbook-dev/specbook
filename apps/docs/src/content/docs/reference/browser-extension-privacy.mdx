@@ -1,0 +1,27 @@
+---
+title: Browser extension privacy
+description: What the Specbook browser extension keeps, sends and never collects.
+---
+
+The Specbook browser extension collects nothing about you. It has no analytics, no telemetry, no account and no server of its own, and it does not load or run code from the network.
+
+## What it does with a request
+
+When a Specbook page asks, the extension sends one request to an API address that you allowed for that page, and gives the answer back to that page. The request goes straight from your browser to the API. Specbook does not see it, and it is not sent anywhere else.
+
+## What it stores
+
+| What | Where | Until |
+| --- | --- | --- |
+| The sites you enabled and the API addresses you allowed, with their settings | The extension's local storage in your browser | You revoke them or remove the extension |
+| A list of the last 200 calls (site, API, method, path) | The extension's session storage | The browser closes |
+
+The activity list never holds a query string, a header or a body. The extension stores no keys: one that a request needs is typed into the page, passed along with that call, and not kept.
+
+## What it can reach
+
+Its permissions are `storage`, `scripting` and `activeTab`, plus access to a site or an API address only after you grant that address in Chrome's dialog. It has no access to your tabs, history, bookmarks or cookies. It runs only on Specbook's own sites (`ui.specbook.dev`, `demo.specbook.dev` and `docs.specbook.dev`) and on sites you enable it on, and it does not read any other page.
+
+## Contact
+
+Questions and reports: [github.com/specbook-dev/specbook/issues](https://github.com/specbook-dev/specbook/issues).

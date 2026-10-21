@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Specbook</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --text: #1b1f27;
+        --muted: #5b6270;
+        --line: #d9dde5;
+        --accent: #6d28d9;
+        --warn: #fff3cd;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14161b;
+          --text: #e8eaf0;
+          --muted: #a0a7b6;
+          --line: #2c313c;
+          --accent: #a78bfa;
+          --warn: #3a3217;
+        }
+      }
+      body {
+        margin: 0;
+        width: 380px;
+        min-height: 120px;
+        background: var(--bg);
+        color: var(--text);
+        font: 13px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+      }
+      main {
+        padding: 14px 16px 18px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 15px;
+      }
+      h2 {
+        margin: 16px 0 6px;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      p {
+        margin: 4px 0;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--line);
+        flex-wrap: wrap;
+      }
+      .row > .grow {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      /* what the page is asking about, in the list of APIs */
+      .row.asking {
+        background: var(--warn);
+        border-radius: 8px;
+        border-bottom-color: transparent;
+        padding: 6px 10px;
+        margin: 4px 0;
+      }
+      button {
+        font: inherit;
+        padding: 4px 10px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+      }
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      input[type='text'],
+      input[type='password'] {
+        font: inherit;
+        padding: 4px 6px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: transparent;
+        color: var(--text);
+        min-width: 0;
+      }
+      label {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .log {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 11px;
+      }
+      .bad {
+        color: #b42318;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="app"><p class="muted">Loading…</p></main>
+    <script src="./popup.js"></script>
+  </body>
+</html>

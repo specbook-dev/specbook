@@ -237,6 +237,11 @@ export interface StepResult {
   assertions: AssertionResult[]
   captured: Record<string, unknown>
   error?: string
+  /**
+   * What a page can offer the person for this failure, when the error that ended the step said so (it carries
+   * a `hint`): a call the browser blocked, or one a browser extension refused. The message stays in `error`.
+   */
+  errorHint?: { code: string; origin?: string }
   durationMs: number
   children?: StepResult[]
 }

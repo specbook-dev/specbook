@@ -23,6 +23,10 @@
       "dependsOn": ["^build"],
       "cache": false
     },
+    "test:extension": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
     "test:oauth": {
       "dependsOn": ["^build"],
       "cache": false

@@ -1,0 +1,25 @@
+name: Extension (real browser)
+
+# Loads the built extension into Chromium in front of the real viewer and APIs that send no CORS headers.
+# By hand (Actions > Extension (real browser) > Run workflow) when the extension, the wire protocol or the
+# viewer's use of it changes. Locally: `pnpm test:extension`.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @specbook/ui exec playwright install --with-deps chromium
+      - run: pnpm test:extension

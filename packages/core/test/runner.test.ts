@@ -105,6 +105,30 @@ describe('runRequest', () => {
     expect(calls[0]?.url).toBe('/orders/a%20b')
   })
 
+  it('keeps what the error that ended a step says a page can offer, apart from its message', async () => {
+    const hinted = Object.assign(new Error('blocked'), {
+      hint: { code: 'not-allowed', origin: 'https://api.example.com', extra: 'dropped' },
+    })
+    const transport = async () => {
+      throw hinted
+    }
+    const r = await runRequest(create, { env: 'mock', transport })
+    expect(r.steps[0]?.error).toBe('blocked')
+    expect(r.steps[0]?.errorHint).toEqual({
+      code: 'not-allowed',
+      origin: 'https://api.example.com',
+    })
+
+    // an ordinary failure carries no hint
+    const plain = await runRequest(create, {
+      env: 'mock',
+      transport: async () => {
+        throw new Error('no route to host')
+      },
+    })
+    expect(plain.steps[0]?.errorHint).toBeUndefined()
+  })
+
   it('errors clearly on missing variables', async () => {
     const { transport } = fakeOrderApi()
     const r = await runRequest(
