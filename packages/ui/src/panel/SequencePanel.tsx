@@ -339,7 +339,13 @@ export function SequencePanel({
             <span class="muted">Press Run, then pick a step to see its request and response.</span>
           </div>
         )}
-        {current && <StepExchange step={current} note={notes.notes.get(baseName(current.name))} />}
+        {current && (
+          <StepExchange
+            step={current}
+            note={notes.notes.get(baseName(current.name))}
+            services={serviceNames}
+          />
+        )}
       </div>
     </div>
   )

@@ -60,6 +60,8 @@ export const STRIPPED_RESPONSE_HEADERS = new Set([
   'content-encoding',
   'content-length',
   'set-cookie',
+  // ours: an upstream API must not be able to pass itself off as one of this proxy's refusals
+  'x-specbook-refused',
 ])
 
 function ipv4(host: string): number[] | undefined {

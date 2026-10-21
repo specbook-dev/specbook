@@ -1,10 +1,12 @@
 import type { StepResult } from '@specbook/core'
 import { useEffect, useMemo, useState } from 'preact/hooks'
+import { VIA_HEADER } from '../extension'
 import { fieldDoc } from '../fielddoc'
 import { type Defs, type JsonSchema, linePaths, validate } from '../schema'
 import { statusClass, statusName } from '../status'
 import { BodyEditor } from './BodyEditor'
 import { Checks } from './Checks'
+import { ExtensionNudge, replacesMessage } from './ExtensionNudge'
 import { FieldDoc } from './FieldDoc'
 import { PaperPlane } from './icons'
 import { queryString } from './RequestView'
@@ -17,15 +19,20 @@ interface Props {
   defs?: Defs
   /** the request is shown elsewhere */
   hideRequest?: boolean
+  /** the services the request or flow calls, so one answer to the extension can cover them all */
+  services?: string[]
 }
 
 const pretty = (v: unknown) => show(v, 2)
 const size = (n: number) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`)
 
-export function ResponseView({ step, error, schemas, defs, hideRequest }: Props) {
+export function ResponseView({ step, error, schemas, defs, hideRequest, services }: Props) {
   const [tab, setTab] = useState<'body' | 'headers' | 'checks'>('body')
   const [line, setLine] = useState(0)
   const response = step?.response
+  const viaExtension = Object.entries(response?.headers ?? {}).some(
+    ([k, v]) => k.toLowerCase() === VIA_HEADER && v === 'extension',
+  )
   const schema = response ? (schemas?.[String(response.status)] ?? schemas?.default) : undefined
   const issues = useMemo(() => {
     try {
@@ -65,6 +72,7 @@ export function ResponseView({ step, error, schemas, defs, hideRequest }: Props)
             </span>
             <span class="rs-stat">{response.durationMs} ms</span>
             <span class="rs-stat">{size(new Blob([text]).size)}</span>
+            {viaExtension && <span class="rs-stat">via extension</span>}
           </>
         )}
         <span class="spacer" />
@@ -89,7 +97,8 @@ export function ResponseView({ step, error, schemas, defs, hideRequest }: Props)
         </p>
       )}
       {error && <p class="error-text">{error}</p>}
-      {step?.error && <p class="error-text">{step.error}</p>}
+      {step?.error && !replacesMessage(step.errorHint) && <p class="error-text">{step.error}</p>}
+      <ExtensionNudge hint={step?.errorHint} services={services} />
       {empty && (
         <div class="rs-empty">
           <strong>No response yet</strong>

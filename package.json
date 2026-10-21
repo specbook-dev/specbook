@@ -15,6 +15,7 @@
     "test:browser": "turbo run test:browser",
     "test:slow": "turbo run test:slow",
     "test:viewer": "turbo run test:viewer",
+    "test:extension": "turbo run test:extension",
     "test:oauth": "turbo run test:oauth",
     "deploy:site": "pnpm --filter @specbook/ui run deploy:site",
     "version:check": "node scripts/version.mjs",

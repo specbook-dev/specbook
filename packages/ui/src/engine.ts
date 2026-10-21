@@ -32,7 +32,13 @@ import {
   withMock,
 } from '@specbook/core'
 import type { EnvironmentStore } from './custom-environments'
-import { type ExtensionBridge, extensionTransport } from './extension'
+import {
+  type ExtensionBridge,
+  extensionLevel,
+  extensionTransport,
+  wireGrant,
+  wireStatus,
+} from './extension'
 import { routingTransport, withPageSecrets } from './routing'
 import { originOf, type SecretStore, secretStore } from './secrets'
 
@@ -431,7 +437,9 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     }
     const hasProxy = reg.mode !== 'static'
     const bridge = await opts.extension?.()
-    const ext = bridge ? extensionTransport(bridge, safeBase) : undefined
+    // an extension from before the current protocol is not sent calls it may mishandle; the person is told
+    const level = bridge ? extensionLevel(bridge) : undefined
+    const ext = bridge && level === 'ready' ? extensionTransport(bridge, safeBase) : undefined
     const store = opts.secrets ?? secretStore
 
     const direct = createFetchTransport({ baseUrl: baseOf })
@@ -443,7 +451,7 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
       proxy: viaProxy
         ? withPageSecrets(viaProxy, { store, originFor, unresolved: 'keep' })
         : undefined,
-      extension: ext ? withPageSecrets(ext, { store, originFor, unresolved: 'keep' }) : undefined,
+      extension: ext ? withPageSecrets(ext, { store, originFor, unresolved: 'fail' }) : undefined,
       baseOf: safeBase,
       pageOrigin,
     })
@@ -466,22 +474,71 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
           return await inner(req, signal)
         } catch (e) {
           // a blocked cross-origin call surfaces as a bare TypeError("Failed to fetch")
-          if (
-            e instanceof TypeError &&
-            (req.service.startsWith(AUTH_SERVICE_PREFIX) ||
-              req.service.startsWith(DISCOVERY_SERVICE_PREFIX))
-          )
-            throw new Error(
-              `The browser could not reach the sign-in provider (${extra[req.service] ?? 'unknown'}). It probably does not allow calls from this page (CORS). Embedding the viewer on the API's origin does not help when the sign-in server is on another host; the browser extension can make the call. You can still paste an access token.`,
-            )
-          if (e instanceof TypeError)
-            throw new Error(
-              `The browser could not reach ${req.service} in "${env}". The API probably does not allow calls from this page (CORS). It works when the viewer runs on the API's own origin: embed it in the API's docs route ("Embed the viewer" in the README). Mock data keeps working.`,
-            )
-          throw e
+          if (!(e instanceof TypeError)) throw e
+          const sentToIdp =
+            req.service.startsWith(AUTH_SERVICE_PREFIX) ||
+            req.service.startsWith(DISCOVERY_SERVICE_PREFIX)
+          const target = originOf(extra[req.service] ?? safeBase(req.service))
+          const message = sentToIdp
+            ? `The browser could not reach the sign-in provider (${extra[req.service] ?? 'unknown'}). It probably does not allow calls from this page (CORS). Embedding the viewer on the API's origin does not help when the sign-in server is on another host. You can still paste an access token.`
+            : `The browser could not reach ${req.service} in "${env}". The API probably does not allow calls from this page (CORS). It works when the viewer runs on the API's own origin: embed it in the API's docs route ("Embed the viewer" in the README). Mock data keeps working.`
+          // what the page can offer, said where this failure is shown (not for the page's own origin: that is no CORS)
+          const hint =
+            target && target !== pageOrigin
+              ? { code: level === 'outdated' ? 'outdated' : 'cors', origin: target }
+              : undefined
+          throw Object.assign(new Error(message), hint ? { hint } : {})
         }
       }
     }
+  }
+
+  /**
+   * What the extension means for this environment. `none`: nothing cross-origin to call, or a proxy does it.
+   * Otherwise the origins this page would need it for, and which of them the person has not allowed yet.
+   */
+  async function extensionState(
+    env: string,
+    version: number,
+    services?: string[],
+  ): Promise<{
+    state: 'none' | 'absent' | 'outdated' | 'ready'
+    needed: string[]
+    missing: string[]
+  }> {
+    if (env === 'mock' || reg.mode !== 'static') return { state: 'none', needed: [], missing: [] }
+    const cfg = await config(version)
+    const pageHref = globalThis.location?.href
+    const pageOrigin = globalThis.location?.origin
+    const origins = new Set<string>()
+    const addresses = await addressesIn(cfg, env)
+    for (const name of services ?? Object.keys(cfg.services ?? {})) {
+      const svc = cfg.services?.[name]
+      const base = addresses.baseUrl(name)
+      const api = originOf(base ? absoluteBase(base, pageHref) : undefined)
+      if (api && api !== pageOrigin) origins.add(api)
+      // the sign-in provider is another origin this page calls on the person's behalf
+      const oauth = (svc?.auth ? (cfg.auth?.[svc.auth] as AuthProfile | undefined) : undefined)
+        ?.oauth
+      const idp = oauth
+        ? originOf(isDiscovery(oauth) ? oauth.openIdConnectUrl : oauth.tokenUrl)
+        : undefined
+      if (idp && idp !== pageOrigin) origins.add(idp)
+    }
+    const needed = [...origins]
+    if (needed.length === 0) return { state: 'none', needed, missing: [] }
+    const bridge = await opts.extension?.()
+    if (!bridge) return { state: 'absent', needed, missing: needed }
+    if (extensionLevel(bridge) === 'outdated') return { state: 'outdated', needed, missing: needed }
+    const { missing } = await wireStatus(bridge, needed)
+    return { state: 'ready', needed, missing }
+  }
+
+  /** Ask the extension to put these origins in front of the person. */
+  async function requestExtensionGrant(origins: string[], what?: { writes?: boolean }) {
+    const bridge = await opts.extension?.()
+    if (!bridge) return { granted: [] as string[], missing: origins }
+    return wireGrant(bridge, origins, what)
   }
 
   /** Only the dev server knows its environment files; a hosted proxy would report its own (`managedSecrets`). */
@@ -799,6 +856,8 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     oauthOf,
     addressesIn,
     managedSecrets,
+    extensionState,
+    requestExtensionGrant,
     oauthEndpoints,
     oauthExchange,
     run,

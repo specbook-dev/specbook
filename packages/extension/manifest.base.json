@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Specbook",
+  "short_name": "Specbook",
+  "description": "Lets Specbook pages call the APIs you allow from your browser, even when the API blocks browsers (CORS).",
+  "minimum_chrome_version": "116",
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "action": {
+    "default_title": "Specbook",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "sw.js",
+    "type": "module"
+  },
+  "permissions": ["storage", "scripting", "activeTab"],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://ui.specbook.dev/*",
+        "https://demo.specbook.dev/*",
+        "https://docs.specbook.dev/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ]
+}

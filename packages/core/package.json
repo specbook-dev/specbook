@@ -29,6 +29,10 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./wire": {
+      "types": "./src/proxy/index.ts",
+      "default": "./src/proxy/index.ts"
+    },
     "./assert": {
       "types": "./src/assert.ts",
       "default": "./src/assert.ts"

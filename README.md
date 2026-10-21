@@ -74,7 +74,27 @@ Using FastAPI? `pip install specbook-fastapi` serves the viewer from your app wi
 | It is your API | Embed the viewer in your docs route (above). It runs on your origin: no CORS, cookies sent. |
 | Your policy will not load a third-party script | Self-host the viewer (below). |
 | You want the hosted viewer inside your page | An iframe of ui.specbook.dev works, but it is cross-origin, so the API still has to allow it. An iframe of your self-hosted copy is same-origin. |
-| It is someone else's API | It works when that API allows browser calls. A browser extension for the rest is planned. |
+| It is someone else's API | It works when that API allows browser calls. For the rest, load the [browser extension](#browser-extension) (Chrome, Edge, Brave). |
+
+## Browser extension
+
+For an API that does not allow browser calls (no CORS headers), the optional Specbook extension makes the call
+for the viewer instead. It is never needed for your own API, a same-origin embed or an API that already allows
+the page.
+
+Install it (Chrome, Edge, Brave): download `specbook-extension-chromium-<version>.zip` from the
+[latest release](https://github.com/specbook-dev/specbook/releases), unzip it, open `chrome://extensions`, turn
+on Developer mode and choose **Load unpacked**. The viewer at `ui.specbook.dev`, `demo.specbook.dev` and `docs.specbook.dev` is
+recognised automatically; on any other page (a viewer you host or embed) open the extension and choose
+**Enable**.
+
+What it lets through is yours to decide, one site and one API at a time:
+
+- A call is made only after you **Allow** that site to reach that API, in the extension's own window.
+- Allowed sites can read by default. **Modify data** (POST, PUT, PATCH, DELETE) and **Allow private**
+  addresses** (localhost, internal hosts) are separate switches.
+- Calls carry no cookies, are not redirected, and are rate limited; the extension's popup lists the recent ones.
+- Keys you add in the extension are used only for that API's origin and are never shown to the page.
 
 ## Self-host the viewer
 
@@ -340,6 +360,7 @@ pnpm exec specbook dev
 | `packages/cli` | the `specbook` command |
 | `packages/vite` | the Vite plugin and the dev server's proxy |
 | `packages/ui` | the app, the viewer, the landing page and the site assembly |
+| `packages/extension` | the browser extension (not published to npm; shipped with releases) |
 | `apps/example` | a project to try it on, and the fixtures for the tests |
 | `apps/docs` | the docs site, [docs.specbook.dev](https://docs.specbook.dev) (Astro and Starlight) |
 | `apps/docs/demo` | the docs site's demo project, and its API: a Hono app that runs as a service worker |
@@ -358,6 +379,7 @@ The licence is set per package:
 | Package | Licence |
 | --- | --- |
 | `@specbook/core`, `@specbook/codegen`, `@specbook/ui` (the viewer, the embed and the libraries behind them), and `specbook-fastapi` | [MIT](LICENSE) |
+| `@specbook/extension` (the browser extension) | [MIT](packages/extension/LICENSE) |
 | `@specbook/cli`, `@specbook/vite` (the project workflow tooling) | [FSL-1.1-MIT](packages/cli/LICENSE): free to use, including at work and in commercial projects. Each version becomes MIT two years after its release |
 
 Companies can use the CLI and the Vite plugin: in their projects, in CI, to build and publish their own

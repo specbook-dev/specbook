@@ -1,0 +1,53 @@
+---
+title: Browser extension
+description: Call APIs that block browsers (CORS) from a hosted Specbook page, with your permission for each API.
+---
+
+A page served from `ui.specbook.dev`, a docs site or an embed runs in your browser, and a browser lets a page read an API's answer only if the API says so (CORS). Many APIs do not. The Specbook extension makes the call for the page instead, so a live request works on a hosted page the way it does under `specbook dev`.
+
+You do not need it when:
+
+- the API is on the same origin as the page (an internal portal that hosts the docs and the API together), where the page calls it directly and your session cookie is sent;
+- the API sends CORS headers, such as GitHub's;
+- you run `specbook dev`, whose proxy makes the call.
+
+When a call is blocked and the extension is not there, the failed response says the extension can send it, and a response that did come through the extension says so (`via extension`, and an `x-specbook-via` header). Mock data never needs it.
+
+## Install
+
+It is built for Chromium browsers on a computer: Chrome, Edge and Brave. Until it is in a store, download [specbook-extension-chromium-0.8.0.zip](https://github.com/specbook-dev/specbook/releases/download/v0.8.0/specbook-extension-chromium-0.8.0.zip) (every release has one on the [releases page](https://github.com/specbook-dev/specbook/releases)), unzip it, open `chrome://extensions`, turn on **Developer mode** and choose **Load unpacked**.
+
+Installing asks for nothing: the extension has no access to any site until you grant it.
+
+## Allow a site, then an API
+
+There are two separate approvals, and Chrome's own dialog names the address each time.
+
+1. **The site.** `ui.specbook.dev`, `demo.specbook.dev` and `docs.specbook.dev` work as soon as the extension is installed. On any other page that hosts the viewer (your docs site, an embed, `localhost`), click the Specbook icon in the toolbar and choose **Enable**.
+2. **Each API.** The first live call to an API fails, and the response says this page has not been allowed to call it yet, with an **Allow** button. For a flow, one answer covers every API the flow calls. The extension's window shows the API at the top of its list, highlighted, with an **Allow** button and a **Modify data** box, so you can allow reading and modifying in one step. Chrome asks you to confirm. Adding a service or changing a base URL asks only about the new address.
+
+A grant belongs to the pair of (this site, this API). Another site cannot use it, and neither can a different API on the same site. The popup lists every pair and revokes any of them.
+
+## What it will and will not do
+
+- **Read only at first.** A pair may send `GET`, `HEAD` and `OPTIONS`. Until you turn on **Modify data**, a page cannot send `POST`, `PUT`, `PATCH` or `DELETE`. The first refused change, in a request or in a flow step, fails with an **Allow modifying data** button in the response, which opens the extension's window with that API highlighted. Tick **Modify data** there, then run the request or flow again. Once allowed, changes stay allowed until you revoke the API in the popup, which removes all access to it.
+- **No cookies.** Requests go out without the browser's cookies for the API, and `Set-Cookie` is not kept.
+- **No redirects followed.** A redirect is reported to the page, which could otherwise be sent to a host you did not allow.
+- **No private addresses.** `localhost` and private ranges are refused unless you enable them for that pair.
+- **Limits.** 30 requests a minute for each pair, 25 MB for a body, and a time limit on each request.
+
+## Keys
+
+The extension holds no keys. When a request needs one (`{{secrets.NAME}}`), you type it into the page, which keeps it for that tab only and sends it with the call. The extension forwards it to the API you allowed and keeps nothing.
+
+If an API echoes a request back, a hostile page could read a key out of the answer. Allow only pages and APIs you trust.
+
+## Activity
+
+The extension keeps the last 200 calls it made for pages (the site, the API, the method and the path), and the popup shows the 12 most recent. It never records a query string, a header or a body, and the list is gone when the browser closes.
+
+## When it is out of date
+
+The page and the extension agree on a protocol version. If the extension is older than the page needs, the page says so and does not send it calls.
+
+See also [Environments and secrets](/reference/environments-and-secrets/) and the [privacy policy](/reference/browser-extension-privacy/).

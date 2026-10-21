@@ -46,7 +46,7 @@ const names = (req: PreparedRequest): string[] => {
 /**
  * Puts the values the person typed into a request, bound to the API's origin. A name with no value is
  * left as a placeholder for whoever executes the call (the dev server falls back to its environment
- * files, the extension to its own store); a direct call has no one to fall back on, so it stops there.
+ * files); a direct call or one through the extension has no one to fall back on, so it stops there.
  */
 export function withPageSecrets(
   inner: Transport,

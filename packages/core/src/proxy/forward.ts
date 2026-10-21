@@ -22,8 +22,27 @@ export interface ProxyEvent {
   outcome: 'ok' | 'refused' | 'missing-secrets' | 'upstream-error' | 'timeout'
 }
 
+/** Why `forward` itself said no, as opposed to the upstream API's own answer (see `markRefusals`). */
+export type Refusal =
+  | 'blocked'
+  | 'too-large'
+  | 'missing-secrets'
+  | 'timeout'
+  | 'network'
+  | 'redirect'
+  | 'aborted'
+
+/** Set on a response `forward` produced itself, when `markRefusals` is on. */
+export const REFUSAL_HEADER = 'x-specbook-refused'
+
 export interface ProxyDeps {
   policy: ProxyPolicy
+  /**
+   * Tag the responses `forward` makes itself (a refusal, a missing secret, a timeout) with `REFUSAL_HEADER`,
+   * so a caller that turns them into messages can tell them from the upstream API's own 403, 413, 502 or
+   * 504. Off for the dev proxy, whose caller sees plain HTTP.
+   */
+  markRefusals?: boolean
   /** Secret by name; `undefined` when this proxy does not hold it. */
   lookup?(
     name: string,
@@ -40,10 +59,10 @@ export interface ProxyTarget {
   url: string
 }
 
-const json = (status: number, body: unknown) =>
+const json = (status: number, body: unknown, extra?: Record<string, string>) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...extra },
   })
 
 /** Everything after the route is known: policy, secrets, the outbound call, the reply. */
@@ -69,25 +88,37 @@ export async function forward(
     return res
   }
 
+  // a response `forward` makes itself; tagged only when the caller asked, so it can be told from the API's
+  const refuse = (
+    status: number,
+    error: string,
+    code: Refusal,
+    outcome: ProxyEvent['outcome'] = 'refused',
+  ) =>
+    done(
+      json(status, { error }, deps.markRefusals ? { [REFUSAL_HEADER]: code } : undefined),
+      outcome,
+    )
+
   if (policy.refuseCrossSite !== false) {
     const why = crossSiteProblem(req.headers, new URL(req.url))
-    if (why) return done(json(403, { error: why }), 'refused')
+    if (why) return refuse(403, why, 'blocked')
   }
   const methods = policy.methods ?? DEFAULT_METHODS
   if (!methods.includes(req.method.toUpperCase()))
-    return done(json(405, { error: `${req.method} is not allowed` }), 'refused')
+    return refuse(405, `${req.method} is not allowed`, 'blocked')
   const bad = upstreamProblem(target.url, { allowPrivateHosts: policy.allowPrivateHosts })
-  if (bad) return done(json(403, { error: bad }), 'refused')
+  if (bad) return refuse(403, bad, 'blocked')
 
   // the request, as bytes
   const max = policy.maxBodyBytes ?? DEFAULT_MAX_BODY
   const declared = Number(req.headers.get('content-length') ?? 0)
-  if (declared > max) return done(json(413, { error: 'request body too large' }), 'refused')
+  if (declared > max) return refuse(413, 'request body too large', 'too-large')
   let body: Uint8Array | undefined
   if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
     body = new Uint8Array(await req.arrayBuffer())
     bytesIn = body.length
-    if (body.length > max) return done(json(413, { error: 'request body too large' }), 'refused')
+    if (body.length > max) return refuse(413, 'request body too large', 'too-large')
   }
 
   // secrets: names from headers, query and body, resolved by the injected lookup
@@ -107,7 +138,12 @@ export async function forward(
     else values.set(name, v)
   }
   if (missing.length)
-    return done(json(400, { error: `Missing secrets: ${missing.join(', ')}` }), 'missing-secrets')
+    return refuse(
+      400,
+      `Missing secrets: ${missing.join(', ')}`,
+      'missing-secrets',
+      'missing-secrets',
+    )
 
   const headers = new Headers()
   for (const [k, v] of headerPairs) headers.set(k, substituteText(v, values))
@@ -118,7 +154,12 @@ export async function forward(
   }
 
   const ctl = new AbortController()
-  const timer = setTimeout(() => ctl.abort(), policy.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    ctl.abort()
+  }, policy.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+  if (req.signal?.aborted) ctl.abort()
   req.signal?.addEventListener('abort', () => ctl.abort())
   try {
     const upstream = await (deps.fetch ?? fetch)(url.toString(), {
@@ -127,16 +168,29 @@ export async function forward(
       body: body ? (substituteBytes(body, values) as BodyInit) : undefined,
       // a redirect is the caller's to follow: following one could leave the allow-listed host
       redirect: 'manual',
+      // never the browser's cookies for the upstream: a caller that is a browser extension would otherwise
+      // send the person's own session to an API they only meant to call with a key
+      credentials: 'omit',
       signal: ctl.signal,
     })
+    // a browser reports a manual redirect as an opaque response with status 0 (no status, no Location);
+    // Node gives the real 3xx, which goes through below
+    if (upstream.type === 'opaqueredirect')
+      return refuse(
+        502,
+        'The API answered with a redirect, which is not followed here. Use the address it redirects to.',
+        'redirect',
+        'upstream-error',
+      )
     const out = new Headers()
     upstream.headers.forEach((v, k) => {
       if (!STRIPPED_RESPONSE_HEADERS.has(k.toLowerCase())) out.set(k, v)
     })
     return done(new Response(upstream.body, { status: upstream.status, headers: out }), 'ok')
   } catch (e) {
-    if (ctl.signal.aborted) return done(json(504, { error: 'the upstream timed out' }), 'timeout')
-    return done(json(502, { error: e instanceof Error ? e.message : String(e) }), 'upstream-error')
+    if (timedOut) return refuse(504, 'the upstream timed out', 'timeout', 'timeout')
+    if (ctl.signal.aborted) return refuse(499, 'the request was aborted', 'aborted')
+    return refuse(502, e instanceof Error ? e.message : String(e), 'network', 'upstream-error')
   } finally {
     clearTimeout(timer)
   }
