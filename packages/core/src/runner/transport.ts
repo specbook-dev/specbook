@@ -18,6 +18,8 @@ export interface PreparedRequest {
   timeoutMs?: number
   /** Mock status the caller wants served, e.g. the UI's "Respond with" (mock env only). */
   mockStatus?: number
+  /** The variant of that status, by name, when its example file holds several (mock env only). */
+  mockVariant?: string
   /** In-process hints for the mock transport; never serialized or substituted. */
   mock?: {
     hook?: import('../types').MockHook<any, any>

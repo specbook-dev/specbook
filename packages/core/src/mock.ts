@@ -1,6 +1,7 @@
 // In-process mock transport: answers from the generated examples, filled in from the request that was sent, and lets a
 // request's `withMock` hook change the answer.
 import { reflectRequest } from './mock-reflect'
+import { pickMockVariant } from './mock-variants'
 import type { PreparedRequest, RawResponse, Transport } from './runner/transport'
 import { deepMerge, render } from './template'
 
@@ -44,6 +45,9 @@ export function createMockTransport(opts: MockTransportOptions): Transport {
     const hints = req.mock
     const all = await opts.loader.statuses(req.service, req.opId)
     const status = req.mockStatus ?? all.find(is2xx) ?? all[0] ?? 200
+    // a status's file may hold several variants: the one asked for, else the first
+    const example = async (s: number, variant?: string) =>
+      pickMockVariant(await opts.loader.example(req.service, req.opId, s), variant)
 
     // Secured operations answer 401 when no credential header was applied.
     if (
@@ -53,8 +57,7 @@ export function createMockTransport(opts: MockTransportOptions): Transport {
       req.mockStatus === undefined &&
       all.includes(401)
     ) {
-      const body = await opts.loader.example(req.service, req.opId, 401)
-      return json(401, body)
+      return json(401, await example(401))
     }
 
     const scope = {
@@ -64,8 +67,8 @@ export function createMockTransport(opts: MockTransportOptions): Transport {
     }
     // The generated example answers the request that was sent, so a created thing has the fields you posted.
     // A declared status without a response schema (e.g. Petstore's 404) has no example: empty body.
-    const answer = async (s: number) => {
-      let template: unknown = copy(await opts.loader.example(req.service, req.opId, s))
+    const answer = async (s: number, variant?: string) => {
+      let template: unknown = copy(await example(s, variant))
       if (is2xx(s))
         template = reflectRequest(template, {
           body: req.body,
@@ -80,17 +83,18 @@ export function createMockTransport(opts: MockTransportOptions): Transport {
       data: unknown
       headers: Record<string, string>
       delayMs: number
-      respond(status: number, data?: unknown): void
+      respond(status: number, data?: unknown, variant?: string): void
     } = {
       status,
-      data: await answer(status),
+      // a variant is asked for the status that was forced, nothing else
+      data: await answer(status, req.mockStatus === undefined ? undefined : req.mockVariant),
       headers: {},
       delayMs: 0,
-      respond: (s, data) => {
-        pending = { status: s, data }
+      respond: (s, data, variant) => {
+        pending = { status: s, data, variant }
       },
     }
-    let pending: { status: number; data?: unknown } | undefined
+    let pending: { status: number; data?: unknown; variant?: string } | undefined
 
     if (hints?.hook) {
       await hints.hook(
@@ -105,7 +109,7 @@ export function createMockTransport(opts: MockTransportOptions): Transport {
       )
     }
     if (pending) {
-      const base = await answer(pending.status)
+      const base = await answer(pending.status, pending.variant)
       res.status = pending.status
       res.data = pending.data === undefined ? base : deepMerge(base, pending.data)
     }

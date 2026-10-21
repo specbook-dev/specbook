@@ -483,6 +483,38 @@ function applyTag(
 }
 
 /**
+ * The example of one alternative of a union (`u.branches[i]`), tagged with the value that tells it apart from the
+ * others when the union says how. `synthesize` shows the first; a response with several variants writes each.
+ */
+export function synthesizeVariant(
+  union: Schema,
+  u: UnionInfo,
+  i: number,
+  resolve: (ref: string) => Schema | undefined,
+  status?: number,
+  sparse = false,
+  index?: ValueIndex,
+  depth = 0,
+  seen: string[] = [],
+  key = '',
+): unknown {
+  const b = u.branches[i] as UnionInfo['branches'][number]
+  const out = synthesize(
+    describedAs(b.schema, union),
+    resolve,
+    depth,
+    seen,
+    key,
+    status,
+    sparse,
+    index,
+  )
+  return u.tagSource === 'discriminator' && u.tagProp && b.tag !== undefined && b.schema.$ref
+    ? applyTag(out, u.tagProp, b.tag, b.schema.$ref, { resolve })
+    : out
+}
+
+/**
  * Deterministic, human-readable example: example > default > enum[0] > heuristics by name/format.
  * With `fake`, free-form string leaves become `{{faker.*}}` placeholders so every play is fresh.
  * Always returns something valid for the schema's shape: a cycle or very deep branch ends in `{}` or `[]`,
@@ -513,13 +545,8 @@ export function synthesize(
     return tag ? applyTag(out, tag.prop, tag.value, schema.$ref, ctx) : out
   }
   /** One alternative of a union, tagged when the union says how its alternatives are told apart. */
-  const variant = (union: Schema, u: UnionInfo, i: number, k: string, d: number, sn: string[]) => {
-    const b = u.branches[i] as UnionInfo['branches'][number]
-    const out = synthesize(describedAs(b.schema, union), resolve, d, sn, k, status, sparse, index)
-    return u.tagSource === 'discriminator' && u.tagProp && b.tag !== undefined && b.schema.$ref
-      ? applyTag(out, u.tagProp, b.tag, b.schema.$ref, ctx)
-      : out
-  }
+  const variant = (union: Schema, u: UnionInfo, i: number, k: string, d: number, sn: string[]) =>
+    synthesizeVariant(union, u, i, resolve, status, sparse, index, d, sn, k)
   // a spec example that contradicts its own schema (a string field whose example is an array) is ignored
   const given = exampleOf(schema)
   if (given !== undefined && fits(schema, given))

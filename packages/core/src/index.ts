@@ -15,6 +15,7 @@ export {
   setFaker,
 } from './faker-runtime'
 export * from './mock'
+export * from './mock-variants'
 export * from './oauth'
 export * from './proxy/index'
 export * from './reporters/index'

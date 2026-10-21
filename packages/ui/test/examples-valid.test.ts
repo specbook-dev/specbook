@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { isMockVariants } from '@specbook/core'
 import { describe, expect, it } from 'vitest'
 import { validate } from '../src/schema'
 
@@ -49,11 +50,20 @@ describe.skipIf(!existsSync(gen))('generated examples match their schemas', () =
         for (const status of op.statuses) {
           const file = join(gen, svc, 'examples', op.id, `${status}.response.json`)
           if (!existsSync(file) || !schemas[String(status)]) continue
-          res++
-          const issues = validate(read(file), schemas[String(status)], defs, { reportExtra: false })
-          if (issues.length) {
-            resBad++
-            bad.push(`${op.id}.${status}: ${issues[0]?.path} ${issues[0]?.message}`)
+          // a status whose example file holds several variants: every one is an answer the mock can give
+          const content = read(file)
+          const bodies = isMockVariants(content)
+            ? content.$variants.map((v) => ({ name: v.name, body: v.body }))
+            : [{ name: undefined, body: content }]
+          for (const { name, body } of bodies) {
+            res++
+            const issues = validate(body, schemas[String(status)], defs, { reportExtra: false })
+            if (issues.length) {
+              resBad++
+              bad.push(
+                `${op.id}.${status}${name ? `[${name}]` : ''}: ${issues[0]?.path} ${issues[0]?.message}`,
+              )
+            }
           }
         }
       }

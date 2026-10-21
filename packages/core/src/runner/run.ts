@@ -124,6 +124,8 @@ export interface RunOptions {
   timeoutMs?: number
   /** The `mock` environment answers with this status (the UI's "Respond with"). */
   mockStatus?: number
+  /** With `mockStatus`: which of that status's variants answers, by name (the first when there is no such name). */
+  mockVariant?: string
 }
 
 // ---------------- internals ----------------
@@ -437,6 +439,7 @@ async function execute(
       formArrays: def.op.formArrays,
       timeoutMs: def.input.timeoutMs ?? rt.o.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       mockStatus: rt.o.env === 'mock' ? rt.o.mockStatus : undefined,
+      mockVariant: rt.o.env === 'mock' ? rt.o.mockVariant : undefined,
       mock:
         rt.o.env === 'mock'
           ? {

@@ -14,6 +14,7 @@ let defs: any
 let shelf: any
 let conflict: any
 let example: any
+let conflictFile: any
 beforeAll(async () => {
   const { files } = await generate({ spec, service: 'books' })
   const json = (path: string) => JSON.parse(files.find((f) => f.path === path)?.content ?? 'null')
@@ -22,6 +23,7 @@ beforeAll(async () => {
   shelf = responses['200']
   conflict = responses['409']
   example = json('examples/ListShelf/200.response.json')
+  conflictFile = json('examples/ListShelf/409.response.json')
 })
 
 const check = (value: unknown, schema = shelf) =>
@@ -81,6 +83,17 @@ describe('a response whose variants are told apart by a value each pins', () => 
     expect(check({ error: 'NOPE' }, conflict)).toEqual([
       { path: 'error', kind: 'enum', message: 'must be one of: OUT_OF_STOCK · DISCONTINUED' },
     ])
+  })
+})
+
+describe('the example file of a union response', () => {
+  it('holds a body for each variant, and each one satisfies the response schema', () => {
+    expect(conflictFile.$variants.map((v: { name: string }) => v.name)).toEqual([
+      'OutOfStock',
+      'Discontinued',
+    ])
+    for (const v of conflictFile.$variants as { name: string; body: unknown }[])
+      expect(check(v.body, conflict), v.name).toEqual([])
   })
 })
 

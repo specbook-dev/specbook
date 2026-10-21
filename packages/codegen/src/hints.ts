@@ -120,7 +120,7 @@ export function conforms(
   if (value === null) return nullable(schema, resolve)
   if (schema.allOf && !schema.allOf.every((b: Schema) => conforms(b, value, resolve, d + 1)))
     return false
-  // the viewer checks a value against the first branch of its own kind, so that is the branch it has to fit
+  // a value fits a union when it fits any branch of its own kind (a spec's example for the second variant is as good)
   const alts: Schema[] | undefined = schema.oneOf ?? schema.anyOf
   if (alts?.length) {
     const want = Array.isArray(value) ? 'array' : typeof value
@@ -128,7 +128,13 @@ export function conforms(
       const k = kindOf(b, resolve)
       return k === want || (k === 'integer' && want === 'number')
     }
-    if (!conforms(alts.find(same) ?? alts[0], value, resolve, d + 1)) return false
+    const ofKind = alts.filter(same)
+    if (
+      !(ofKind.length ? ofKind : [alts[0] as Schema]).some((b) =>
+        conforms(b, value, resolve, d + 1),
+      )
+    )
+      return false
   }
   if (!fits(schema, value)) return false
   if (Array.isArray(value))
