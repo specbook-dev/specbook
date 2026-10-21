@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.3
 
 - `cdn="npm"` loads `@specbook/ui` 0.8.0 by default (the release this package was tested with).
 
