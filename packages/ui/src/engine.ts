@@ -36,6 +36,7 @@ import {
   type ExtensionBridge,
   extensionLevel,
   extensionTransport,
+  WireError,
   wireGrant,
   wireStatus,
 } from './extension'
@@ -145,6 +146,9 @@ const hasTemplate = (v: unknown): boolean =>
     : v !== null && typeof v === 'object' && Object.values(v).some(hasTemplate)
 const text = (v: unknown) =>
   v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')
+
+/** What a browser may send to an API without the person's say-so (as the extension's read-only default). */
+const READS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 export function createEngine(reg: Registry, opts: EngineOptions = {}) {
   // no faker to load: a `{{faker.*}}` ends the run with the registry's message, not "install @faker-js/faker"
@@ -446,17 +450,47 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     const viaProxy = hasProxy
       ? createFetchTransport({ baseUrl: (service) => `${proxyBase}/${env}/${service}` })
       : undefined
+    const plain = withPageSecrets(direct, { store, originFor, unresolved: 'fail' })
     const routed = routingTransport({
-      direct: guardCors(withPageSecrets(direct, { store, originFor, unresolved: 'fail' })),
+      direct: guardCors(plain),
       proxy: viaProxy
         ? withPageSecrets(viaProxy, { store, originFor, unresolved: 'keep' })
         : undefined,
-      extension: ext ? withPageSecrets(ext, { store, originFor, unresolved: 'fail' }) : undefined,
+      extension: ext
+        ? directFirst(withPageSecrets(ext, { store, originFor, unresolved: 'fail' }), plain)
+        : undefined,
       baseOf: safeBase,
       pageOrigin,
     })
     return routed
 
+    /**
+     * A read of an API the person has not allowed yet is tried straight from the page first, as it was
+     * before the extension was installed: one that sends CORS headers just works. Only when that is blocked
+     * too does the call fail with the offer to allow it (the extension's own refusal, not the bare CORS
+     * error). A change is never tried that way: a browser sends a simple POST even when it then hides the
+     * answer, so the API would have acted on a call the person never allowed.
+     */
+    function directFirst(viaExtension: Transport, straight: Transport): Transport {
+      return async (req, signal) => {
+        try {
+          return await viaExtension(req, signal)
+        } catch (e) {
+          if (
+            !(e instanceof WireError) ||
+            e.code !== 'not-allowed' ||
+            !READS.has(req.method.toUpperCase())
+          )
+            throw e
+          try {
+            return await straight(req, signal)
+          } catch (blocked) {
+            if (blocked instanceof TypeError) throw e
+            throw blocked
+          }
+        }
+      }
+    }
     function originFor(service: string) {
       return originOf(safeBase(service))
     }

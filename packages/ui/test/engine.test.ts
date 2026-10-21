@@ -375,3 +375,67 @@ describe('what the extension is needed for', () => {
     expect((await old.extensionState('live', 0)).state).toBe('outdated')
   })
 })
+
+describe('an API the extension has not been allowed to call', () => {
+  const live = {
+    ...reg,
+    mode: 'static' as const,
+    loadConfig: async () => ({
+      default: {
+        project: 'p',
+        services: { pets: { spec: 'x', baseUrl: { live: 'https://api.acme.com' } } },
+      },
+    }),
+  }
+  // an extension that refuses every call: nothing has been allowed
+  const refusing = {
+    version: 1,
+    send: async (call: { type: string }) =>
+      call.type === 'fetch'
+        ? { v: 1 as const, type: 'error' as const, id: 'x', code: 'not-allowed', message: 'no' }
+        : { v: 1 as const, type: 'pong' as const },
+  }
+  afterEach(() => vi.unstubAllGlobals())
+  const call = () =>
+    createEngine(live, { extension: async () => refusing as never }).run(
+      GetPet.request({ path: { petId: '1' } }),
+      { env: 'live', version: 0 },
+    )
+
+  it('is called straight from the page first, so one that allows CORS needs no grant', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ id: '1', name: 'Rex' }), { status: 200 })),
+    )
+    const r = await call()
+    expect(r.status).toBe('pass')
+  })
+
+  it('still offers to allow it when the browser blocks the direct call too', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch')
+      }),
+    )
+    const r = JSON.stringify(await call())
+    expect(r).toContain('not-allowed')
+    expect(r).not.toContain('probably does not allow calls from this page')
+  })
+
+  it('never sends a change that way: it asks first', async () => {
+    const f = vi.fn(async () => new Response('{}', { status: 200 }))
+    vi.stubGlobal('fetch', f)
+    const Add = defineOperation<{
+      params: { path: never }
+      body: { name: string }
+      responses: { 200: object }
+    }>({ service: 'pets', id: 'Add', method: 'POST', path: '/pet' })
+    const r = await createEngine(
+      { ...live, operations: { 'pets/Add': async () => ({ Add }) } },
+      { extension: async () => refusing as never },
+    ).run(Add.request({ data: { name: 'x' } }), { env: 'live', version: 0 })
+    expect(r.status).toBe('error')
+    expect(f).not.toHaveBeenCalled()
+  })
+})
