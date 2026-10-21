@@ -110,6 +110,7 @@ const BODY_ENCODINGS: [string, string][] = [
   ['text/plain', 'text'],
 ]
 const BINARY_MIME = /^(application\/(octet-stream|pdf|zip|gzip)|(image|audio|video)\/)/
+const WILDCARD_MIME = /^(\*|application)\/\*$/
 
 function findJsonLike(content: Record<string, any> | undefined) {
   if (!content) return undefined
@@ -136,6 +137,19 @@ function findJsonLike(content: Record<string, any> | undefined) {
       media: content[binary],
       mediaType: binary,
     }
+  // A wildcard stands for whatever the server sends, and a framework that is not told what it produces
+  // declares every response that way (springdoc's `*/*`). It is JSON, unless the schema is a file.
+  const any = Object.keys(content).find((m) => WILDCARD_MIME.test(m))
+  if (any) {
+    const schema = content[any].schema as Schema | undefined
+    const file = schema?.format === 'binary'
+    return {
+      schema,
+      encoding: file ? 'binary' : 'json',
+      media: content[any],
+      ...(file ? { mediaType: any } : {}),
+    }
+  }
   return undefined
 }
 

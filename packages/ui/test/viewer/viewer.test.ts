@@ -43,6 +43,15 @@ const liveSpec = (base: string) => ({
   },
 })
 
+/** A Spring service's document: springdoc gives every response a wildcard media type unless told what it produces. */
+const wildcardSpec = (base: string) =>
+  JSON.parse(
+    JSON.stringify({ ...liveSpec(base), info: { title: 'Wildcard Things', version: '1' } }).replace(
+      '"application/json"',
+      '"*/*"',
+    ),
+  )
+
 /** Two servers on different origins, as a production and a sandbox host would be. */
 const multiSpec = (base: string) => {
   const port = new URL(base).port
@@ -158,6 +167,7 @@ beforeAll(async () => {
     try {
       if (p === '/live/openapi.json') return void res.end(JSON.stringify(liveSpec(apiUrl)))
       if (p === '/multi/openapi.json') return void res.end(JSON.stringify(multiSpec(apiUrl)))
+      if (p === '/wildcard/openapi.json') return void res.end(JSON.stringify(wildcardSpec(apiUrl)))
       // a stand-in provider: sends the person straight back with a code, and trades it for a token
       if (p === '/oauth/openapi.json') return void res.end(JSON.stringify(oauthSpec(apiUrl)))
       if (p === '/oauth/authorize') {
@@ -382,6 +392,17 @@ describe('the hosted viewer opens a spec at run time', () => {
     expect(await page.locator('.vw-error').innerText()).toMatch(/404|answered/)
     // the server did answer, so the paste box would not help: this one is explained where it is
     expect(page.url()).toContain('/v1/?spec=')
+    await page.close()
+  })
+
+  it('checks a response against the schema a document declares under */*', async () => {
+    const { page } = await open(spec('wildcard/openapi.json'))
+    await ready(page)
+    await goOp(page, 'wildcard-things/ListThings')
+    await page.getByRole('button', { name: 'Send' }).click()
+    await page.waitForSelector('.result-chip:has-text("200")', { timeout: 20_000 })
+    await page.waitForSelector('.response .conf:has-text("Matches spec")', { timeout: 10_000 })
+    expect(await page.locator('.response .conf').innerText()).not.toMatch(/No schema/)
     await page.close()
   })
 

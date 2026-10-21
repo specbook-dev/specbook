@@ -191,6 +191,85 @@ describe('request examples from a spec', () => {
   })
 })
 
+describe('a body declared with a wildcard media type', () => {
+  // springdoc declares every response `*/*` unless the controller says what it produces
+  const thing = {
+    type: 'object',
+    required: ['id'],
+    properties: { id: { type: 'integer' }, name: { type: 'string' } },
+  }
+  const ref = { $ref: '#/components/schemas/Thing' }
+  const ok = (content: Record<string, unknown>) => ({ 200: { description: 'ok', content } })
+  const spec = {
+    openapi: '3.1.0',
+    info: { title: 'T', version: '1' },
+    paths: {
+      '/things': {
+        get: { operationId: 'listThings', responses: ok({ '*/*': { schema: ref } }) },
+        post: {
+          operationId: 'addThing',
+          requestBody: { content: { '*/*': { schema: ref } } },
+          responses: ok({ 'application/*': { schema: ref } }),
+        },
+      },
+      '/file': {
+        get: {
+          operationId: 'getFile',
+          responses: ok({ '*/*': { schema: { type: 'string', format: 'binary' } } }),
+        },
+        put: {
+          operationId: 'putFile',
+          requestBody: { content: { '*/*': { schema: { type: 'string', format: 'binary' } } } },
+          responses: { 200: { description: 'ok' } },
+        },
+      },
+      '/both': {
+        get: {
+          operationId: 'getBoth',
+          responses: ok({
+            '*/*': { schema: { type: 'string' } },
+            'application/json': { schema: thing },
+          }),
+        },
+      },
+    },
+    components: { schemas: { Thing: thing } },
+  }
+  const out = async () => {
+    const { files } = await generate({ spec, service: 'svc' })
+    const text = (path: string) => files.find((f) => f.path === path)?.content
+    return { files, text, json: (path: string) => JSON.parse(text(path) ?? 'null') }
+  }
+
+  it('is JSON: the response has a schema, an example and a type', async () => {
+    const { files, text, json } = await out()
+    expect(Object.keys(json('schemas/ListThings.responses.schema.json'))).toEqual(['200'])
+    expect(json('examples/ListThings/200.response.json')).toMatchObject({ id: expect.any(Number) })
+    expect(files.map((f) => f.path)).toContain('examples/ListThings/200.response.json')
+    expect(text('operations/ListThings.ts')).not.toContain('200: unknown')
+  })
+
+  it('is JSON for `application/*` too, and for a request body', async () => {
+    const { text, json } = await out()
+    expect(Object.keys(json('schemas/AddThing.responses.schema.json'))).toEqual(['200'])
+    expect(text('operations/AddThing.ts')).toContain("encoding: 'json'")
+    expect(json('examples/AddThing/default.example.json').body).toMatchObject({
+      id: expect.any(Number),
+    })
+  })
+
+  it('stays a file when the schema is binary, with no type to send as the Content-Type', async () => {
+    const { text } = await out()
+    expect(text('operations/PutFile.ts')).toContain("encoding: 'binary'")
+    expect(text('operations/PutFile.ts')).not.toContain('mediaType')
+  })
+
+  it('yields to a media type the spec names', async () => {
+    const { json } = await out()
+    expect(json('schemas/GetBoth.responses.schema.json')['200']).toMatchObject({ type: 'object' })
+  })
+})
+
 describe('petstore 2.0 (swagger) is normalised', () => {
   it('yields the same operation ids', async () => {
     const { operations } = await generate({ spec: fx('petstore2.json'), service: 'petstore' })
