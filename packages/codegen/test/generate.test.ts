@@ -270,6 +270,79 @@ describe('a body declared with a wildcard media type', () => {
   })
 })
 
+describe('polymorphic schemas', () => {
+  // a base holds the discriminator and its subtypes extend it through allOf; the union that lists the subtypes has none
+  const out = async () => {
+    const { files } = await generate({ spec: fx('bookstore.json'), service: 'books' })
+    const json = (path: string) => JSON.parse(files.find((f) => f.path === path)?.content ?? 'null')
+    return { files, json }
+  }
+
+  it('tags each variant of a success response with what the discriminator maps it to', async () => {
+    const { json } = await out()
+    const items = json('examples/ListShelf/200.response.json').items
+    // one of each kind, in the document's order; a bare-name mapping, a full-ref mapping, and an unmapped name
+    expect(items.map((i: { kind: string }) => i.kind)).toEqual(['book', 'album', 'Zine'])
+    // a subtype named directly (no union) is tagged too
+    expect(items[0].related[0].kind).toBe('album')
+  })
+
+  it('keeps one item in a request, which is for editing', async () => {
+    const { json } = await out()
+    const body = json('examples/AddItems/default.example.json').body
+    expect(body.items.map((i: { kind: string }) => i.kind)).toEqual(['book'])
+  })
+
+  it('leaves a value the variants pin themselves alone', async () => {
+    const { json } = await out()
+    expect(json('examples/ListShelf/409.response.json').error).toBe('OUT_OF_STOCK')
+  })
+
+  it('carries the discriminator into the definitions, mapping to definition names', async () => {
+    const { json } = await out()
+    expect(json('schemas/definitions.schema.json').$defs.Media.discriminator).toEqual({
+      propertyName: 'kind',
+      mapping: { book: 'Book', album: 'Album' },
+    })
+  })
+})
+
+describe('a list of variants in a response example', () => {
+  const variant = (kind: string) => ({
+    type: 'object',
+    properties: { kind: { type: 'string', enum: [kind] } },
+  })
+  const union = (n: number) => ({
+    oneOf: Array.from({ length: n }, (_, i) => variant(`v${i + 1}`)),
+  })
+  const list = (n: number, extra: Record<string, unknown> = {}) => ({
+    type: 'array',
+    items: union(n),
+    ...extra,
+  })
+  const kinds = async (schema: unknown, status?: number) => {
+    const { synthesize } = await import('../src/schema')
+    return (
+      synthesize(schema as never, () => undefined, 0, [], 'items', status) as { kind: string }[]
+    ).map((i) => i.kind)
+  }
+
+  it('shows one of each variant, up to three', async () => {
+    expect(await kinds(list(2), 200)).toEqual(['v1', 'v2'])
+    expect(await kinds(list(5), 200)).toEqual(['v1', 'v2', 'v3'])
+  })
+
+  it('keeps to the limits the schema sets', async () => {
+    expect(await kinds(list(3, { maxItems: 2 }), 200)).toEqual(['v1', 'v2'])
+    expect(await kinds(list(2, { minItems: 4 }), 200)).toEqual(['v1', 'v2', 'v1', 'v2'])
+  })
+
+  it('shows one in a request and in an error', async () => {
+    expect(await kinds(list(3))).toEqual(['v1'])
+    expect(await kinds(list(3), 422)).toEqual(['v1'])
+  })
+})
+
 describe('petstore 2.0 (swagger) is normalised', () => {
   it('yields the same operation ids', async () => {
     const { operations } = await generate({ spec: fx('petstore2.json'), service: 'petstore' })

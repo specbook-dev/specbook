@@ -8,6 +8,7 @@ import {
   PLACEHOLDER_VALUE,
   type ValueIndex,
 } from './hints'
+import { flatProps, subtypeTag, type UnionContext, type UnionInfo, unionOf } from './union'
 
 export type Schema = Record<string, any>
 
@@ -456,6 +457,31 @@ export function sanitizeExample(
 /** A hard stop for chains of *required* objects, which is all an example follows past MAX_DEPTH. */
 const HARD_DEPTH = 14
 
+/** How many items of a list of variants a success response shows: one of each kind, up to this many. */
+const FANOUT = 3
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === 'object' && !Array.isArray(v)
+
+/**
+ * Writes the value that tells a variant apart (`kind: "album"`) into its example. The tag is the document's
+ * `discriminator` value, not the name heuristic's guess; a property declared with other values keeps what it has.
+ */
+function applyTag(
+  out: unknown,
+  prop: string,
+  value: string,
+  ref: string,
+  ctx: UnionContext,
+): unknown {
+  if (!isPlainObject(out)) return out
+  const declared = flatProps(ctx.resolve(ref), ctx)[prop]
+  if (declared?.enum && !declared.enum.includes(value)) return out
+  if (declared?.const !== undefined && declared.const !== value) return out
+  out[prop] = value
+  return out
+}
+
 /**
  * Deterministic, human-readable example: example > default > enum[0] > heuristics by name/format.
  * With `fake`, free-form string leaves become `{{faker.*}}` placeholders so every play is fresh.
@@ -475,11 +501,24 @@ export function synthesize(
   if (!schema) return null
   const again = (s: Schema | undefined, k = key, d = depth, sn = seen) =>
     synthesize(s, resolve, d, sn, k, status, sparse, index)
+  const ctx: UnionContext = { resolve }
   if (schema.$ref) {
     const target = resolve(schema.$ref)
     // a reference back into itself carries on as "required fields only", which the depth rules then end
-    if (seen.includes(schema.$ref)) return again(target, key, Math.max(depth, MAX_DEPTH), [])
-    return again(target, key, depth, [...seen, schema.$ref])
+    const out = seen.includes(schema.$ref)
+      ? again(target, key, Math.max(depth, MAX_DEPTH), [])
+      : again(target, key, depth, [...seen, schema.$ref])
+    // a variant of a family whose base holds the discriminator says which one it is
+    const tag = subtypeTag(schema.$ref, ctx)
+    return tag ? applyTag(out, tag.prop, tag.value, schema.$ref, ctx) : out
+  }
+  /** One alternative of a union, tagged when the union says how its alternatives are told apart. */
+  const variant = (union: Schema, u: UnionInfo, i: number, k: string, d: number, sn: string[]) => {
+    const b = u.branches[i] as UnionInfo['branches'][number]
+    const out = synthesize(describedAs(b.schema, union), resolve, d, sn, k, status, sparse, index)
+    return u.tagSource === 'discriminator' && u.tagProp && b.tag !== undefined && b.schema.$ref
+      ? applyTag(out, u.tagProp, b.tag, b.schema.$ref, ctx)
+      : out
   }
   // a spec example that contradicts its own schema (a string field whose example is an array) is ignored
   const given = exampleOf(schema)
@@ -502,18 +541,11 @@ export function synthesize(
   // OpenAPI 3.1 writes an optional field as `anyOf: [{ type: 'null' }, ...]`: the first real branch shows the field
   const pick = branches?.find((b) => b.type !== 'null') ?? branches?.[0]
   if (pick) {
-    const out = again(describedAs(pick, schema))
-    const prop = schema.discriminator?.propertyName
-    if (prop && pick.$ref && out && typeof out === 'object' && !Array.isArray(out)) {
-      const mapped = Object.entries<string>(schema.discriminator.mapping ?? {}).find(
-        ([, ref]) => ref === pick.$ref,
-      )?.[0]
-      const value = mapped ?? (pick.$ref as string).split('/').pop()
-      const declared = resolve(pick.$ref)?.properties?.[prop]
-      if (!declared?.enum || declared.enum.includes(value))
-        (out as Record<string, unknown>)[prop] = value
-    }
-    return out
+    const u = unionOf(schema, ctx)
+    const at = u?.branches.findIndex((b) => b.schema === pick) ?? -1
+    return u && at >= 0
+      ? variant(schema, u, at, key, depth, seen)
+      : again(describedAs(pick, schema))
   }
   const type = Array.isArray(schema.type)
     ? schema.type.find((t: string) => t !== 'null')
@@ -529,6 +561,30 @@ export function synthesize(
       return exampleBoolean(key)
     case 'array': {
       if (depth >= MAX_DEPTH || schema.maxItems === 0) return []
+      // a success response lists one of each kind when its items are a union (a request keeps one to edit)
+      const items = schema.items as Schema | undefined
+      const kinds =
+        status !== undefined &&
+        status >= 200 &&
+        status < 400 &&
+        !(items?.$ref && seen.includes(items.$ref))
+          ? unionOf(items?.$ref ? resolve(items.$ref) : items, ctx)
+          : undefined
+      if (kinds) {
+        const into = items?.$ref ? [...seen, items.$ref] : seen
+        const union = (items?.$ref ? resolve(items.$ref) : items) as Schema
+        const count = Math.max(
+          1,
+          Math.min(
+            Math.max(Math.min(kinds.branches.length, FANOUT), schema.minItems ?? 0),
+            schema.maxItems ?? 5,
+            5,
+          ),
+        )
+        return Array.from({ length: count }, (_, i) =>
+          variant(union, kinds, i % kinds.branches.length, singular(key), depth + 1, into),
+        )
+      }
       // as many items as the schema asks for, distinct when it says they must be
       const first = again(schema.items, singular(key), depth + 1)
       const count = Math.min(Math.max(1, schema.minItems ?? 1), 5)
@@ -671,6 +727,20 @@ function convertSchema(schema: Schema | undefined, refPrefix: string): Schema {
   if (schema.deprecated) meta.deprecated = true
   if (schema.default !== undefined) meta.default = schema.default
   if (schema.example !== undefined) meta.examples = [schema.example]
+  // which branch a value is: kept, with its targets as the definition names the browser resolves
+  if (typeof schema.discriminator?.propertyName === 'string')
+    meta.discriminator = {
+      propertyName: schema.discriminator.propertyName,
+      ...(schema.discriminator.mapping
+        ? {
+            mapping: Object.fromEntries(
+              Object.entries<unknown>(schema.discriminator.mapping)
+                .filter(([, target]) => typeof target === 'string')
+                .map(([key, target]) => [key, refName(target as string)]),
+            ),
+          }
+        : {}),
+    }
 
   const rec = (s: Schema) => toJsonSchema(s, refPrefix)
   const withPlaceholder = (body: Schema): Schema => ({ ...meta, anyOf: [body, PLACEHOLDER] })

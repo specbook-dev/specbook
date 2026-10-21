@@ -32,6 +32,10 @@
     "./browser": {
       "types": "./src/browser.ts",
       "default": "./src/browser.ts"
+    },
+    "./union": {
+      "types": "./src/union.ts",
+      "default": "./src/union.ts"
     }
   },
   "scripts": {
