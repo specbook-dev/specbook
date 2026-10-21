@@ -9,7 +9,7 @@ from typing import Any, Literal
 Cdn = Literal["specbook", "npm"]
 
 #: The `@specbook/ui` release the `npm` host loads unless `version` is given.
-TESTED_VERSION = "0.7.0"
+TESTED_VERSION = "0.8.0"
 
 SPECBOOK_HOST = "https://ui.specbook.dev"
 NPM_HOST = "https://cdn.jsdelivr.net/npm"
