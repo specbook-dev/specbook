@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `cdn="npm"` loads `@specbook/ui` 0.8.1 by default (the release this package was tested with): live calls to APIs that allow CORS work again when the browser extension is installed.
+
 ## 0.1.3
 
 - `cdn="npm"` loads `@specbook/ui` 0.8.0 by default (the release this package was tested with).
