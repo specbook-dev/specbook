@@ -61,6 +61,13 @@ async function openText(name, text) {
   }
 }
 
+/** What a visitor is told when the document's address cannot be read from here. */
+const UNREADABLE = {
+  local:
+    'That address is on your own machine or network, which a hosted page cannot reach. Paste the document or choose the file instead.',
+  cors: 'The browser could not read that address. The server may not allow other sites to fetch it (CORS), or the address is not reachable from here. Paste the document or choose the file; it works the same.',
+}
+
 function showFallback(reason) {
   why.textContent = reason
   fallback.hidden = false
@@ -89,9 +96,7 @@ async function openUrl(raw) {
     return say('Enter an address starting with http:// or https://', true)
   if (looksPrivate(spec)) {
     say('', false)
-    return showFallback(
-      'That address is on your own machine or network, which a hosted page cannot reach. Paste the document or choose the file instead.',
-    )
+    return showFallback(UNREADABLE.local)
   }
   go.disabled = true
   say('Checking the address…')
@@ -106,9 +111,7 @@ async function openUrl(raw) {
   } catch {
     go.disabled = false
     say('', false)
-    showFallback(
-      'The browser could not read that address. The server probably does not allow other sites to fetch it (CORS). Paste the document or choose the file; it works the same.',
-    )
+    showFallback(UNREADABLE.cors)
   }
 }
 
@@ -165,6 +168,11 @@ else addEventListener('load', () => idle(warmViewer), { once: true })
 // a link that carries a spec goes straight in: `ui.specbook.dev/?spec=...`
 const carried = new URLSearchParams(location.search).get('spec')
 if (carried) toViewer(carried)
+
+// the viewer sends a link here when it could not read the document's address (`?unreadable=local|cors`):
+// the same explanation and paste box as when the address is typed in. Only the reason is in the address.
+const unreadable = new URLSearchParams(location.search).get('unreadable')
+if (unreadable && Object.hasOwn(UNREADABLE, unreadable)) showFallback(UNREADABLE[unreadable])
 
 // "Open in Specbook" button: the markdown for a README, for any document served from a public address.
 // The rules match the viewer's share menu, so a button never points at something only the author can open.

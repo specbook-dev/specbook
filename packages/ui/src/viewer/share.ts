@@ -32,6 +32,20 @@ function privateAddress(host: string): boolean {
 }
 
 /**
+ * Why a hosted page could not read an address, as the landing page words it: the address is on the
+ * visitor's own machine or network (a `file:` address, `localhost`, a private range), or the server it names
+ * does not let other sites fetch from it.
+ */
+export function unreadableWhy(address: string): 'local' | 'cors' {
+  try {
+    const u = new URL(address)
+    return u.protocol === 'file:' || privateAddress(u.hostname) ? 'local' : 'cors'
+  } catch {
+    return 'cors'
+  }
+}
+
+/**
  * A spec address in a link: the colon and slashes of a URL are legal in a query string and stay as they
  * are, so the link reads as `?spec=https://host/openapi.json`; `&`, `#` and `%` are still escaped.
  */

@@ -7,7 +7,7 @@ import { mountOpened } from './mount'
 import { Opening } from './Opening'
 import type { OpenResult, Source } from './protocol'
 import { recentSpecs, rememberSpec } from './recent'
-import { rawGithub, softEncode } from './share'
+import { rawGithub, softEncode, unreadableWhy } from './share'
 import { loadUpload, saveUpload } from './uploads'
 import 'prism-code-editor/layout.css'
 import 'prism-code-editor/autocomplete.css'
@@ -44,6 +44,24 @@ const autostart = params.has('spec') || params.has('upload')
 
 const specUrl = (u: string) => `${location.origin}${location.pathname}?spec=${softEncode(u)}`
 
+// framed on another site: the host chose the document, and the page around it is theirs
+const framed = window.top !== window
+
+/**
+ * Sends the visitor to the hosted site's landing page, which says why the address could not be read and
+ * has the box to paste the document into. Only the reason travels: the home page is measured, and the
+ * address can carry a token. `replace`, so Back does not return to a link that would only bounce again.
+ * A self-hosted copy has no landing page (its build does not declare one), and a viewer framed on another
+ * site keeps its error in the frame rather than turning the frame into the home page: both answer false.
+ */
+function toHome(why: 'local' | 'cors'): boolean {
+  if (framed) return false
+  const home = document.querySelector<HTMLMetaElement>('meta[name="specbook-home"]')?.content.trim()
+  if (!home) return false
+  location.replace(`${home}?unreadable=${why}`)
+  return true
+}
+
 type Phase =
   | { kind: 'idle' }
   | { kind: 'loading'; what: string; progress?: string }
@@ -57,7 +75,8 @@ function Picker({ initial }: { initial: Phase }) {
   const [over, setOver] = useState(false)
   const worker = useRef<SpecWorker | undefined>(undefined)
 
-  const start = async (source: Source, label: string, remember?: string) => {
+  // `fromLink`: the address came with the page's own link (`?spec=`), not from the form on this page
+  const start = async (source: Source, label: string, remember?: string, fromLink = false) => {
     worker.current ??= new SpecWorker()
     setPhase({ kind: 'loading', what: label })
     const { promise } = worker.current.open(source, (progress) =>
@@ -75,20 +94,29 @@ function Picker({ initial }: { initial: Phase }) {
       else await finish()
     } catch (e) {
       const f = e as OpenFailure
+      if (
+        fromLink &&
+        f.code === 'cors' &&
+        source.kind === 'url' &&
+        toHome(unreadableWhy(source.url))
+      )
+        return
       setPhase({ kind: 'error', message: f.message, code: f.code })
     }
   }
 
-  const openUrl = (u: string) => {
+  const openUrl = (u: string, fromLink = false) => {
     const clean = rawGithub(u.trim())
     if (!clean) return
-    if (!/^https?:\/\//i.test(clean))
+    if (!/^https?:\/\//i.test(clean)) {
+      if (fromLink && /^file:/i.test(clean) && toHome('local')) return
       return setPhase({
         kind: 'error',
         message: 'Enter an address starting with http:// or https://',
       })
+    }
     history.replaceState(null, '', specUrl(clean))
-    void start({ kind: 'url', url: clean }, clean, clean)
+    void start({ kind: 'url', url: clean }, clean, clean, fromLink)
   }
 
   const openText = async (name: string, body: string) => {
@@ -100,7 +128,7 @@ function Picker({ initial }: { initial: Phase }) {
   useEffect(() => {
     const s = params.get('spec')
     const up = params.get('upload')
-    if (s) openUrl(s)
+    if (s) openUrl(s, true)
     else if (up)
       void loadUpload(up).then((u) =>
         u
@@ -119,6 +147,18 @@ function Picker({ initial }: { initial: Phase }) {
         what={params.get('spec') ?? 'your uploaded document'}
         progress={phase.kind === 'loading' ? phase.progress : undefined}
       />
+    )
+  // a failure to open the host's document is the host's to fix: say what went wrong and nothing of the
+  // viewer's own page (an address box, paste, examples) for the host's visitors to wander into
+  if (framed && params.has('spec') && phase.kind === 'error')
+    return (
+      <main class="vw">
+        <div class="vw-card">
+          <div class="vw-error" role="alert">
+            {phase.message}
+          </div>
+        </div>
+      </main>
     )
   return (
     <main class="vw">

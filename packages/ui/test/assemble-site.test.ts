@@ -111,6 +111,8 @@ describe('the landing page references', () => {
     const site = await assemble(dist)
     const index = await readFile(join(site, 'v1/index.html'), 'utf8')
     expect(index).toContain('<meta name="specbook-oauth-callback" content="/oauth/callback/" />')
+    // and where an address it cannot read is sent: the hosted site has a landing page, a copy does not
+    expect(index).toContain('<meta name="specbook-home" content="/" />')
     // in the head, before the page's own markup
     expect(index.indexOf('specbook-oauth-callback')).toBeLessThan(index.indexOf('<body>'))
 
@@ -129,9 +131,9 @@ describe('the landing page references', () => {
     )
 
     // the build it came from is untouched: a self-hosted copy keeps using its own address
-    expect(await readFile(join(dist, 'index.html'), 'utf8')).not.toContain(
-      'specbook-oauth-callback',
-    )
+    const own = await readFile(join(dist, 'index.html'), 'utf8')
+    expect(own).not.toContain('specbook-oauth-callback')
+    expect(own).not.toContain('specbook-home')
   })
 
   it('lets only the home page run the analytics beacon, and keeps it off the viewer and the sign-in page', async () => {

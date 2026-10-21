@@ -186,12 +186,15 @@ beforeAll(async () => {
             `<script type="module" src="${siteUrl}/v1/specbook.js"></script>`,
         )
       }
-      // a page on another site that frames the hosted viewer
+      // a page on another site that frames the hosted viewer (on the sign-in fixture's spec unless given one)
       if (p === '/host/iframe.html') {
-        const spec = encodeURIComponent(`${apiUrl}/oauth/openapi.json`)
+        const q = new URL(req.url ?? '/', 'http://x').searchParams
+        const spec = encodeURIComponent(q.get('spec') ?? `${apiUrl}/oauth/openapi.json`)
+        // `bare`: the viewer with no document named
+        const src = q.has('bare') ? `${siteUrl}/v1/` : `${siteUrl}/v1/?spec=${spec}`
         res.setHeader('content-type', 'text/html')
         return void res.end(
-          `<!doctype html><iframe title="viewer" style="width:1000px;height:760px;border:0" src="${siteUrl}/v1/?spec=${spec}"></iframe>`,
+          `<!doctype html><iframe title="viewer" style="width:1000px;height:760px;border:0" src="${src}"></iframe>`,
         )
       }
       if (p === '/sandbox-api/things') {
@@ -299,20 +302,60 @@ describe('the hosted viewer opens a spec at run time', () => {
     await page.close()
   })
 
-  it('says what went wrong when the server does not allow the browser, and takes the pasted text', async () => {
+  it('sends a link the browser may not read to the landing page, which explains and takes the pasted text', async () => {
     const { page } = await open(spec('nocors/petstore3.json'))
-    await page.waitForSelector('.vw-error')
-    const msg = await page.locator('.vw-error').innerText()
-    expect(msg).toMatch(/CORS/)
-    expect(msg).toMatch(/Paste the document/)
+    await page.waitForURL(`${siteUrl}/?unreadable=cors`)
+    await page.waitForSelector('#fallback:not([hidden])')
+    expect(await page.locator('#why').innerText()).toMatch(/CORS/)
+    // the home page is measured: the document's address stays out of its own
+    expect(page.url()).not.toContain('fixture.test')
     // the same document, pasted, opens
     const text = await readFile(join(fixtures, 'petstore3.json'), 'utf8')
-    await page.locator('details summary').click()
     await page.getByLabel('OpenAPI or Swagger document text').fill(text)
     await page.getByRole('button', { name: 'Open pasted document' }).click()
+    await page.waitForURL(/\/v1\/\?upload=/)
     // a relative `servers` entry has no address of its own: the person is asked, and may skip it
     await page.getByRole('button', { name: 'Continue with mock data' }).click()
     await page.waitForSelector('.op-row', { timeout: 30_000 })
+    await page.close()
+  })
+
+  it('does the same for a link to the visitor’s own machine, and for a file address', async () => {
+    for (const address of ['http://localhost:9/openapi.json', 'file:///Users/me/openapi.json']) {
+      const { page } = await open(`spec=${encodeURIComponent(address)}`)
+      await page.waitForURL(`${siteUrl}/?unreadable=local`)
+      await page.waitForSelector('#fallback:not([hidden])')
+      expect(await page.locator('#why').innerText()).toMatch(/your own machine or network/)
+      await page.close()
+    }
+  })
+
+  it('shows only the error, in the frame, when a viewer embedded on another site cannot open its document', async () => {
+    const page = await browser.newPage()
+    const blocked = encodeURIComponent(`${apiUrl}/nocors/petstore3.json`)
+    await page.goto(`${apiUrl}/host/iframe.html?spec=${blocked}`)
+    const frame = page.frameLocator('iframe[title="viewer"]')
+    await frame.locator('.vw-error').waitFor({ timeout: 30_000 })
+    expect(await frame.locator('.vw-error').innerText()).toMatch(/CORS/)
+    // nothing of the viewer's own page: the paste box and examples are for the visitor of the viewer's
+    // site, and so is the advice to use them
+    expect(await frame.locator('.vw-error').innerText()).not.toMatch(/Paste the document/)
+    expect(await frame.getByLabel('Address of an OpenAPI or Swagger document').count()).toBe(0)
+    expect(await frame.locator('details, .vw-drop, ul').count()).toBe(0)
+    expect(await frame.getByText('Try one').count()).toBe(0)
+    // the frame did not become the home page, and the host page was not taken anywhere
+    const inner = page.frames().find((f) => f !== page.mainFrame())
+    expect(inner?.url()).toContain('/v1/?spec=')
+    expect(page.url()).toContain('/host/iframe.html')
+    await page.close()
+  })
+
+  it('still offers the picker to a viewer embedded with no document named', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${apiUrl}/host/iframe.html?bare=1`)
+    const frame = page.frameLocator('iframe[title="viewer"]')
+    await frame.getByLabel('Address of an OpenAPI or Swagger document').waitFor({ timeout: 30_000 })
+    expect(await frame.getByText('Try one').count()).toBe(1)
     await page.close()
   })
 
@@ -337,6 +380,8 @@ describe('the hosted viewer opens a spec at run time', () => {
     )
     await page.waitForSelector('.vw-error')
     expect(await page.locator('.vw-error').innerText()).toMatch(/404|answered/)
+    // the server did answer, so the paste box would not help: this one is explained where it is
+    expect(page.url()).toContain('/v1/?spec=')
     await page.close()
   })
 
@@ -1144,6 +1189,15 @@ describe('the self-hosted viewer from the release zip', () => {
     expect(await page.title()).toContain('Petstore')
     expect([...origins]).toEqual([hostUrl])
     expect(errors).toEqual([])
+    await page.close()
+  })
+
+  it('explains an address it cannot read where it is: there is no landing page to send it to', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${hostUrl}/docs/specbook/?spec=${encodeURIComponent('http://localhost:9/x')}`)
+    await page.waitForSelector('.vw-error')
+    expect(await page.locator('.vw-error').innerText()).toMatch(/CORS/)
+    expect(page.url()).toContain('/docs/specbook/?spec=')
     await page.close()
   })
 })
