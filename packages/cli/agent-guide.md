@@ -4,7 +4,7 @@
 
 Use this file when you are asked to add or change requests, flows, checks or setup in a project that uses Specbook (`@specbook/cli`, `@specbook/core`). Needs Node 24.
 
-Words used here: an **operation** is one endpoint of the spec. A **request** is a `.req.ts` file that calls one operation. A **flow** is a `.seq.ts` file that runs requests in order.
+Words used here: an **operation** is one endpoint of the spec. A **request** is a `.req.ts` file that calls one operation. A **flow** is a `.seq.ts` file that runs requests in order. A **profile** (the config's `auth`) applies credentials to a service's requests.
 
 ## Set up a project
 
@@ -12,8 +12,51 @@ Words used here: an **operation** is one endpoint of the spec. A **request** is 
 2. `npx specbook init` creates `.specbook/specbook.config.ts`, `.specbook/environments/` and the `#api/*` import in `package.json`.
 3. `npx specbook add <service> --spec <path or URL>` registers a spec and generates its types. A URL is downloaded to `openapi/` and recorded in `openapi/sources.json`. Set the service's address in `vars` (for example `petstoreUrl`) in the config; each environment can override it in `.specbook/environments/<env>.env`.
 4. `npx specbook check` validates specs, imports and environment files. `npx specbook generate` regenerates types; `test`, `dev` and `build` do it when they need to.
+5. Typecheck. `init` adds `typescript` to `package.json` and writes a `tsconfig.json`, unless the project has them already. Run `npm install` to fetch it, then `npx tsc --noEmit` after every change. It is the only check a flow's wiring gets (see "Chain steps with types"). If the project had its own `tsconfig.json`, `init` left it alone: make sure its `include` has `"requests"`, `"sequences"`, `".specbook/*.ts"` and `".generated/*/index.ts"` (`".specbook"` alone skips the config file) and that `moduleResolution` is `"Bundler"`. A project without one gets:
 
-Never edit `.generated/`. Never put a secret in a file: name it in the config (`secrets: { API_KEY: {} }`) and read it as `{{secrets.API_KEY}}`; its value comes from an environment variable or a gitignored `<env>.secrets.env`.
+   ```json
+   {
+     "compilerOptions": {
+       "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler", "lib": ["ES2022", "DOM"],
+       "strict": true, "skipLibCheck": true, "noEmit": true, "types": []
+     },
+     "include": ["requests", "sequences", ".specbook/*.ts", ".generated/*/index.ts"]
+   }
+   ```
+
+   `"types": []` keeps Node's globals out, so `Buffer`, `process` and `node:` imports fail here instead of later in the portal.
+
+Never edit `.generated/`. Never put a secret's value in a file (see Auth and secrets).
+
+## Auth and secrets
+
+Read the spec's `securitySchemes`, and each operation's `security`, before you write the first request. Credentials go where the spec says: usually a header (`Authorization`, `X-API-Key`, `PLAID-SECRET`), sometimes a query parameter. Never put one in a request's `data`, even when the body has a field that looks right: the API ignores it and answers 401.
+
+Name each secret in `.specbook/specbook.config.ts`, add a profile that applies them, and set `auth` on the service (`specbook add` wrote the service with only `spec` and `baseUrl`). Here is a spec that wants two headers:
+
+```ts
+export default defineConfig({
+  vars: { plaidUrl: 'https://sandbox.plaid.com' },
+  secrets: { PLAID_CLIENT_ID: {}, PLAID_SECRET: {} },
+  auth: {
+    plaid: {
+      apply: {
+        headers: {
+          'PLAID-CLIENT-ID': '{{secrets.PLAID_CLIENT_ID}}',
+          'PLAID-SECRET': '{{secrets.PLAID_SECRET}}',
+        },
+      },
+    },
+  },
+  services: { plaid: { spec: './openapi/plaid.yml', baseUrl: '{{plaidUrl}}', auth: 'plaid' } },
+})
+```
+
+- `apply.headers` and `apply.query` take templates. A bearer token is `headers: { authorization: 'Bearer {{secrets.API_TOKEN}}' }`; a key in the query is `query: { api_key: '{{secrets.API_KEY}}' }`.
+- A profile applies to every request of the service that names it. One request can pick another with `auth: 'name'`, or none with `auth: false` (a public operation, or the login call itself).
+- A token you get by calling a login operation, and OAuth, are also profiles (`login`, `token`, `retryOn401`, `oauth`): see [Config](https://docs.specbook.dev/reference/config/).
+- A secret's value comes from an environment variable of the same name or a gitignored `<env>.secrets.env` ([Environments and secrets](https://docs.specbook.dev/reference/environments-and-secrets/)). The `mock` environment needs no values. A real environment with a missing one exits 2 and names it.
+- The mock answers 401 to an operation the spec marks as secured when the request carries no credential header, so a profile you forgot shows up in `specbook test` too. `npx specbook check` warns about a `{{secrets.NAME}}` that the config does not declare.
 
 ## Add a request
 
@@ -37,10 +80,11 @@ export default FindPetsByStatus.request({
 
 - Find the operation first. Its export name is the spec's `operationId` in PascalCase (`getPetById` becomes `GetPetById`). Read
   `.generated/<service>/index.ts` (read only) or the spec to see them all; your editor completes `import { ... } from '#api/<service>'`.
-- Fields: `name`, `tags`, `init` (default values), `path`, `query`, `headers`, `data` (the body), `capture`, `assert`, `safe`, `timeoutMs`.
-- Give every `{{name}}` the request uses a default in `init`. Then the request also runs on its own, and its `vars` are typed.
+- Fields: `name`, `tags`, `init` (default values), `path`, `query`, `headers`, `data` (the body), `capture`, `assert`, `auth`, `safe`, `timeoutMs`.
+- Give every `{{name}}` the request uses a default in `init`. Then the request also runs on its own, and its `vars` are typed. A default is for running the request alone: in a flow, a value that comes from an earlier step arrives through the flow's `ctx` (see "Chain steps with types"), because a default also fills in silently when the chain breaks.
 - `{{name}}` is filled from `init`, a flow's inputs, values captured by earlier steps, and the config's `vars`.
-- Path, query and body are typed from the spec. Let the compiler tell you what is missing.
+- Path, query and body are typed from the spec. Let the compiler tell you what is missing. It checks names and shapes, not string values: a field with a fixed set of values (an enum) accepts any string, so read the allowed ones in the spec.
+- Credentials are not request fields: use a profile (see Auth and secrets).
 - Add `tags: ['monitor']` to what should run against production.
 - `safe: true` marks a POST that only reads (a search, a GraphQL query) so it is allowed in a `--safe` run.
 
@@ -54,7 +98,7 @@ export default FindPetsByStatus.request({
 
 ## Capture
 
-`capture: { orderId: (res, vars) => (res.status === 200 ? res.data.id : undefined) }` keeps a value from the response for later steps. Return plain, JSON-serializable data. In a flow the value is `ctx.captured.orderId` and `{{orderId}}` in a later request.
+`capture: { orderId: (res, vars) => (res.status === 200 ? res.data.id : undefined) }` keeps a value from the response for later steps. Return plain, JSON-serializable data. In a flow the value is `ctx.captured.orderId`, typed as whatever the function returns, and `{{orderId}}` in a later request.
 
 ## Pass whole values, not just ids
 
@@ -95,19 +139,39 @@ export default sequence({
   .input('Choose a pet', (ctx) => ({
     petId: c.select(ctx.captured.pets, {
       label: (p) => `${p.name} (#${p.id})`,
-      value: (p) => p.id as number,
+      value: (p) => p.id ?? 0,
       default: 0,
     }),
   }))
-  .step('Place order', placeOrder) // sends { petId, quantity }
+  .step('Place order', (ctx) =>
+    placeOrder.with({ data: { petId: ctx.inputs.petId, quantity: ctx.inputs.quantity } }),
+  )
 ```
 
 - `.step(name, request)`; the second argument may be `(ctx) => request`, where `ctx` has `inputs`, `captured`, `vars` and `env`.
-- `request.with({ ... })` changes a request for one step (for example its `assert`).
+- `request.with({ ... })` changes a request for one step (for example its `assert`, or the values it sends).
 - Also: `.input(name, ctx => controls)` asks a person for values, `.each(name, items, make)` repeats a request per item, `.check(name, fn)` asserts on the flow's state, `.use(otherFlow)` includes another flow.
 - Controls are `c.number`, `c.text`, `c.select`, `c.multiselect`, `c.boolean`, `c.date`, `c.object`, `c.array`. A flow also runs unattended in CI and as a monitor, so every input and every `.input()` control needs a default that makes sense with nobody to ask.
-- For generated data: `import { faker } from '@specbook/core/faker'` and use it in a default, for example `c.text({ default: () => faker.person.fullName() })`. It is typed, and `specbook init` installs `@faker-js/faker`. A `{{faker.person.firstName}}` placeholder (`faker.<module>.<method>`, no arguments) also works in a field.
+- For generated data: `import { faker } from '@specbook/core/faker'` and use it in a default, for example `c.text({ default: () => faker.person.fullName() })`. It is typed, and `specbook init` adds `@faker-js/faker` to `package.json` (`npm install` fetches it). A `{{faker.person.firstName}}` placeholder (`faker.<module>.<method>`, no arguments) also works in a field.
 - Each step is also a request you can run alone.
+
+### Chain steps with types, not strings
+
+Values move between steps by name, and there are two ways to write the name:
+
+- A template string: one request has `capture: { orderId: ... }`, the next has `path: { orderId: '{{orderId}}' }`. Every field accepts any string, so `'{{ordrId}}'` compiles and fails only when the step runs. Worse, if that request has `init: { orderId: 5001 }`, a renamed capture does not fail at all: the step quietly sends 5001, and on the mock it can still pass.
+- Typed code in the flow: `.step(name, (ctx) => request.with({ ... }))`. `ctx.captured.orderId` has the type the capture returned and `ctx.inputs.quantity` the type of its control, so a renamed or mistyped one is a compile error. Put the value in the `data`, `path` or `query` of `.with`: they are typed from the spec, so a wrong field name or type is an error too.
+
+```ts
+  .step('Place order', placeOrder) // captures `orderId`
+  .step('Get order', (ctx) => getOrder.with({ path: { orderId: ctx.captured.orderId } }))
+```
+
+- Use `{{...}}` for config `vars`, `{{secrets.*}}`, `{{faker.*}}` and a request's own `init` defaults. Between steps, use `ctx`.
+- `.with({ vars: { name: ... } })` is checked only for names the request lists in `init`; any other name is accepted. Prefer `data`, `path` or `query`.
+- Every name lives in one scope, and a later layer beats an earlier one: config `vars`, `init`, flow inputs, captures, `.with({ vars })`, `--var`. A capture named like an `init` key replaces it. That is how a bare `{{name}}` finds an earlier step's value, and why renaming one end breaks it without a sound.
+- Prove the chain with a `.check` step, so a stale value fails instead of passing: capture what the later response says, then compare it with what the earlier step captured: `.check('Same order', (ctx, { assert }) => assert.is(ctx.captured.readBackId, ctx.captured.orderId, 'the order read back is the one placed'))`. `.with({ assert })` replaces the request's own asserts for that step, so use it only when you mean to.
+- Finish with `npx tsc --noEmit`. `specbook check` reads requests, never flows, so the compiler is the only check a flow's wiring gets. Fix the cause of a type error (a wrong name, or a missing check on `res.status`) rather than silencing it with `any` or `as`.
 
 ### Recipe: list, check, pick, act
 
@@ -116,20 +180,20 @@ For "fetch the products, assert there is at least one, pick one, add it to the c
 1. `requests/shop/list-products.req.ts`: the list operation, `assert` that `res.data.length > 0`, and capture the list:
    `capture: { products: (res) => (res.status === 200 ? res.data : []) }`.
 2. `requests/shop/add-to-cart.req.ts`: the add operation with `init: { productId: 1, quantity: 1 }` and
-   `data: { productId: '{{productId}}', quantity: '{{quantity}}' }`.
+   `data: { productId: '{{productId}}', quantity: '{{quantity}}' }`, so it also runs alone.
 3. `sequences/add-to-cart.seq.ts`: `inputs: { quantity: c.number({ default: 1, min: 1 }) }`, then
    `.step('List products', listProducts)`, `.input('Choose a product', (ctx) => ({ productId: c.select(ctx.captured.products, { label: (p) => p.name, value: (p) => p.id, default: 0 }) }))`,
-   then `.step('Add to cart', addToCart)`.
-4. Run it: `npx specbook test --grep "Add to cart"`, and `--input quantity=3` to try another value.
+   then `.step('Add to cart', (ctx) => addToCart.with({ data: { productId: ctx.inputs.productId, quantity: ctx.inputs.quantity } }))`.
+4. Run `npx tsc --noEmit`, then `npx specbook test --grep "Add to cart"`, and `--input quantity=3` to try another value.
 
 Capture is declared on the request that makes the response, and the flow reads it as `ctx.captured.<name>`. Pick the way to choose:
-- To take the first item with nobody asked, capture it in the list request (`capture: { productId: (res) => (res.status === 200 ? res.data[0]?.id : undefined) }`)
-  and leave out `.input()`. The next request's `{{productId}}` is filled in.
+- To take the first item with nobody asked, capture it in the list request (`capture: { productId: (res) => (res.status === 200 ? res.data[0]?.id : undefined) }`),
+  leave out `.input()`, and pass `ctx.captured.productId` to the next step in `.with({ data })`.
 - To let a person choose in the portal, use `.input()` with `c.select`, as above. Automation is not asked and takes the default, the first item.
 
 ## Mocks
 
-The `mock` environment (the default for `specbook test` and the UI) answers from the spec's examples with the request's values filled in, and needs no server. A status the spec gives several answers for (a `oneOf`, or named examples) keeps all of them in its example file; `res.respond(status, data, 'VariantName')` picks one. When a check needs data the example lacks, wrap the request in `withMock` from `@specbook/core`; the file's one export stays the default:
+The `mock` environment (the default for `specbook test` and the UI) answers from the spec's examples with the request's values filled in, and needs no server and no secret values. A status the spec gives several answers for (a `oneOf`, or named examples) keeps all of them in its example file; `res.respond(status, data, 'VariantName')` picks one. When a check needs data the example lacks, wrap the request in `withMock` from `@specbook/core`; the file's one export stays the default:
 
 ```ts
 export default withMock(GetOrderById.request({ /* ... */ }), (req, res) => {
@@ -139,7 +203,9 @@ export default withMock(GetOrderById.request({ /* ... */ }), (req, res) => {
 
 ## Run it
 
+- Before you finish: `npx tsc --noEmit`, `npx specbook check`, `npx specbook test`. A green test run does not prove a flow is wired to the right names; the compiler does.
 - `npx specbook test` runs everything against mock data. `--env staging` runs against a real environment. `--tag monitor`, `--grep <re>`, `--list`, `--input name=value`, `--retries 1` (a pass on retry is reported as flaky), `--timeout <ms>`.
+- It runs every request on its own as well as each flow, with the request's `init` defaults. A request that only makes sense after an earlier step passes on the mock with stand-in defaults but fails alone on a real environment, so tag the flow and the requests that work alone, and select them with `--tag`.
 - Against production always pass `--safe`: a request that is not a GET, HEAD or OPTIONS is refused.
 - Exit codes: 0 passed, 1 a flow failed or errored, 2 it could not run (missing secrets, a missing spec), 3 usage.
 - `npx specbook dev` opens the UI; `npx specbook build --minimal` publishes a small portal of only the project's requests and flows for QA; `npx specbook bundle` writes one `.mjs` that runs with just node, for CI and ops.

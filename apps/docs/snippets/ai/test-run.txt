@@ -1,0 +1,13 @@
+specbook test 0.8.1  env mock  ·  1/5 tests
+
+  ✓ Link a bank account in the Plaid sandbox › Create a sandbox public token  POST /sandbox/public_token/create  200  2ms
+  ✓ Link a bank account in the Plaid sandbox › Exchange it for an access token  POST /item/public_token/exchange  200  0ms
+  ✓ Link a bank account in the Plaid sandbox › Read the accounts  POST /accounts/get  200  0ms
+  ✓ Link a bank account in the Plaid sandbox › The accounts belong to the linked item
+  ✓ Link a bank account in the Plaid sandbox › Read the transactions  POST /transactions/get  200  0ms
+  ✓ Link a bank account in the Plaid sandbox › The transactions are on the linked accounts
+
+ Flows       1 passed (1)
+ Steps       6 passed
+ Assertions  15 passed
+ Duration    9ms

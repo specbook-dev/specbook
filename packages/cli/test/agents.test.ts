@@ -75,6 +75,9 @@ describe('specbook init and the agent files', () => {
     const agents = await read(d, 'AGENTS.md')
     expect(agents).toContain('.specbook/agent-guide.md')
     expect(agents).toContain('isomorphic')
+    expect(agents).toContain('auth profile')
+    expect(agents).toContain('ctx.captured')
+    expect(agents).toContain('tsc --noEmit')
     expect(said).toContain('created AGENTS.md')
     // one file is enough: Claude Code reads AGENTS.md when there is no CLAUDE.md
     expect(existsSync(join(d, 'CLAUDE.md'))).toBe(false)
@@ -167,14 +170,18 @@ describe('the guide', () => {
     expect(pkg.files).toContain('agent-guide.md')
     const guide = await readGuide()
     for (const must of [
+      '## Auth and secrets',
       '## Add a request',
       '## Asserts',
       '## Capture',
       '## Build a flow',
+      '### Chain steps with types, not strings',
       '## Write isomorphic code',
       'Buffer',
       'process.env',
       '--external',
+      'tsc --noEmit',
+      'ctx.captured',
     ])
       expect(guide, must).toContain(must)
   })

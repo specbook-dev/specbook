@@ -401,7 +401,27 @@ h2.title {
   font-weight: 600;
   font-size: 14px;
 }
-/* wide enough: all four on one row, two by two below that, and one column on a phone */
+/* the AI tile takes a row of its own under the four: it is what you do once they exist */
+.tile-ai {
+  grid-column: 1 / -1;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+@media (min-width: 821px) {
+  .tile-ai {
+    flex-direction: row;
+    align-items: center;
+    gap: 22px;
+  }
+  .tile-ai p {
+    flex: 1;
+  }
+  .tile-ai .go {
+    margin-top: 0;
+    padding-top: 0;
+    white-space: nowrap;
+  }
+}
+/* wide enough: four on one row, two by two below that, and one column on a phone */
 @media (min-width: 1100px) {
   .tiles {
     grid-template-columns: repeat(4, 1fr);
@@ -582,7 +602,7 @@ ol.steps li::before {
   }
 }
 
-/* ---- a phone: the logo and the icons on one row, the five links on a row of their own, so none is cut off */
+/* ---- a phone: the logo and the icons on one row, the six links on a row of their own, so none is cut off */
 @media (max-width: 640px) {
   /* the header is two rows tall here: a link to #try must not land behind it */
   html:root {
@@ -605,10 +625,11 @@ ol.steps li::before {
     order: 3;
     flex: 1 0 100%;
     margin: 0 -8px;
+    gap: 0;
   }
   .nav a {
-    padding: 8px;
-    font-size: 14px;
+    padding: 10px 6px;
+    font-size: 13px;
   }
 }
 /* narrower than the links need: the row scrolls, and the fade at its right edge says so */

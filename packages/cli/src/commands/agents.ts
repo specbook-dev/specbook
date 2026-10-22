@@ -20,9 +20,10 @@ export function agentBlock(eol = '\n'): string {
     'the docs, as tests and as monitors. Before adding or changing one, read `.specbook/agent-guide.md`. In short:',
     '',
     '- Import operations from `#api/<service>`. Never edit `.generated/`.',
-    '- Label every `assert`, and use `capture` to pass values between steps.',
+    '- Credentials go where the spec puts them (usually headers), through an auth profile in `.specbook/specbook.config.ts`. Never in a request body or a file.',
+    '- Label every `assert`. Pass values between steps with `capture`, and read them in the flow as `ctx.captured.<name>` inside a `(ctx) =>` step, so a renamed capture is a compile error and not a silent default.',
     '- Write isomorphic code: requests and flows also run in the browser, so no Node built-ins, `Buffer` or `process.env`.',
-    '- Run `npx specbook check` and `npx specbook test` before you finish.',
+    '- Run `npx tsc --noEmit`, `npx specbook check` and `npx specbook test` before you finish.',
     END,
   ].join(eol)
 }

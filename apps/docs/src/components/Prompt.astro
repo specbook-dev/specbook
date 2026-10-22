@@ -1,0 +1,138 @@
+---
+// A prompt as someone types it. The letters appear one after another in CSS alone, and the text wraps like any paragraph, so
+// it reads the same on a phone. Screen readers get the whole text at once, and so does anyone who asks for reduced motion.
+interface Props {
+  /** what the person types */
+  text: string
+}
+
+const { text } = Astro.props
+const chars = Array.from(text)
+---
+
+<figure class="prompt">
+  <div class="prompt-bar" aria-hidden="true">
+    <span class="dots"><i></i><i></i><i></i></span>
+    <span>Your coding agent</span>
+  </div>
+  <p class="prompt-body">
+    <span class="sr-only">{text}</span>
+    <span class="typed" aria-hidden="true">
+      <span class="chev">›</span>{' '}{chars.map((ch, i) => <span class="pc" style={`--i:${i}`}>{ch}</span>)}<span
+        class="pcaret"
+        style={`--n:${chars.length}`}></span>
+    </span>
+  </p>
+</figure>
+
+<script>
+  // a prompt that starts below the screen waits to type until it is seen
+  const boxes = [...document.querySelectorAll<HTMLElement>('.prompt')]
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+    const seen = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries)
+          if (e.isIntersecting) {
+            e.target.classList.remove('wait')
+            seen.unobserve(e.target)
+          }
+      },
+      { threshold: 0.8 },
+    )
+    for (const box of boxes) {
+      if (box.getBoundingClientRect().top > innerHeight) box.classList.add('wait')
+      seen.observe(box)
+    }
+  }
+</script>
+
+<style>
+  .prompt {
+    --step: 50ms;
+    --fade: 140ms;
+    margin: 22px 0;
+    max-width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    background: #0b0b10;
+    color: #d8dae3;
+  }
+  .prompt-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #23232e;
+    font: 12px / 1 var(--mono);
+    color: #9a9db0;
+  }
+  .dots {
+    display: flex;
+    gap: 6px;
+  }
+  .dots i {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #2c2c3a;
+  }
+  .prompt-body {
+    margin: 0;
+    padding: 16px 16px 18px;
+    font: 15px / 1.65 var(--mono);
+    overflow-wrap: anywhere;
+  }
+  .chev {
+    color: var(--accent-strong);
+    font-weight: 700;
+  }
+  .pc {
+    opacity: 0;
+    animation: pc-in var(--fade) linear forwards;
+    animation-delay: calc(350ms + var(--i) * var(--step));
+  }
+  @keyframes pc-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  /* once the last letter is in, a caret stays and blinks */
+  .pcaret {
+    display: inline-block;
+    width: 2px;
+    height: 1.15em;
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    background: var(--accent-strong);
+    opacity: 0;
+    animation: pc-blink 1.06s steps(1) infinite;
+    animation-delay: calc(350ms + var(--n) * var(--step));
+  }
+  @keyframes pc-blink {
+    0%,
+    50% {
+      opacity: 1;
+    }
+    50.01%,
+    100% {
+      opacity: 0;
+    }
+  }
+  .prompt.wait .pc,
+  .prompt.wait .pcaret {
+    animation: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pc {
+      opacity: 1;
+      animation: none;
+    }
+    .pcaret {
+      display: none;
+    }
+  }
+</style>

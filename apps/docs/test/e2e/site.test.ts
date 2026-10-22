@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
  */
 
 const dist = resolve(import.meta.dirname, '../../dist')
-const PAGES = ['/', '/develop/', '/document/', '/test/', '/monitor/', '/reference/embed/']
+const PAGES = ['/', '/develop/', '/document/', '/test/', '/monitor/', '/ai/', '/reference/embed/']
 const types: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript',
@@ -157,7 +157,15 @@ describe('the built site', () => {
 
   it('every page can be shared: a title, a description and a card image of the right size, on every kind of page', async () => {
     const context = await browser.newContext()
-    for (const path of ['/', '/develop/', '/document/', '/test/', '/monitor/', '/reference/cli/']) {
+    for (const path of [
+      '/',
+      '/develop/',
+      '/document/',
+      '/test/',
+      '/monitor/',
+      '/ai/',
+      '/reference/cli/',
+    ]) {
       const page = await context.newPage()
       await page.goto(origin + path)
       const tag = (name: string) =>
@@ -181,8 +189,8 @@ describe('the built site', () => {
     await context.close()
   })
 
-  it('on a phone every link in the header is reachable: the five links have a row of their own', async () => {
-    for (const width of [320, 360, 390, 430]) {
+  it('on a phone every link in the header is reachable: the six links have a row of their own', async () => {
+    for (const width of [320, 360, 375, 390, 430]) {
       const context = await browser.newContext({ viewport: { width, height: 700 } })
       const page = await context.newPage()
       await page.goto(`${origin}/`)
@@ -205,10 +213,13 @@ describe('the built site', () => {
       expect(m.navTop, `${width}: the links are on a row below the logo`).toBeGreaterThanOrEqual(
         m.brandBottom - 1,
       )
-      expect(m.count).toBe(5)
-      // wide enough for all five: none is cut off. Narrower: the row scrolls, and the first links show
-      if (width >= 375) expect(m.overshoot, `${width}: all five fit`).toBeLessThanOrEqual(0)
-      else expect(m.scrolls, `${width}: the row scrolls`).toBe(true)
+      expect(m.count).toBe(6)
+      // from 375 up all six fit. Narrower, a link is never lost: either all six still fit, or the row scrolls
+      if (width >= 375) expect(m.overshoot, `${width}: all six fit`).toBeLessThanOrEqual(0)
+      else
+        expect(m.overshoot <= 0 || m.scrolls, `${width}: all six fit, or the row scrolls`).toBe(
+          true,
+        )
       expect(m.header, `${width}: the header stays slim`).toBeLessThan(110)
       await context.close()
     }

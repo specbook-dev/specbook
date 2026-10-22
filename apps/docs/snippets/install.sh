@@ -1,8 +1,14 @@
 # #region install
-npm install --save-dev @specbook/cli @specbook/core @faker-js/faker
-specbook init
+npm install --save-dev @specbook/cli @specbook/core
+specbook init     # config, a tsconfig and an agent guide; adds typescript and faker to package.json
+npm install       # fetches what init added
 specbook add petstore --spec https://petstore3.swagger.io/api/v3/openapi.json
 # #endregion install
+
+# #region agents
+npx specbook init             # writes .specbook/agent-guide.md, and an AGENTS.md if you have none
+npx specbook init --agents    # adds the Specbook section to an AGENTS.md or CLAUDE.md you already have
+# #endregion agents
 
 # #region develop
 npx specbook dev                      # try requests and flows in a play panel

@@ -167,14 +167,15 @@ The variables are in [`tokens.css`](packages/ui/src/styles/tokens.css): surfaces
 The command line turns a project's specs into types, examples, a docs site and runnable requests. Needs Node 24.
 
 ```sh
-npm install --save-dev @specbook/cli @specbook/core @faker-js/faker
+npm install --save-dev @specbook/cli @specbook/core
 ```
 
 Run the install above first: `npx specbook` runs the copy in your `node_modules`. With nothing installed, use
 the scoped name, for example `npx @specbook/cli preview <url|file>`.
 
 ```sh
-npx specbook init                # scaffold config, the #api/* import, an environments folder and an agent guide
+npx specbook init                # scaffold config, the #api/* import, an environments folder, an agent guide, and typescript with a tsconfig
+npm install                      # fetch the typescript and faker that init added to package.json
 npx specbook add petstore --spec ./openapi/petstore.json   # or a URL: it is downloaded and recorded
 npx specbook generate            # types and mock examples from the specs; dev, build and test do it when needed
 npx specbook dev                 # the UI: docs, a play panel and a credential proxy
@@ -183,6 +184,7 @@ npx specbook test --env mock     # run requests and flows
 npx specbook build --minimal     # a portal with just your requests and flows, for QA
 npx specbook bundle              # the tests as one .mjs that runs with just node, for ops and CI
 npx specbook check               # validate specs, generated code drift, environment files and addresses
+npx tsc --noEmit                 # type-check requests and flows: the only check on how a flow's steps are wired
 npx specbook preview <url|file>  # open any document in the UI, with no project
 ```
 
@@ -191,11 +193,17 @@ own host (open it with `?spec=<url>`).
 
 ### For AI coding agents
 
-`specbook init` writes `.specbook/agent-guide.md`: how to add requests and flows, use `capture` and `assert`, and why requests and
-flows must be isomorphic (they run in node, in a single-file bundle and in the browser). If the project has no `AGENTS.md` or
-`CLAUDE.md`, it also creates an `AGENTS.md` that points to the guide. An existing instruction file is never changed unless you run
-`specbook init --agents`, which adds a marked section that a later run refreshes in place; `--no-agents` skips all of it. The same
-guide is served at [docs.specbook.dev/llms.txt](https://docs.specbook.dev/llms.txt).
+`specbook init` writes `.specbook/agent-guide.md`: how to add requests and flows, put credentials in an auth profile (never the
+request body), use `capture` and `assert`, pass values between steps as typed `ctx.captured.<name>` so a renamed capture is a compile
+error, and why requests and flows must be isomorphic (they run in node, in a single-file bundle and in the browser). If the project
+has no `AGENTS.md` or `CLAUDE.md`, it also creates an `AGENTS.md` that points to the guide. An existing instruction file is never
+changed unless you run `specbook init --agents`, which adds a marked section that a later run refreshes in place; `--no-agents`
+skips all of it. The same guide is served at [docs.specbook.dev/llms.txt](https://docs.specbook.dev/llms.txt).
+
+`init` also adds `typescript` (if the project has none) and writes a `tsconfig.json` that covers requests, flows and the config, so
+an agent can finish with `npx tsc --noEmit`. A `tsconfig.json` that exists is never changed; `init` says what its `include` needs.
+
+[docs.specbook.dev/ai](https://docs.specbook.dev/ai/) shows the prompts and the files an agent produced from Plaid's spec.
 
 ### Test, and monitor
 

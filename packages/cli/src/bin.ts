@@ -18,7 +18,7 @@ import { TEST_FLAGS, TEST_HELP, testOptions, UsageError } from './test-args'
 
 const HELP = `specbook <command>
 
-  init                         scaffold config, #api/* import, the environments folder and an agent guide
+  init                         scaffold config, #api/* import, the environments folder, an agent guide, typescript and a tsconfig
       --agents                 add a Specbook section to an existing AGENTS.md or CLAUDE.md (never edited otherwise)
       --no-agents              skip the agent guide and AGENTS.md
   add <service> --spec <p|url> register an OpenAPI spec in the config and generate it; an address is downloaded to
