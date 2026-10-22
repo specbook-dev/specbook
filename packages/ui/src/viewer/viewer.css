@@ -65,7 +65,8 @@
 }
 .vw textarea {
   width: 100%;
-  min-height: 120px;
+  min-height: 96px;
+  resize: vertical;
   font-family: var(--sb-font-mono);
   font-size: 13px;
 }
@@ -81,11 +82,13 @@
   background: var(--sb-bg);
   color: var(--sb-text);
 }
-.vw details summary {
-  cursor: pointer;
-  color: var(--sb-text-muted);
+/* always there, so the page does not jump when it is wanted */
+.vw .vw-paste {
+  display: grid;
+  gap: 8px;
 }
-.vw details[open] summary {
+.vw .vw-paste-title {
+  font-weight: 600;
   color: var(--sb-text);
 }
 .vw .vw-error {

@@ -351,7 +351,7 @@ describe('the hosted viewer opens a spec at run time', () => {
     // site, and so is the advice to use them
     expect(await frame.locator('.vw-error').innerText()).not.toMatch(/Paste the document/)
     expect(await frame.getByLabel('Address of an OpenAPI or Swagger document').count()).toBe(0)
-    expect(await frame.locator('details, .vw-drop, ul').count()).toBe(0)
+    expect(await frame.locator('.vw-paste, .vw-drop, ul').count()).toBe(0)
     expect(await frame.getByText('Try one').count()).toBe(0)
     // the frame did not become the home page, and the host page was not taken anywhere
     const inner = page.frames().find((f) => f !== page.mainFrame())
@@ -374,6 +374,9 @@ describe('the hosted viewer opens a spec at run time', () => {
   it('shows the picker as the hosted site’s own page, with its mark and a way to the home page', async () => {
     const { page } = await open('')
     await page.waitForSelector('.vw-brand img', { timeout: 20_000 })
+    // pasting is there from the start, not behind something to open (the page does not jump when it is wanted)
+    expect(await page.getByText('Or paste the document').isVisible()).toBe(true)
+    expect(await page.getByLabel('OpenAPI or Swagger document text').isVisible()).toBe(true)
     expect(await page.locator('.vw h1').innerText()).toBe('Specbook')
     const home = page.getByRole('link', { name: 'What is Specbook?' })
     expect(await home.getAttribute('href')).toBe('/')
@@ -385,7 +388,6 @@ describe('the hosted viewer opens a spec at run time', () => {
   it('reopens an uploaded document after a reload', async () => {
     const { page } = await open('')
     const text = await readFile(join(fixtures, 'petstore3.json'), 'utf8')
-    await page.locator('details summary').click()
     await page.getByLabel('OpenAPI or Swagger document text').fill(text)
     await page.getByRole('button', { name: 'Open pasted document' }).click()
     await page.getByRole('button', { name: 'Continue with mock data' }).click()
@@ -957,7 +959,6 @@ describe('sharing a view', () => {
 
   it('explains why a pasted document has no link', async () => {
     const { page } = await open('')
-    await page.locator('details summary').click()
     await page
       .getByLabel('OpenAPI or Swagger document text')
       .fill(await readFile(join(fixtures, 'petstore3.json'), 'utf8'))
@@ -1583,7 +1584,6 @@ describe('the viewer says where its responses come from', () => {
 
   it('says so when the document gives no address for live calls', async () => {
     const { page } = await open('')
-    await page.locator('details summary').click()
     await page.getByLabel('OpenAPI or Swagger document text').fill(
       JSON.stringify({
         openapi: '3.0.0',

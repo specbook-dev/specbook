@@ -247,25 +247,25 @@ function Picker({ initial }: { initial: Phase }) {
           </label>
         </section>
 
-        <details>
-          <summary>Paste the document</summary>
-          <p />
+        <section class="vw-paste">
+          <p class="vw-paste-title">Or paste the document</p>
           <textarea
             aria-label="OpenAPI or Swagger document text"
             placeholder="{ &quot;openapi&quot;: &quot;3.0.0&quot;, … }"
             value={text}
             onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
           />
-          <p />
-          <button
-            type="button"
-            class="btn primary"
-            disabled={busy || text.trim() === ''}
-            onClick={() => void openText('pasted document', text)}
-          >
-            Open pasted document
-          </button>
-        </details>
+          <div>
+            <button
+              type="button"
+              class="btn primary"
+              disabled={busy || text.trim() === ''}
+              onClick={() => void openText('pasted document', text)}
+            >
+              Open pasted document
+            </button>
+          </div>
+        </section>
 
         <section>
           <p>Try one</p>
