@@ -625,10 +625,11 @@ ol.steps li::before {
     order: 3;
     flex: 1 0 100%;
     margin: 0 -8px;
+    gap: 0;
   }
   .nav a {
     padding: 10px 6px;
-    font-size: 14px;
+    font-size: 13px;
   }
 }
 /* narrower than the links need: the row scrolls, and the fade at its right edge says so */
