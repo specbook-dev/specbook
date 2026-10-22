@@ -74,7 +74,7 @@ Using FastAPI? `pip install specbook-fastapi` serves the viewer from your app wi
 | It is your API | Embed the viewer in your docs route (above). It runs on your origin: no CORS, cookies sent. |
 | Your policy will not load a third-party script | Self-host the viewer (below). |
 | You want the hosted viewer inside your page | An iframe of ui.specbook.dev works, but it is cross-origin, so the API still has to allow it. An iframe of your self-hosted copy is same-origin. |
-| It is someone else's API | It works when that API allows browser calls. For the rest, load the [browser extension](#browser-extension) (Chrome, Edge, Brave). |
+| It is someone else's API | It works when that API allows browser calls. For the rest, install the [browser extension](#browser-extension) (Chrome, Edge, Brave). |
 
 ## Browser extension
 
@@ -82,9 +82,9 @@ For an API that does not allow browser calls (no CORS headers), the optional Spe
 for the viewer instead. It is never needed for your own API, a same-origin embed or an API that already allows
 the page.
 
-Install it (Chrome, Edge, Brave): download `specbook-extension-chromium-<version>.zip` from the
-[latest release](https://github.com/specbook-dev/specbook/releases), unzip it, open `chrome://extensions`, turn
-on Developer mode and choose **Load unpacked**. The viewer at `ui.specbook.dev`, `demo.specbook.dev` and `docs.specbook.dev` is
+Install it from the [Chrome Web Store](https://chromewebstore.google.com/detail/specbook/dkkfffjkliimgpadidgabpkmocdefjha) (Chrome, Edge, Brave), or load a release by hand: download
+`specbook-extension-chromium-<version>.zip` from the [latest release](https://github.com/specbook-dev/specbook/releases),
+unzip it, open `chrome://extensions`, turn on Developer mode and choose **Load unpacked**. The viewer at `ui.specbook.dev`, `demo.specbook.dev` and `docs.specbook.dev` is
 recognised automatically; on any other page (a viewer you host or embed) open the extension and choose
 **Enable**.
 
@@ -376,7 +376,7 @@ pnpm exec specbook dev
 | `packages/cli` | the `specbook` command |
 | `packages/vite` | the Vite plugin and the dev server's proxy |
 | `packages/ui` | the app, the viewer, the landing page and the site assembly |
-| `packages/extension` | the browser extension (not published to npm; shipped with releases) |
+| `packages/extension` | the browser extension (not published to npm; on the Chrome Web Store and attached to each release) |
 | `apps/example` | a project to try it on, and the fixtures for the tests |
 | `apps/docs` | the docs site, [docs.specbook.dev](https://docs.specbook.dev) (Astro and Starlight) |
 | `apps/docs/demo` | the docs site's demo project, and its API: a Hono app that runs as a service worker |

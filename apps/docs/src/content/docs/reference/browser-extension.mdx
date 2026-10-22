@@ -15,7 +15,9 @@ When a call is blocked and the extension is not there, the failed response says 
 
 ## Install
 
-It is built for Chromium browsers on a computer: Chrome, Edge and Brave. Until it is in a store, download [specbook-extension-chromium-0.8.0.zip](https://github.com/specbook-dev/specbook/releases/download/v0.8.0/specbook-extension-chromium-0.8.0.zip) (every release has one on the [releases page](https://github.com/specbook-dev/specbook/releases)), unzip it, open `chrome://extensions`, turn on **Developer mode** and choose **Load unpacked**.
+It is built for Chromium browsers on a computer: Chrome, Edge and Brave. Install it from the [Chrome Web Store](https://chromewebstore.google.com/detail/specbook/dkkfffjkliimgpadidgabpkmocdefjha) (Brave installs from the same listing, and Edge can install from the Chrome Web Store once you allow extensions from other stores). Chrome keeps a store install up to date.
+
+To load a particular version instead, download `specbook-extension-chromium-<version>.zip` from the [releases page](https://github.com/specbook-dev/specbook/releases) (every release has one), unzip it, open `chrome://extensions`, turn on **Developer mode** and choose **Load unpacked**. A copy loaded this way stays at the version you loaded.
 
 Installing asks for nothing: the extension has no access to any site until you grant it.
 
@@ -48,6 +50,6 @@ The extension keeps the last 200 calls it made for pages (the site, the API, the
 
 ## When it is out of date
 
-The page and the extension agree on a protocol version. If the extension is older than the page needs, the page says so and does not send it calls.
+The page and the extension agree on a protocol version. If the extension is older than the page needs, the page says so and does not send it calls. A store install updates itself; for a copy you loaded from a zip, load a newer one.
 
 See also [Environments and secrets](/reference/environments-and-secrets/) and the [privacy policy](/reference/browser-extension-privacy/).

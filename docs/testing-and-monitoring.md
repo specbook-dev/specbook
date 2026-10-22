@@ -234,7 +234,7 @@ Before you publish:
 
 - The addresses in your config and the values in `.specbook/environments/<env>.env` are visible to anyone who can
   open the portal. Secrets are not, because they are never built in.
-- A browser can call a live API only if the API allows it (CORS). A browser extension for the rest is planned.
+- A browser can call a live API only if the API allows it (CORS). For the rest, the [browser extension](https://docs.specbook.dev/reference/browser-extension/) makes the call, with your permission for each API.
 - A flow that spans services works: each step goes to its own service's address and uses its own credentials.
 
 ## CI
