@@ -68,11 +68,27 @@ const UNREADABLE = {
   cors: 'The browser could not read that address. The server may not allow other sites to fetch it (CORS), or the address is not reachable from here. Paste the document or choose the file; it works the same.',
 }
 
+const showPaste = $('show-paste')
+
+/** The paste and file block is closed until it is wanted, so the page above the fold stays the hero. */
+function setPasteOpen(open) {
+  fallback.hidden = !open
+  showPaste.setAttribute('aria-expanded', String(open))
+}
+
 function showFallback(reason) {
   why.textContent = reason
-  fallback.hidden = false
+  setPasteOpen(true)
   paste.focus()
 }
+
+// opened by hand there is nothing to explain; opened by a failed address, `showFallback` says why
+showPaste.addEventListener('click', () => {
+  if (!fallback.hidden) return setPasteOpen(false)
+  why.textContent = ''
+  setPasteOpen(true)
+  paste.focus()
+})
 
 /**
  * A GitHub file page, or its "Raw" link, becomes the address of the document itself. Same rule as
@@ -91,7 +107,7 @@ function rawGithub(address) {
 
 async function openUrl(raw) {
   const spec = rawGithub(raw.trim())
-  fallback.hidden = true
+  setPasteOpen(false)
   if (!/^https?:\/\//i.test(spec))
     return say('Enter an address starting with http:// or https://', true)
   if (looksPrivate(spec)) {

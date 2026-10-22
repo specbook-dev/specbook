@@ -908,6 +908,67 @@ describe('the landing page at the root', () => {
     await page.close()
   })
 
+  it('keeps pasting a document one click away, closed until wanted, so the hero stays above the fold', async () => {
+    const { page } = await land()
+    const control = page.getByRole('button', { name: 'paste / choose a file' })
+    expect(await control.getAttribute('aria-expanded')).toBe('false')
+    expect(await page.locator('#fallback').isHidden()).toBe(true)
+    await control.click()
+    expect(await control.getAttribute('aria-expanded')).toBe('true')
+    expect(await page.locator('#fallback').isVisible()).toBe(true)
+    // it opens below the line that opened it, not above it
+    const [row, block] = await Promise.all(
+      ['.try', '#fallback'].map((sel) =>
+        page.locator(sel).evaluate((e) => e.getBoundingClientRect().top),
+      ),
+    )
+    expect(block as number).toBeGreaterThan(row as number)
+    // opened by hand there is nothing to explain, and the box is ready to type or paste into
+    expect(await page.locator('#why').isVisible()).toBe(false)
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('paste')
+    // and it shows that, in the page's accent, not the browser's own blue
+    const ring = await page.evaluate(() => {
+      const box = getComputedStyle(document.getElementById('paste') as HTMLElement)
+      const accent = getComputedStyle(document.querySelector('button.link') as HTMLElement).color
+      return { style: box.outlineStyle, width: box.outlineWidth, same: box.outlineColor === accent }
+    })
+    expect(ring).toEqual({ style: 'solid', width: '2px', same: true })
+    // a tap does not flash the browser's own blue box over the links and buttons
+    const flash = await page.evaluate(() =>
+      ['show-paste', 'open-paste'].map((id) =>
+        getComputedStyle(document.getElementById(id) as HTMLElement).getPropertyValue(
+          '-webkit-tap-highlight-color',
+        ),
+      ),
+    )
+    expect(flash).toEqual(['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'])
+    await page
+      .getByLabel('OpenAPI or Swagger document text')
+      .fill(await readFile(join(fixtures, 'petstore3.json'), 'utf8'))
+    await page.getByRole('button', { name: 'Open pasted document' }).click()
+    await page.waitForURL(/\/v1\/\?upload=/)
+    await page.getByRole('button', { name: 'Continue with mock data' }).click()
+    await page.waitForSelector('.op-row', { timeout: 30_000 })
+    await page.close()
+  })
+
+  it('closes it again, and a failed address still opens it with the reason', async () => {
+    const { page } = await land()
+    const control = page.getByRole('button', { name: 'paste / choose a file' })
+    await control.click()
+    await control.click()
+    expect(await page.locator('#fallback').isHidden()).toBe(true)
+    expect(await control.getAttribute('aria-expanded')).toBe('false')
+    await page
+      .getByLabel('Address of an OpenAPI or Swagger document')
+      .fill('http://localhost:8080/openapi.json')
+    await page.getByRole('button', { name: 'Open', exact: true }).first().click()
+    await page.waitForSelector('#fallback:not([hidden])')
+    expect(await control.getAttribute('aria-expanded')).toBe('true')
+    expect(await page.locator('#why').innerText()).toMatch(/your own machine or network/)
+    await page.close()
+  })
+
   it('fetches the viewer in the background, so it is ready when Open is pressed', async () => {
     const page = await browser.newPage()
     const asked: string[] = []
@@ -1443,11 +1504,17 @@ describe('the example links on the landing page', () => {
       await page.addStyleTag({
         content: 'body { font-family: "DejaVu Sans", Verdana, sans-serif !important; }',
       })
+      // the examples: the control to paste or choose a file shares the row and may wrap to its own line
       const tops = await page
-        .locator('.try .link')
+        .locator('.try [data-spec]')
         .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)))
       expect(tops).toHaveLength(5)
       expect(new Set(tops).size).toBe(1)
+      const row = await page.evaluate(() => {
+        const t = document.querySelector('.try') as HTMLElement
+        return [t.scrollWidth, t.clientWidth]
+      })
+      expect(row[0]).toBeLessThanOrEqual(row[1] as number)
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
         width,
       )
