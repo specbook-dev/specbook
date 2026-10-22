@@ -36,12 +36,12 @@ text{font:16px ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono","Dej
 <circle cx="24" cy="20" r="5.5" fill="#ff5f57"/><circle cx="42" cy="20" r="5.5" fill="#febc2e"/><circle cx="60" cy="20" r="5.5" fill="#28c840"/>
 <g class="pass">
 <text class="r" x="24" y="64" style="animation:k0 18s linear infinite" xml:space="preserve"><tspan>$ specbook test --env demo</tspan></text>
-<text class="r" x="24" y="88" style="animation:k1 18s linear infinite" xml:space="preserve"><tspan class="b">specbook test 0.9.0</tspan><tspan>  </tspan><tspan class="d">env demo  ·  9 tests  ·  main@3f9c2ab</tspan></text>
-<text class="r" x="24" y="136" style="animation:k2 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Get a country  </tspan><tspan class="d">POST /  200  11ms</tspan></text>
+<text class="r" x="24" y="88" style="animation:k1 18s linear infinite" xml:space="preserve"><tspan class="b">specbook test 0.9.1</tspan><tspan>  </tspan><tspan class="d">env demo  ·  9 tests  ·  main@3f9c2ab</tspan></text>
+<text class="r" x="24" y="136" style="animation:k2 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Get a country  </tspan><tspan class="d">POST /  200  10ms</tspan></text>
 <text class="r" x="24" y="160" style="animation:k3 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Add a pet  </tspan><tspan class="d">POST /pet  200  1ms</tspan></text>
 <text class="r" x="24" y="184" style="animation:k4 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Find pets by status  </tspan><tspan class="d">GET /pet/findByStatus  200  1ms</tspan></text>
 <text class="r" x="24" y="208" style="animation:k5 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Get an order  </tspan><tspan class="d">GET /store/order/5001  200  1ms</tspan></text>
-<text class="r" x="24" y="232" style="animation:k6 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Place an order  </tspan><tspan class="d">POST /store/order  200  0ms</tspan></text>
+<text class="r" x="24" y="232" style="animation:k6 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Place an order  </tspan><tspan class="d">POST /store/order  200  1ms</tspan></text>
 <text class="r" x="24" y="256" style="animation:k7 18s linear infinite" xml:space="preserve"><tspan class="d">  …</tspan></text>
 <text class="r" x="24" y="304" style="animation:k8 18s linear infinite" xml:space="preserve"><tspan class="b"> Flows      </tspan><tspan> </tspan><tspan class="green">9 passed</tspan><tspan> </tspan><tspan class="d">(9)</tspan></text>
 <text class="r" x="24" y="328" style="animation:k9 18s linear infinite" xml:space="preserve"><tspan class="b"> Assertions </tspan><tspan> </tspan><tspan class="green">27 passed</tspan></text>
@@ -51,7 +51,7 @@ text{font:16px ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono","Dej
 <text class="r" x="24" y="64" style="animation:k11 18s linear infinite" xml:space="preserve"><tspan>$ specbook test --env demo</tspan></text>
 <text class="r" x="24" y="88" style="animation:k12 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Find pets by status  </tspan><tspan class="d">GET /pet/findByStatus  200  1ms</tspan></text>
 <text class="r" x="24" y="112" style="animation:k13 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="red">✗</tspan><tspan> Get an order  </tspan><tspan class="d">GET /store/order/5001  200  0ms</tspan></text>
-<text class="r" x="24" y="136" style="animation:k14 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Place an order  </tspan><tspan class="d">POST /store/order  200  1ms</tspan></text>
+<text class="r" x="24" y="136" style="animation:k14 18s linear infinite" xml:space="preserve"><tspan>  </tspan><tspan class="green">✓</tspan><tspan> Place an order  </tspan><tspan class="d">POST /store/order  200  0ms</tspan></text>
 <text class="r" x="24" y="160" style="animation:k15 18s linear infinite" xml:space="preserve"><tspan class="d">  …</tspan></text>
 <text class="r" x="24" y="208" style="animation:k16 18s linear infinite" xml:space="preserve"><tspan>    </tspan><tspan class="red">✗</tspan><tspan> still placed</tspan></text>
 <text class="r" x="24" y="232" style="animation:k17 18s linear infinite" xml:space="preserve"><tspan>      </tspan><tspan class="green">- Expected</tspan><tspan>  </tspan><tspan class="red">+ Received</tspan></text>
