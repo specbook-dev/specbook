@@ -67,24 +67,6 @@
           <button id="go" type="submit">Open</button>
         </form>
         <p id="status" class="status" role="status" aria-live="polite"></p>
-
-        <div id="fallback" class="fallback" hidden>
-          <p id="why"></p>
-          <textarea
-            id="paste"
-            aria-label="OpenAPI or Swagger document text"
-            placeholder="Paste the JSON or YAML here"
-            spellcheck="false"
-          ></textarea>
-          <div class="row">
-            <button id="open-paste" type="button">Open pasted document</button>
-            <label class="file">
-              or choose a file
-              <input id="file" type="file" accept=".json,.yaml,.yml,application/json" hidden />
-            </label>
-          </div>
-        </div>
-
         <p class="try">
           <span class="try-label">Try one:</span>
           <button
@@ -126,7 +108,30 @@
           >
             GitHub
           </button>
+          <span class="try-more">
+            <span class="try-or">or</span>
+            <button id="show-paste" type="button" class="link" aria-expanded="false" aria-controls="fallback">
+              paste / choose a file
+            </button>
+          </span>
         </p>
+
+        <div id="fallback" class="fallback" hidden>
+          <p id="why"></p>
+          <textarea
+            id="paste"
+            aria-label="OpenAPI or Swagger document text"
+            placeholder="Paste the JSON or YAML here"
+            spellcheck="false"
+          ></textarea>
+          <div class="row">
+            <button id="open-paste" type="button">Open pasted document</button>
+            <label class="file">
+              or choose a file
+              <input id="file" type="file" accept=".json,.yaml,.yml,application/json" hidden />
+            </label>
+          </div>
+        </div>
       </section>
       <figure class="shot">
         <div class="shot-pair">

@@ -236,7 +236,7 @@ beforeAll(async () => {
   const port = new URL(await listen(api)).port
   apiUrl = `http://api.fixture.test:${port}`
   browser = await chromium.launch({
-    args: ['--host-resolver-rules=MAP api.fixture.test 127.0.0.1'],
+    args: ['--host-resolver-rules=MAP api.fixture.test 127.0.0.1, MAP site.fixture.test 127.0.0.1'],
   })
 })
 
@@ -312,13 +312,16 @@ describe('the hosted viewer opens a spec at run time', () => {
     await page.close()
   })
 
-  it('sends a link the browser may not read to the landing page, which explains and takes the pasted text', async () => {
+  it('keeps a link the browser may not read where it is: the error, the address to edit, and the paste box', async () => {
     const { page } = await open(spec('nocors/petstore3.json'))
-    await page.waitForURL(`${siteUrl}/?unreadable=cors`)
-    await page.waitForSelector('#fallback:not([hidden])')
-    expect(await page.locator('#why').innerText()).toMatch(/CORS/)
-    // the home page is measured: the document's address stays out of its own
-    expect(page.url()).not.toContain('fixture.test')
+    await page.waitForSelector('.vw-error')
+    expect(await page.locator('.vw-error').innerText()).toMatch(/CORS/)
+    expect(await page.locator('.vw-error').innerText()).toMatch(/Paste the document below/)
+    // no trip to another page: the address is still in the box, to be fixed, and the link is still the address bar's
+    expect(page.url()).toContain('/v1/?spec=')
+    expect(
+      await page.getByLabel('Address of an OpenAPI or Swagger document').inputValue(),
+    ).toContain('/nocors/petstore3.json')
     // the same document, pasted, opens
     const text = await readFile(join(fixtures, 'petstore3.json'), 'utf8')
     await page.getByLabel('OpenAPI or Swagger document text').fill(text)
@@ -330,14 +333,29 @@ describe('the hosted viewer opens a spec at run time', () => {
     await page.close()
   })
 
-  it('does the same for a link to the visitor’s own machine, and for a file address', async () => {
+  it('says why a hosted page cannot read a link to the visitor’s own machine, and a file address', async () => {
+    // served from a public-looking name, as the hosted site is
+    const hosted = `http://site.fixture.test:${new URL(siteUrl).port}`
     for (const address of ['http://localhost:9/openapi.json', 'file:///Users/me/openapi.json']) {
-      const { page } = await open(`spec=${encodeURIComponent(address)}`)
-      await page.waitForURL(`${siteUrl}/?unreadable=local`)
-      await page.waitForSelector('#fallback:not([hidden])')
-      expect(await page.locator('#why').innerText()).toMatch(/your own machine or network/)
+      const page = await browser.newPage()
+      await page.goto(`${hosted}/v1/?spec=${encodeURIComponent(address)}`)
+      await page.waitForSelector('.vw-error')
+      const said = await page.locator('.vw-error').innerText()
+      expect(said).toMatch(/your own machine or network, which a hosted page cannot reach/)
+      expect(said).toMatch(/Paste the document below/)
+      expect(page.url()).toContain('/v1/?spec=')
       await page.close()
     }
+  })
+
+  it('does not say that of a copy served from a private address, which reaches them as anyone', async () => {
+    // the fixture site is on 127.0.0.1
+    const { page } = await open(`spec=${encodeURIComponent('http://localhost:9/openapi.json')}`)
+    await page.waitForSelector('.vw-error')
+    const said = await page.locator('.vw-error').innerText()
+    expect(said).toMatch(/CORS/)
+    expect(said).not.toMatch(/hosted page cannot reach/)
+    await page.close()
   })
 
   it('shows only the error, in the frame, when a viewer embedded on another site cannot open its document', async () => {
@@ -351,7 +369,7 @@ describe('the hosted viewer opens a spec at run time', () => {
     // site, and so is the advice to use them
     expect(await frame.locator('.vw-error').innerText()).not.toMatch(/Paste the document/)
     expect(await frame.getByLabel('Address of an OpenAPI or Swagger document').count()).toBe(0)
-    expect(await frame.locator('details, .vw-drop, ul').count()).toBe(0)
+    expect(await frame.locator('.vw-paste, .vw-drop, ul').count()).toBe(0)
     expect(await frame.getByText('Try one').count()).toBe(0)
     // the frame did not become the home page, and the host page was not taken anywhere
     const inner = page.frames().find((f) => f !== page.mainFrame())
@@ -366,13 +384,28 @@ describe('the hosted viewer opens a spec at run time', () => {
     const frame = page.frameLocator('iframe[title="viewer"]')
     await frame.getByLabel('Address of an OpenAPI or Swagger document').waitFor({ timeout: 30_000 })
     expect(await frame.getByText('Try one').count()).toBe(1)
+    // a link to Specbook's own home page is for the page when it is the site's, not inside another site's frame
+    expect(await frame.getByText('What is Specbook?').count()).toBe(0)
+    await page.close()
+  })
+
+  it('shows the picker as the hosted site’s own page, with its mark and a way to the home page', async () => {
+    const { page } = await open('')
+    await page.waitForSelector('.vw-brand img', { timeout: 20_000 })
+    // pasting is there from the start, not behind something to open (the page does not jump when it is wanted)
+    expect(await page.getByText('Or paste the document').isVisible()).toBe(true)
+    expect(await page.getByLabel('OpenAPI or Swagger document text').isVisible()).toBe(true)
+    expect(await page.locator('.vw h1').innerText()).toBe('Specbook')
+    const home = page.getByRole('link', { name: 'What is Specbook?' })
+    expect(await home.getAttribute('href')).toBe('/')
+    // the examples are things to press, side by side
+    expect(await page.locator('.vw-chips .vw-chip').count()).toBeGreaterThanOrEqual(3)
     await page.close()
   })
 
   it('reopens an uploaded document after a reload', async () => {
     const { page } = await open('')
     const text = await readFile(join(fixtures, 'petstore3.json'), 'utf8')
-    await page.locator('details summary').click()
     await page.getByLabel('OpenAPI or Swagger document text').fill(text)
     await page.getByRole('button', { name: 'Open pasted document' }).click()
     await page.getByRole('button', { name: 'Continue with mock data' }).click()
@@ -875,6 +908,67 @@ describe('the landing page at the root', () => {
     await page.close()
   })
 
+  it('keeps pasting a document one click away, closed until wanted, so the hero stays above the fold', async () => {
+    const { page } = await land()
+    const control = page.getByRole('button', { name: 'paste / choose a file' })
+    expect(await control.getAttribute('aria-expanded')).toBe('false')
+    expect(await page.locator('#fallback').isHidden()).toBe(true)
+    await control.click()
+    expect(await control.getAttribute('aria-expanded')).toBe('true')
+    expect(await page.locator('#fallback').isVisible()).toBe(true)
+    // it opens below the line that opened it, not above it
+    const [row, block] = await Promise.all(
+      ['.try', '#fallback'].map((sel) =>
+        page.locator(sel).evaluate((e) => e.getBoundingClientRect().top),
+      ),
+    )
+    expect(block as number).toBeGreaterThan(row as number)
+    // opened by hand there is nothing to explain, and the box is ready to type or paste into
+    expect(await page.locator('#why').isVisible()).toBe(false)
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('paste')
+    // and it shows that, in the page's accent, not the browser's own blue
+    const ring = await page.evaluate(() => {
+      const box = getComputedStyle(document.getElementById('paste') as HTMLElement)
+      const accent = getComputedStyle(document.querySelector('button.link') as HTMLElement).color
+      return { style: box.outlineStyle, width: box.outlineWidth, same: box.outlineColor === accent }
+    })
+    expect(ring).toEqual({ style: 'solid', width: '2px', same: true })
+    // a tap does not flash the browser's own blue box over the links and buttons
+    const flash = await page.evaluate(() =>
+      ['show-paste', 'open-paste'].map((id) =>
+        getComputedStyle(document.getElementById(id) as HTMLElement).getPropertyValue(
+          '-webkit-tap-highlight-color',
+        ),
+      ),
+    )
+    expect(flash).toEqual(['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'])
+    await page
+      .getByLabel('OpenAPI or Swagger document text')
+      .fill(await readFile(join(fixtures, 'petstore3.json'), 'utf8'))
+    await page.getByRole('button', { name: 'Open pasted document' }).click()
+    await page.waitForURL(/\/v1\/\?upload=/)
+    await page.getByRole('button', { name: 'Continue with mock data' }).click()
+    await page.waitForSelector('.op-row', { timeout: 30_000 })
+    await page.close()
+  })
+
+  it('closes it again, and a failed address still opens it with the reason', async () => {
+    const { page } = await land()
+    const control = page.getByRole('button', { name: 'paste / choose a file' })
+    await control.click()
+    await control.click()
+    expect(await page.locator('#fallback').isHidden()).toBe(true)
+    expect(await control.getAttribute('aria-expanded')).toBe('false')
+    await page
+      .getByLabel('Address of an OpenAPI or Swagger document')
+      .fill('http://localhost:8080/openapi.json')
+    await page.getByRole('button', { name: 'Open', exact: true }).first().click()
+    await page.waitForSelector('#fallback:not([hidden])')
+    expect(await control.getAttribute('aria-expanded')).toBe('true')
+    expect(await page.locator('#why').innerText()).toMatch(/your own machine or network/)
+    await page.close()
+  })
+
   it('fetches the viewer in the background, so it is ready when Open is pressed', async () => {
     const page = await browser.newPage()
     const asked: string[] = []
@@ -944,7 +1038,6 @@ describe('sharing a view', () => {
 
   it('explains why a pasted document has no link', async () => {
     const { page } = await open('')
-    await page.locator('details summary').click()
     await page
       .getByLabel('OpenAPI or Swagger document text')
       .fill(await readFile(join(fixtures, 'petstore3.json'), 'utf8'))
@@ -1312,6 +1405,14 @@ describe('the self-hosted viewer from the release zip', () => {
     await page.close()
   })
 
+  it('shows the picker without a link to a home page, which a copy of the viewer does not have', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${hostUrl}/docs/specbook/`)
+    await page.waitForSelector('.vw-brand img', { timeout: 20_000 })
+    expect(await page.getByText('What is Specbook?').count()).toBe(0)
+    await page.close()
+  })
+
   it('explains an address it cannot read where it is: there is no landing page to send it to', async () => {
     const page = await browser.newPage()
     await page.goto(`${hostUrl}/docs/specbook/?spec=${encodeURIComponent('http://localhost:9/x')}`)
@@ -1403,11 +1504,17 @@ describe('the example links on the landing page', () => {
       await page.addStyleTag({
         content: 'body { font-family: "DejaVu Sans", Verdana, sans-serif !important; }',
       })
+      // the examples: the control to paste or choose a file shares the row and may wrap to its own line
       const tops = await page
-        .locator('.try .link')
+        .locator('.try [data-spec]')
         .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)))
       expect(tops).toHaveLength(5)
       expect(new Set(tops).size).toBe(1)
+      const row = await page.evaluate(() => {
+        const t = document.querySelector('.try') as HTMLElement
+        return [t.scrollWidth, t.clientWidth]
+      })
+      expect(row[0]).toBeLessThanOrEqual(row[1] as number)
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
         width,
       )
@@ -1562,7 +1669,6 @@ describe('the viewer says where its responses come from', () => {
 
   it('says so when the document gives no address for live calls', async () => {
     const { page } = await open('')
-    await page.locator('details summary').click()
     await page.getByLabel('OpenAPI or Swagger document text').fill(
       JSON.stringify({
         openapi: '3.0.0',

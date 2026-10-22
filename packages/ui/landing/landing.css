@@ -75,6 +75,13 @@ textarea {
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+/* the page's own colour for where typing goes, not the browser's blue */
+input[type="url"]:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
 textarea {
   width: 100%;
   min-height: 140px;
@@ -96,6 +103,12 @@ button[disabled] {
   opacity: 0.6;
   cursor: default;
 }
+/* a tap on a phone is shown by the page (a pressed button, the focus ring), not by the browser's own blue flash */
+button,
+a,
+.file {
+  -webkit-tap-highlight-color: transparent;
+}
 button.link,
 .file {
   background: none;
@@ -112,6 +125,10 @@ button.link,
 }
 .status.error {
   color: var(--danger);
+}
+/* nothing to explain when the person opened it themselves */
+#why:empty {
+  display: none;
 }
 .fallback {
   margin-top: 16px;
@@ -145,6 +162,11 @@ button.link,
   }
   .try-label {
     flex: 1 1 100%;
+  }
+  /* its own line, with room above it, rather than wherever the last example happens to leave it */
+  .try-more {
+    flex: 1 1 100%;
+    margin-top: 8px;
   }
 }
 code {
