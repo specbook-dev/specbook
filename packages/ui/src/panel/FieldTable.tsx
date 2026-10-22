@@ -100,7 +100,7 @@ export function FieldTable({
       </thead>
       <tbody>
         {rows.slice(0, MAX_ROWS).map((r) => (
-          <tr class={r.variant ? 'variant' : undefined}>
+          <tr class={r.variant ? 'variant' : undefined} style={`--indent:${r.depth * 16 + 8}px`}>
             <td style={{ paddingLeft: `${r.depth * 16 + 8}px` }}>
               {r.variant ? (
                 <span class="variant-name">{r.name.split('.').pop()}</span>

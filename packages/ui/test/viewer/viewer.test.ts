@@ -434,6 +434,35 @@ describe('the hosted viewer opens a spec at run time', () => {
     await page.close()
   })
 
+  it('lays a field table out for a phone: stacked, nothing scrolling sideways, a variant’s tag on one line', async () => {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
+    await page.goto(`${siteUrl}/v1/?${spec('bookstore.json')}`)
+    await ready(page)
+    await goOp(page, 'bookstore/AddItems')
+    await page.getByRole('tab', { name: 'Docs' }).click()
+    await page.waitForSelector('.doc table.fields tr.variant', { timeout: 10_000 })
+    const fit = await page.evaluate(() =>
+      [...document.querySelectorAll('table.fields')].map((t) => t.scrollWidth <= t.clientWidth + 1),
+    )
+    expect(fit.length).toBeGreaterThan(0)
+    expect(fit.every(Boolean)).toBe(true)
+    // `kind = "book"` is read as one thing: a single line, not "kind =" over "book"
+    const tag = await page.locator('table.fields tr.variant .chip').first().boundingBox()
+    expect(tag?.height).toBeLessThan(24)
+    // what a field says sits under its name, not in a column the table has to scroll to reach
+    const [name, said] = await page.evaluate(() => {
+      const row = [...document.querySelectorAll('table.fields tr')].find((r) =>
+        r.textContent?.includes('title'),
+      ) as HTMLElement
+      return [row.children[0], row.children[row.children.length - 1]].map(
+        (c) => (c as HTMLElement).getBoundingClientRect().top,
+      )
+    })
+    expect(said).toBeGreaterThanOrEqual(name as number)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+    await page.close()
+  })
+
   it('offers each variant of a status in Respond with, and answers the one picked', async () => {
     const { page } = await open(spec('bookstore.json'))
     await ready(page)
