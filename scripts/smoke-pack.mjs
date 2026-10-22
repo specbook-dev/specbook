@@ -245,6 +245,8 @@ export default FindPetsByStatus.request({
     join(proj, '.specbook/environments/local.env'),
     `petstoreUrl=http://127.0.0.1:${apiPort}\n`,
   )
+  // `add` made the spec's API key a secret, and a real environment will not run without it: set it as a user would
+  process.env.PETSTORE_API_KEY = 'smoke-test-key'
   try {
     sb(['test', '--env', 'local'], 'specbook test --env local')
     const bundleFile = join(work, 'out', 'specbook-tests.mjs')
