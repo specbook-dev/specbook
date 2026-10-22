@@ -192,7 +192,8 @@ npx specbook test --grep pet --list    # what would run, without running it
 ```
 
 `mock` is for development: it answers from the examples that `specbook generate` writes, which your machine has, with
-the request's own values filled in. When a check needs data an example does not have, wrap the request in `withMock`
+the request's own values filled in (a status the spec gives several answers for keeps them all in its example file, and
+`res.respond(status, data, 'Variant')` picks one). When a check needs data an example does not have, wrap the request in `withMock`
 (see Mocks in the README). Every other environment calls the real API.
 
 ### The specs

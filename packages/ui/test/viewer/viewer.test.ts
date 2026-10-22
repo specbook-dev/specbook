@@ -406,6 +406,105 @@ describe('the hosted viewer opens a spec at run time', () => {
     await page.close()
   })
 
+  it('shows each variant of a polymorphic list: the response, its check, and the docs', async () => {
+    const { page } = await open(spec('bookstore.json'))
+    await ready(page)
+    await goOp(page, 'bookstore/ListShelf')
+    await page.getByRole('button', { name: 'Send' }).click()
+    await page.waitForSelector('.result-chip:has-text("200")', { timeout: 20_000 })
+    await page.waitForSelector('.response .conf:has-text("Matches spec")', { timeout: 10_000 })
+    // one item of each kind, each tagged by the discriminator the document maps it to
+    await page.waitForFunction(
+      () =>
+        /"kind": "book"[\s\S]*"kind": "album"[\s\S]*"kind": "Zine"/.test(document.body.innerText),
+      undefined,
+      { timeout: 10_000 },
+    )
+
+    // the request body names its variants instead of saying "object", with a heading for each
+    await goOp(page, 'bookstore/AddItems')
+    await page.getByRole('tab', { name: 'Docs' }).click()
+    await page.waitForSelector('.doc table.fields tr.variant', { timeout: 10_000 })
+    expect(
+      await page.locator('.doc table.fields tr.variant .variant-name').allInnerTexts(),
+    ).toEqual(['Book', 'Album', 'Zine'])
+    expect(await page.locator('.doc table.fields').first().innerText()).toContain(
+      '(Book | Album | Zine)[]',
+    )
+    await page.close()
+  })
+
+  it('lays a field table out for a phone: stacked, nothing scrolling sideways, a variant’s tag on one line', async () => {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
+    await page.goto(`${siteUrl}/v1/?${spec('bookstore.json')}`)
+    await ready(page)
+    await goOp(page, 'bookstore/AddItems')
+    await page.getByRole('tab', { name: 'Docs' }).click()
+    await page.waitForSelector('.doc table.fields tr.variant', { timeout: 10_000 })
+    const fit = await page.evaluate(() =>
+      [...document.querySelectorAll('table.fields')].map((t) => t.scrollWidth <= t.clientWidth + 1),
+    )
+    expect(fit.length).toBeGreaterThan(0)
+    expect(fit.every(Boolean)).toBe(true)
+    // `kind = "book"` is read as one thing: a single line, not "kind =" over "book"
+    const tag = await page.locator('table.fields tr.variant .chip').first().boundingBox()
+    expect(tag?.height).toBeLessThan(24)
+    // what a field says sits under its name, not in a column the table has to scroll to reach
+    const [name, said] = await page.evaluate(() => {
+      const row = [...document.querySelectorAll('table.fields tr')].find((r) =>
+        r.textContent?.includes('title'),
+      ) as HTMLElement
+      return [row.children[0], row.children[row.children.length - 1]].map(
+        (c) => (c as HTMLElement).getBoundingClientRect().top,
+      )
+    })
+    expect(said).toBeGreaterThanOrEqual(name as number)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+    await page.close()
+  })
+
+  it('offers each variant of a status in Respond with, and answers the one picked', async () => {
+    const { page } = await open(spec('bookstore.json'))
+    await ready(page)
+    await goOp(page, 'bookstore/ListShelf')
+    const picker = page.getByLabel('Mock response')
+    const options = await picker.locator('option').allInnerTexts()
+    expect(options.map((o) => o.replace(/\s+/g, ' ').trim())).toEqual([
+      'Default',
+      '200 OK',
+      '409 Conflict · OutOfStock',
+      '409 Conflict · Discontinued',
+    ])
+
+    // the second variant answers: its status, its body, and the check against the response schema
+    await picker.selectOption({ label: '409 Conflict · Discontinued' })
+    await page.waitForSelector('.result-chip:has-text("409")', { timeout: 20_000 })
+    await page.waitForFunction(
+      () => document.body.innerText.includes('"DISCONTINUED"'),
+      undefined,
+      {
+        timeout: 10_000,
+      },
+    )
+    await page.waitForSelector('.response .conf:has-text("Matches spec")', { timeout: 10_000 })
+    expect(await page.locator('.response').first().innerText()).not.toContain('OUT_OF_STOCK')
+
+    // the first variant is the other option
+    await picker.selectOption({ label: '409 Conflict · OutOfStock' })
+    await page.waitForFunction(
+      () => document.body.innerText.includes('"OUT_OF_STOCK"'),
+      undefined,
+      {
+        timeout: 10_000,
+      },
+    )
+
+    // Default goes back to the 200: it must not replay the status that was forced before
+    await picker.selectOption({ label: 'Default' })
+    await page.waitForSelector('.result-chip:has-text("200")', { timeout: 20_000 })
+    await page.close()
+  })
+
   it('sends a live request straight to the API with the key typed in the page', async () => {
     const { page } = await open(spec('live/openapi.json'))
     await ready(page)

@@ -145,11 +145,13 @@ export type MockRes<T extends OpTypes> = {
     delayMs: number
     /**
      * Answer with another status the operation declares: its generated example, with `data` merged over it. Request values
-     * are echoed into a 2xx example as usual.
+     * are echoed into a 2xx example as usual. `variant` names one of the answers the status's example file holds, when
+     * the spec gives several (a `oneOf` response, or named examples); an unknown name answers the first.
      */
     respond<R extends keyof T['responses'] & number>(
       status: R,
       data?: DeepPartial<T['responses'][R]>,
+      variant?: string,
     ): void
   }
 }[keyof T['responses'] & number]

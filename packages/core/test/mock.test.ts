@@ -71,6 +71,100 @@ describe('mock transport', () => {
   })
 })
 
+describe('a status whose example file holds variants', () => {
+  const conflict = {
+    $variants: [
+      { name: 'OutOfStock', body: { message: 'out of stock', sku: '{{id}}' } },
+      { name: 'Discontinued', body: { message: 'discontinued' } },
+    ],
+  }
+  const plain = { id: '{{id}}', owner: 'default', status: 'approved' }
+  const many = createMockTransport({
+    loader: {
+      statuses: () => [200, 404, 401],
+      example: (_s: string, _o: string, status: number) =>
+        status === 404
+          ? conflict
+          : status === 401
+            ? {
+                $variants: [
+                  { name: 'A', body: { message: 'a' } },
+                  { name: 'B', body: { message: 'b' } },
+                ],
+              }
+            : plain,
+    },
+    sleep: async () => {},
+  })
+  const run = (def: Parameters<typeof runRequest>[0], o: object = {}) =>
+    runRequest(def, { ...base, transport: many, ...o })
+  const get = GetOrder.request({ path: { id: 'o-1' } })
+
+  it('answers a bare body as before, and a forced status with its first variant', async () => {
+    expect(body(await run(get))).toEqual({ id: 'o-1', owner: 'default', status: 'approved' })
+    const r = await run(get, { mockStatus: 404 })
+    expect(r.steps[0]?.response?.status).toBe(404)
+    expect(body(r)).toEqual({ message: 'out of stock', sku: 'o-1' })
+  })
+
+  it('answers the variant that was asked for, for the status that was forced', async () => {
+    const r = await run(get, { mockStatus: 404, mockVariant: 'Discontinued' })
+    expect(body(r)).toEqual({ message: 'discontinued' })
+    // a name the file does not have answers the first
+    expect(body(await run(get, { mockStatus: 404, mockVariant: 'Nope' }))).toEqual({
+      message: 'out of stock',
+      sku: 'o-1',
+    })
+  })
+
+  it('does not apply a variant to a status that was not forced', async () => {
+    expect(body(await run(get, { mockVariant: 'Discontinued' }))).toEqual({
+      id: 'o-1',
+      owner: 'default',
+      status: 'approved',
+    })
+  })
+
+  it('unwraps the 401 a secured operation answers without credentials', async () => {
+    const r = await runRequest(get, { env: 'mock', transport: many })
+    expect(r.steps[0]?.response?.status).toBe(401)
+    expect(body(r)).toEqual({ message: 'a' })
+  })
+
+  it('lets a hook respond with a variant, with its data merged over it', async () => {
+    const def = withMock(get, (_req, res) => {
+      res.respond(404, { message: 'only two left' }, 'OutOfStock')
+    })
+    expect(body(await run(def))).toEqual({ message: 'only two left', sku: 'o-1' })
+    // the variant it does not name keeps its own fields out of the answer
+    const other = withMock(get, (_req, res) => {
+      res.respond(404, undefined, 'Discontinued')
+    })
+    expect(body(await run(other))).toEqual({ message: 'discontinued' })
+  })
+
+  it('still echoes the request into a 2xx variant', async () => {
+    const t = createMockTransport({
+      loader: {
+        statuses: () => [200],
+        example: () => ({
+          $variants: [
+            { name: 'First', body: { id: 'x', owner: 'one', status: 'a' } },
+            { name: 'Second', body: { id: 'x', owner: 'two', status: 'b' } },
+          ],
+        }),
+      },
+    })
+    const r = await runRequest(GetOrder.request({ path: { id: 'o-5' } }), {
+      ...base,
+      transport: t,
+      mockStatus: 200,
+      mockVariant: 'Second',
+    })
+    expect(body(r)).toEqual({ id: 'o-5', owner: 'two', status: 'b' })
+  })
+})
+
 describe('withMock', () => {
   it('changes what the example says, typed to the operation', async () => {
     const def = withMock(GetOrder.request({ path: { id: 'o-9' } }), (_req, res) => {

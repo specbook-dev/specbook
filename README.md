@@ -214,6 +214,10 @@ The `mock` environment needs no server. It answers from the examples `generate` 
 `example` if the spec has one, else a value built from its schema), filled in from the request: a field you posted, the
 id in the path or a query value comes back in the response, so `GET /pet/7` answers with pet 7.
 
+When the spec gives several answers for a status (named `examples`, or a response that is a `oneOf`), `generate` writes
+all of them into that status's one example file, as `{ "$variants": [{ "name": "OutOfStock", "body": { ... } }, ...] }`;
+the first is the default. Files that are a plain body work as they always did.
+
 That is usually enough. When a check needs data the example does not have, wrap the request in `withMock`; it is the
 file's one export, and `req` and `res` are typed from the operation:
 
@@ -223,13 +227,14 @@ export default withMock(
   (req, res) => {
     if (res.status === 200) res.data.status = 'placed'            // change what the example says
     if (req.vars.paymentMethod === 'pm_card_chargeDeclined')
-      res.respond(402, { error: { code: 'card_declined' } })      // or answer another declared status
+      res.respond(402, { error: { code: 'card_declined' } })      // or answer another declared status,
+                                                                   // and a variant of it: respond(409, {}, 'OutOfStock')
     res.headers['x-rate-limit'] = '9'                              // headers and a delay (res.delayMs) too
   },
 )
 ```
 
-In the UI, **Respond with** picks a status for any request in the `mock` environment.
+In the UI, **Respond with** picks a status for any request in the `mock` environment, and which of its variants when a status has several.
 
 ### Timeouts and stopping a run
 

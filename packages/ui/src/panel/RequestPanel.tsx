@@ -11,7 +11,14 @@ import type { Variant } from '../engine'
 import { fieldDoc, withNote } from '../fielddoc'
 import { engine, isStatic, registry, saveFile } from '../runtime'
 import { type Defs, type JsonSchema, propsOf, unwrap } from '../schema'
-import { statusClass, statusName } from '../status'
+import {
+  type Forced,
+  forcedValue,
+  type MockVariantInfo,
+  parseForced,
+  statusClass,
+  statusName,
+} from '../status'
 import { kv } from '../storage'
 import {
   env,
@@ -42,6 +49,7 @@ export interface OpInfo {
   summary?: string
   tags: string[]
   statuses: number[]
+  mockVariants?: Record<string, MockVariantInfo[]>
 }
 
 interface Props {
@@ -127,7 +135,7 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
   const [reqSchema, setReqSchema] = useState<JsonSchema>()
   const [respSchemas, setRespSchemas] = useState<Record<string, JsonSchema>>()
   const [defs, setDefs] = useState<Defs>()
-  const [forced, setForced] = useState<number>()
+  const [forced, setForced] = useState<Forced>()
   const [result, setResult] = useState<RunResult>()
   const [error, setError] = useState<string>()
   const [running, setRunning] = useState(false)
@@ -287,7 +295,9 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
   const needed = known ? placeholders.filter((n) => !known.includes(n) && !own.includes(n)) : []
   const unfilled = needed.filter((n) => (vars[n] ?? '') === '')
 
-  const play = async (forceStatus?: number) => {
+  /** `null` is "Default", chosen on purpose; nothing at all keeps what was picked before. */
+  const play = async (force?: Forced | null) => {
+    const pick = force === undefined ? forced : (force ?? undefined)
     if (!draft || stopper.current) return
     setError(undefined)
     setRunning(true)
@@ -300,7 +310,8 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
       const ran = await engine.run(def, {
         env: env.value,
         version: version.value,
-        mockStatus: env.value === 'mock' ? (forceStatus ?? forced) : undefined,
+        mockStatus: env.value === 'mock' ? pick?.status : undefined,
+        mockVariant: env.value === 'mock' ? pick?.variant : undefined,
         locale: locale.value,
         seed: seed.value,
         vars: Object.fromEntries(Object.entries(vars).filter(([, v]) => v !== '')),
@@ -496,20 +507,28 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
               <span class="muted">Respond with</span>
               <select
                 aria-label="Mock response"
-                value={forced === undefined ? '' : String(forced)}
+                value={forcedValue(forced)}
                 onChange={(e) => {
-                  const v = (e.target as HTMLSelectElement).value
-                  const s = v === '' ? undefined : Number(v)
-                  setForced(s)
-                  play(s)
+                  const next = parseForced((e.target as HTMLSelectElement).value)
+                  setForced(next)
+                  play(next ?? null)
                 }}
               >
                 <option value="">Default</option>
-                {op.statuses.map((s) => (
-                  <option value={String(s)}>
-                    {s} {statusName(s)}
-                  </option>
-                ))}
+                {op.statuses.flatMap((s) => {
+                  const named = op.mockVariants?.[String(s)]
+                  return named?.length
+                    ? named.map((v) => (
+                        <option value={forcedValue({ status: s, variant: v.name })}>
+                          {s} {statusName(s)} · {v.title ?? v.name}
+                        </option>
+                      ))
+                    : [
+                        <option value={String(s)}>
+                          {s} {statusName(s)}
+                        </option>,
+                      ]
+                })}
               </select>
             </label>
           )}

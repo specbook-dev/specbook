@@ -4,13 +4,16 @@ import {
   jsdoc,
   objectType,
   pascal,
+  propKey,
   type Schema,
   safeIdent,
   sanitizeExample,
   synthesize,
+  synthesizeVariant,
   toJsonSchema,
   tsType,
 } from './schema'
+import { flatProps, nameOf, pinnedValue, subtypeTag, unionOf } from './union'
 
 export interface GenerateOptions {
   /** Path/URL to the spec, or an already-parsed object. */
@@ -78,6 +81,11 @@ export interface ManifestOperation {
   description?: string
   tags: string[]
   statuses: number[]
+  /**
+   * The answers a status's example file holds, when there are several: a `oneOf` response (one per branch) or a
+   * response with named `examples`. Keyed by status; the file is `{ "$variants": [...] }` (see core's `mock-variants`).
+   */
+  mockVariants?: Record<string, { name: string; title?: string; tag?: string }[]>
   examples: ManifestExample[]
   /** the spec requires credentials for this operation */
   secured?: boolean
@@ -288,20 +296,97 @@ function generateAll(
   // what the spec says about a field elsewhere in the document; read on first use
   const index = makeValueIndex(doc)
   /**
-   * The response example the spec gives, when it has one. The one `example` is shown as written; a named one only
-   * when it satisfies the response schema, since specs' own examples often leave out a required field.
+   * What the example file of a response holds: a bare body, or when the spec gives several answers for the status, a
+   * `{ "$variants": [...] }` envelope that the mock reads (core's `mock-variants`). Several named `examples` are those
+   * answers; a union response has one per branch (found on the document's own schema, not the one written for the
+   * browser, where `nullable` wraps a reference in an `anyOf`).
    */
-  const specExample = (media: any, schema: Schema, status: number): unknown => {
-    if (media?.example !== undefined) return sanitizeExample(media.example, '', undefined, status)
-    const named = firstExample(media?.examples)
-    if (named === undefined) return undefined
-    const value = sanitizeExample(named, '', undefined, status)
-    return conforms(schema, value, resolve) ? value : undefined
+  const responseExample = (
+    media: any,
+    schema: Schema,
+    status: number,
+  ): { file: unknown; variants?: { name: string; title?: string; tag?: string }[] } => {
+    const used = new Set<string>()
+    const unique = (name: string) => {
+      let n = name
+      while (used.has(n)) n += '-2'
+      used.add(n)
+      return n
+    }
+    const wrap = (list: { name: string; title?: string; tag?: string; body: unknown }[]) =>
+      list.length < 2
+        ? undefined
+        : {
+            file: { $variants: list },
+            variants: list.map(({ body: _b, ...rest }) => rest),
+          }
+    if (media?.example !== undefined)
+      return { file: sanitizeExample(media.example, '', undefined, status) }
+    const fitting: { name: string; title?: string; body: unknown }[] = []
+    for (const [key, raw] of Object.entries<any>(media?.examples ?? {})) {
+      const ex = resolveAny<any>(raw)
+      if (ex?.value === undefined) continue
+      const body = sanitizeExample(ex.value, '', undefined, status)
+      if (!conforms(schema, body, resolve)) continue
+      fitting.push({
+        name: unique(key),
+        ...(typeof ex.summary === 'string' ? { title: ex.summary } : {}),
+        body,
+      })
+    }
+    const several = wrap(fitting)
+    if (several) return several
+    const root = schema.$ref ? resolve(schema.$ref) : schema
+    const union = unionOf(root, { resolve })
+    if (union && union.branches.length >= 2 && root) {
+      used.clear()
+      const list = union.branches.map((b, i) => {
+        const target = b.schema.$ref ? resolve(b.schema.$ref) : b.schema
+        const title = typeof target?.title === 'string' ? target.title : undefined
+        return {
+          name: unique(b.name ?? b.tag ?? `variant-${i + 1}`),
+          ...(title && title !== b.name ? { title } : {}),
+          ...(b.tag !== undefined ? { tag: b.tag } : {}),
+          body: synthesizeVariant(root, union, i, resolve, status, false, index),
+        }
+      })
+      // the spec's one example stands for the variant it names, not for all of them
+      const only = fitting[0]
+      if (only) {
+        const at = union.tagProp
+          ? list.findIndex(
+              (v) =>
+                v.tag !== undefined &&
+                (only.body as Record<string, unknown>)?.[union.tagProp as string] === v.tag,
+            )
+          : -1
+        const into = list[at >= 0 ? at : 0]
+        if (into) into.body = only.body
+      }
+      return wrap(list) as ReturnType<typeof responseExample>
+    }
+    if (fitting[0]) return { file: fitting[0].body }
+    return { file: synthesize(schema, resolve, 0, [], '', status, false, index) }
   }
 
   const files: GeneratedFile[] = []
   const operations: ManifestOperation[] = []
 
+  // The value that tells a variant apart is its type, so a flow can narrow on it (`item.kind === 'album'`): a base
+  // holds the `discriminator` and the variants only extend it, and a union can hold its own.
+  const tags = new Map<string, { prop: string; value: string }>()
+  if (ts) {
+    const ctx = { resolve }
+    for (const [name, schema] of Object.entries(schemas)) {
+      const own = subtypeTag(`#/components/schemas/${name}`, ctx)
+      if (own) tags.set(pascal(name), own)
+      const union = unionOf(schema, ctx)
+      if (union?.tagSource === 'discriminator' && union.tagProp)
+        for (const b of union.branches)
+          if (b.schema.$ref && b.tag !== undefined)
+            tags.set(pascal(nameOf(b.schema.$ref)), { prop: union.tagProp, value: b.tag })
+    }
+  }
   const typeBlocks: string[] = []
   for (const [name, schema] of ts ? Object.entries(schemas) : []) {
     const id = pascal(name)
@@ -314,6 +399,18 @@ function generateAll(
       (schema.type === 'object' || (!schema.type && schema.properties)) &&
       schema.properties
     const body = isObj ? objectType(schema) : undefined
+    const tag = tags.get(id)
+    // a variant that already pins the property itself (an `enum` of one value) says it
+    const pinned =
+      tag && pinnedValue(flatProps({ $ref: `#/components/schemas/${name}` }, { resolve })[tag.prop])
+    if (tag && pinned === undefined) {
+      const base = body ?? tsType(schema)
+      const whole = schema.oneOf || schema.anyOf ? `(${base})` : base
+      typeBlocks.push(
+        `${jsdoc(schema)}export type ${id} = ${whole} & { ${propKey(tag.prop)}: ${JSON.stringify(tag.value)} }`,
+      )
+      continue
+    }
     typeBlocks.push(
       body?.startsWith('{')
         ? `${jsdoc(schema)}export interface ${id} ${body}`
@@ -399,6 +496,12 @@ function generateAll(
       let hasDefault = false
       let defaultSchema: Schema | undefined
       const responseSchemas: Record<string, Schema> = {}
+      const mockVariants: NonNullable<ManifestOperation['mockVariants']> = {}
+      let defaultVariants: ManifestOperation['mockVariants'] extends infer M
+        ? M extends Record<string, infer V>
+          ? V | undefined
+          : never
+        : never
       for (const [code, rawRes] of Object.entries<any>(op.responses ?? {})) {
         if (code === 'default') {
           const found = findJsonLike(resolveAny<any>(rawRes)?.content)
@@ -406,12 +509,11 @@ function generateAll(
             hasDefault = true
             if (ts) defaultType = tsType(found.schema, '  ', 'T.')
             defaultSchema = toJsonSchema(found.schema, `${defsId}#/$defs/`)
-            const example =
-              specExample(found.media, found.schema, -1) ??
-              synthesize(found.schema, resolve, 0, [], '', -1, false, index)
+            const example = responseExample(found.media, found.schema, -1)
+            defaultVariants = example.variants
             exampleFiles.push({
               path: `examples/${id}/default.response.json`,
-              content: `${JSON.stringify(example, null, 2)}\n`,
+              content: `${JSON.stringify(example.file, null, 2)}\n`,
             })
           }
           continue
@@ -426,12 +528,11 @@ function generateAll(
             `${code}: ${found?.schema ? tsType(found.schema, '  ', 'T.') : 'unknown'}`,
           )
         if (found?.schema) {
-          const example =
-            specExample(found.media, found.schema, Number(code)) ??
-            synthesize(found.schema, resolve, 0, [], '', Number(code), false, index)
+          const example = responseExample(found.media, found.schema, Number(code))
+          if (example.variants) mockVariants[code] = example.variants
           exampleFiles.push({
             path: `examples/${id}/${code}.response.json`,
-            content: `${JSON.stringify(example, null, 2)}\n`,
+            content: `${JSON.stringify(example.file, null, 2)}\n`,
           })
         }
       }
@@ -440,6 +541,7 @@ function generateAll(
           if (statuses.includes(st)) continue
           statuses.push(st)
           if (defaultSchema) responseSchemas[String(st)] = defaultSchema
+          if (defaultVariants) mockVariants[String(st)] = defaultVariants
           if (defaultType) responseTypes.push(`${st}: ${defaultType}`)
         }
       }
@@ -604,6 +706,7 @@ ${jsdoc({ description: [...new Set([op.summary, op.description].filter(Boolean))
         ...(op.description && op.description !== summary ? { description: op.description } : {}),
         tags,
         statuses,
+        ...(Object.keys(mockVariants).length ? { mockVariants } : {}),
         examples: docs.map((d) => ({ name: d.name, title: d.title, source: d.source })),
         ...(secured ? { secured: true } : {}),
         file: `operations/${id}.ts`,

@@ -1,0 +1,233 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Bookstore",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.bookstore.test"
+    }
+  ],
+  "paths": {
+    "/shelf": {
+      "get": {
+        "operationId": "listShelf",
+        "summary": "List the shelf",
+        "responses": {
+          "200": {
+            "description": "The shelf",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Shelf"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/OutOfStock"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Discontinued"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/shelf/items": {
+      "post": {
+        "operationId": "addItems",
+        "summary": "Put things on the shelf",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Shelf"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The shelf",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Shelf"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Media": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": ["kind"],
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "book": "Book",
+            "album": "#/components/schemas/Album"
+          }
+        }
+      },
+      "Book": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Media"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "pages": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "related": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Album"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "Album": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Media"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "tracks": {
+                "type": "integer",
+                "format": "int32"
+              }
+            }
+          }
+        ]
+      },
+      "Zine": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Media"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "issue": {
+                "type": "integer",
+                "format": "int32"
+              }
+            }
+          }
+        ]
+      },
+      "Shelf": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Book"
+                },
+                {
+                  "$ref": "#/components/schemas/Album"
+                },
+                {
+                  "$ref": "#/components/schemas/Zine"
+                }
+              ]
+            }
+          }
+        },
+        "required": ["name", "items"]
+      },
+      "ServiceError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": ["error"]
+      },
+      "OutOfStock": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ServiceError"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string",
+                "enum": ["OUT_OF_STOCK"]
+              },
+              "sku": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "Discontinued": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ServiceError"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string",
+                "enum": ["DISCONTINUED"]
+              },
+              "since": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

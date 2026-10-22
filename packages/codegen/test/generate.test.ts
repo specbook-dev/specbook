@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
+import { isMockVariants, MOCK_VARIANTS } from '@specbook/core'
 import { afterAll, describe, expect, it } from 'vitest'
 import { generate, generateToDisk } from '../src'
 
@@ -270,6 +271,200 @@ describe('a body declared with a wildcard media type', () => {
   })
 })
 
+describe('polymorphic schemas', () => {
+  // a base holds the discriminator and its subtypes extend it through allOf; the union that lists the subtypes has none
+  const out = async () => {
+    const { files } = await generate({ spec: fx('bookstore.json'), service: 'books' })
+    const json = (path: string) => JSON.parse(files.find((f) => f.path === path)?.content ?? 'null')
+    return { files, json }
+  }
+
+  it('tags each variant of a success response with what the discriminator maps it to', async () => {
+    const { json } = await out()
+    const items = json('examples/ListShelf/200.response.json').items
+    // one of each kind, in the document's order; a bare-name mapping, a full-ref mapping, and an unmapped name
+    expect(items.map((i: { kind: string }) => i.kind)).toEqual(['book', 'album', 'Zine'])
+    // a subtype named directly (no union) is tagged too
+    expect(items[0].related[0].kind).toBe('album')
+  })
+
+  it('keeps one item in a request, which is for editing', async () => {
+    const { json } = await out()
+    const body = json('examples/AddItems/default.example.json').body
+    expect(body.items.map((i: { kind: string }) => i.kind)).toEqual(['book'])
+  })
+
+  it('writes every variant of a union response into the one file, first the one a bare file would hold', async () => {
+    const { json } = await out()
+    const file = json('examples/ListShelf/409.response.json')
+    expect(isMockVariants(file)).toBe(true)
+    expect(Object.keys(file)).toEqual([MOCK_VARIANTS])
+    expect(file.$variants.map((v: { name: string; tag: string }) => [v.name, v.tag])).toEqual([
+      ['OutOfStock', 'OUT_OF_STOCK'],
+      ['Discontinued', 'DISCONTINUED'],
+    ])
+    // each variant pins its own value; the first is what a bare file held
+    expect(file.$variants[0].body.error).toBe('OUT_OF_STOCK')
+    expect(file.$variants[1].body.error).toBe('DISCONTINUED')
+  })
+
+  it('lists the variants in the manifest, only for the statuses that have them', async () => {
+    const { json } = await out()
+    const ops = json('manifest.json').operations as {
+      id: string
+      mockVariants?: Record<string, { name: string; tag?: string }[]>
+    }[]
+    expect(ops.find((o) => o.id === 'ListShelf')?.mockVariants).toEqual({
+      '409': [
+        { name: 'OutOfStock', tag: 'OUT_OF_STOCK' },
+        { name: 'Discontinued', tag: 'DISCONTINUED' },
+      ],
+    })
+    expect(ops.find((o) => o.id === 'AddItems')?.mockVariants).toBeUndefined()
+    // a status that is not a union is a bare body, as before
+    expect(isMockVariants(json('examples/ListShelf/200.response.json'))).toBe(false)
+  })
+
+  it('carries the discriminator into the definitions, mapping to definition names', async () => {
+    const { json } = await out()
+    expect(json('schemas/definitions.schema.json').$defs.Media.discriminator).toEqual({
+      propertyName: 'kind',
+      mapping: { book: 'Book', album: 'Album' },
+    })
+  })
+})
+
+describe('named response examples', () => {
+  const ref = (n: string) => ({ $ref: `#/components/schemas/${n}` })
+  const ok = (content: unknown, status = '200') => ({ [status]: { description: 'x', content } })
+  const named = (
+    examples: Record<string, unknown>,
+    schema: unknown = { type: 'object', properties: { n: { type: 'integer' } } },
+  ) => ({
+    'application/json': { schema, examples },
+  })
+  const spec = {
+    openapi: '3.0.3',
+    info: { title: 'T', version: '1' },
+    paths: {
+      '/two': {
+        get: {
+          operationId: 'two',
+          responses: ok(
+            named({
+              small: { summary: 'A small one', value: { n: 1 } },
+              big: { value: { n: 100 } },
+            }),
+          ),
+        },
+      },
+      '/one': { get: { operationId: 'one', responses: ok(named({ only: { value: { n: 7 } } })) } },
+      '/fault': {
+        get: {
+          operationId: 'fault',
+          // a union with one named example, written for its second variant
+          responses: ok(
+            named(
+              { gone: { value: { error: 'DISCONTINUED', since: '2020' } } },
+              { oneOf: [ref('OutOfStock'), ref('Discontinued')] },
+            ),
+            '409',
+          ),
+        },
+      },
+    },
+    components: {
+      schemas: {
+        OutOfStock: {
+          type: 'object',
+          required: ['error'],
+          properties: {
+            error: { type: 'string', enum: ['OUT_OF_STOCK'] },
+            sku: { type: 'string' },
+          },
+        },
+        Discontinued: {
+          type: 'object',
+          required: ['error'],
+          properties: {
+            error: { type: 'string', enum: ['DISCONTINUED'] },
+            since: { type: 'string' },
+          },
+        },
+      },
+    },
+  }
+  const out = async () => {
+    const { files } = await generate({ spec, service: 'svc' })
+    return (path: string) => JSON.parse(files.find((f) => f.path === path)?.content ?? 'null')
+  }
+
+  it('become the variants of the status, with the spec’s summary as the title', async () => {
+    const json = await out()
+    const file = json('examples/Two/200.response.json')
+    expect(file.$variants).toEqual([
+      { name: 'small', title: 'A small one', body: { n: 1 } },
+      { name: 'big', body: { n: 100 } },
+    ])
+    expect(
+      json('manifest.json').operations.find((o: { id: string }) => o.id === 'Two').mockVariants,
+    ).toEqual({
+      '200': [{ name: 'small', title: 'A small one' }, { name: 'big' }],
+    })
+  })
+
+  it('stay a bare body when there is one', async () => {
+    expect((await out())('examples/One/200.response.json')).toEqual({ n: 7 })
+  })
+
+  it('give their value to the variant of a union they name, not to all of them', async () => {
+    const file = (await out())('examples/Fault/409.response.json')
+    expect(file.$variants.map((v: { name: string }) => v.name)).toEqual([
+      'OutOfStock',
+      'Discontinued',
+    ])
+    expect(file.$variants[0].body).toMatchObject({ error: 'OUT_OF_STOCK' })
+    // the spec's example is for the second variant, which is no longer dropped for not fitting the first
+    expect(file.$variants[1].body).toEqual({ error: 'DISCONTINUED', since: '2020' })
+  })
+})
+
+describe('a list of variants in a response example', () => {
+  const variant = (kind: string) => ({
+    type: 'object',
+    properties: { kind: { type: 'string', enum: [kind] } },
+  })
+  const union = (n: number) => ({
+    oneOf: Array.from({ length: n }, (_, i) => variant(`v${i + 1}`)),
+  })
+  const list = (n: number, extra: Record<string, unknown> = {}) => ({
+    type: 'array',
+    items: union(n),
+    ...extra,
+  })
+  const kinds = async (schema: unknown, status?: number) => {
+    const { synthesize } = await import('../src/schema')
+    return (
+      synthesize(schema as never, () => undefined, 0, [], 'items', status) as { kind: string }[]
+    ).map((i) => i.kind)
+  }
+
+  it('shows one of each variant, up to three', async () => {
+    expect(await kinds(list(2), 200)).toEqual(['v1', 'v2'])
+    expect(await kinds(list(5), 200)).toEqual(['v1', 'v2', 'v3'])
+  })
+
+  it('keeps to the limits the schema sets', async () => {
+    expect(await kinds(list(3, { maxItems: 2 }), 200)).toEqual(['v1', 'v2'])
+    expect(await kinds(list(2, { minItems: 4 }), 200)).toEqual(['v1', 'v2', 'v1', 'v2'])
+  })
+
+  it('shows one in a request and in an error', async () => {
+    expect(await kinds(list(3))).toEqual(['v1'])
+    expect(await kinds(list(3), 422)).toEqual(['v1'])
+  })
+})
+
 describe('petstore 2.0 (swagger) is normalised', () => {
   it('yields the same operation ids', async () => {
     const { operations } = await generate({ spec: fx('petstore2.json'), service: 'petstore' })
@@ -310,6 +505,70 @@ describe('generated code compiles against @specbook/core', () => {
     },
     60_000,
   )
+})
+
+describe('discriminator values are types', () => {
+  const types = async () => {
+    const { files } = await generate({ spec: fx('bookstore.json'), service: 'books' })
+    return files.find((f) => f.path === 'types.ts')?.content ?? ''
+  }
+
+  it('gives each variant the value that tells it apart, whichever way the document maps it', async () => {
+    const t = await types()
+    // a bare-name mapping, a full-ref mapping, and a subtype the mapping leaves out (named by itself)
+    expect(t).toContain('} & { kind: "book" }')
+    expect(t).toContain('} & { kind: "album" }')
+    expect(t).toContain('} & { kind: "Zine" }')
+  })
+
+  it('leaves what is not a variant alone, and a variant that pins the value itself', async () => {
+    const t = await types()
+    expect(t).toContain('export interface Media {')
+    expect(t).toContain('export interface Shelf {')
+    // OutOfStock says `error: "OUT_OF_STOCK"` itself
+    expect(t).not.toContain('& { error:')
+  })
+
+  it('lets a flow narrow a union on it', async () => {
+    const outDir = await mkdtemp(join(tmpdir(), 'specbook-gen-'))
+    dirs.push(outDir)
+    await generateToDisk({ spec: fx('bookstore.json'), service: 'books', outDir })
+    // `pages` is on a book and `tracks` on an album: only a literal `kind` lets the compiler tell them apart
+    const narrow = join(outDir, 'books/narrow.ts')
+    await writeFile(
+      narrow,
+      `import type * as T from './types'
+export const size = (m: T.Book | T.Album) => (m.kind === 'book' ? m.pages : m.tracks)
+`,
+    )
+    const tsconfig = join(outDir, 'tsconfig.json')
+    await writeFile(
+      tsconfig,
+      JSON.stringify({
+        compilerOptions: {
+          noEmit: true,
+          strict: true,
+          skipLibCheck: true,
+          target: 'ES2022',
+          module: 'ESNext',
+          moduleResolution: 'Bundler',
+          lib: ['ES2022', 'DOM'],
+          types: [],
+          paths: { '@specbook/core': [coreEntry] },
+        },
+        files: [join(outDir, 'books/index.ts'), narrow],
+      }),
+    )
+    const tsc = resolve(__dirname, '../node_modules/.bin/tsc')
+    const r = await run(tsc, ['-p', tsconfig]).catch((e) => e)
+    expect(r.stdout ?? String(r)).toBe('')
+  }, 60_000)
+
+  it('writes a constant as the one value it allows', async () => {
+    const { tsType } = await import('../src/schema')
+    expect(tsType({ const: 'a' })).toBe('"a"')
+    expect(tsType({ type: 'object', properties: { v: { const: 3 } } }, '')).toContain('v?: 3')
+  })
 })
 
 describe('request editor JSON Schemas', () => {
@@ -1019,15 +1278,16 @@ describe('round 2: what the spec still says', () => {
     expect(conforms(schema, { login: 'a', reason: null }, none)).toBe(true)
     expect(conforms(schema, { reason: 'x' }, none)).toBe(false)
     expect(conforms(schema, { login: 1 }, none)).toBe(false)
-    // checked against the first branch of its own kind, as the viewer does
+    // a union is satisfied by any branch of the value's own kind: an example for the second variant is as good
     const union = {
       oneOf: [
         { type: 'object', required: ['a'] },
         { type: 'object', required: ['b'] },
       ],
     }
-    expect(conforms(union, { b: 1 }, none)).toBe(false)
+    expect(conforms(union, { b: 1 }, none)).toBe(true)
     expect(conforms(union, { a: 1 }, none)).toBe(true)
+    expect(conforms(union, { c: 1 }, none)).toBe(false)
   })
 
   it('keeps a null in a nullable enum written as a type list', async () => {

@@ -97,6 +97,29 @@ describe('ui engine', () => {
     expect(nope.steps[0]?.response?.status).toBe(404)
   })
 
+  it('answers the variant of a forced status that was named, from an example file that holds several', async () => {
+    const many = createEngine({
+      ...reg,
+      manifests: { pets: { operations: [{ id: 'GetPet', statuses: [200, 404] }] } },
+      examples: {
+        ...reg.examples,
+        'pets/GetPet.404': async () => ({
+          default: {
+            $variants: [
+              { name: 'Gone', body: { message: 'gone' } },
+              { name: 'Hidden', body: { message: 'hidden' } },
+            ],
+          },
+        }),
+      },
+    } as never)
+    const def = await many.operationRequest('pets/GetPet', 0, { path: { petId: '7' } })
+    const forced = { env: 'mock', version: 0, mockStatus: 404 }
+    expect((await many.run(def, forced)).steps[0]?.response?.body).toEqual({ message: 'gone' })
+    const named = await many.run(def, { ...forced, mockVariant: 'Hidden' })
+    expect(named.steps[0]?.response?.body).toEqual({ message: 'hidden' })
+  })
+
   it("a saved request keeps its mock hook when the panel rebuilds it with the person's values", async () => {
     const saved = withMock(GetPet.request({ path: { petId: '1' } }), (_req, res) => {
       if (res.status === 200) res.data.name = 'Hooked'

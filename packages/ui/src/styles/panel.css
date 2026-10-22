@@ -84,6 +84,19 @@
   table.fields tr:last-child td {
     border-bottom: 0;
   }
+  /* a heading for one variant of a union: its fields are the rows under it */
+  table.fields tr.variant td {
+    padding-block: 5px;
+    background: var(--sb-surface-raised);
+  }
+  /* `kind = "album"` is one thing to read: it must not break at its spaces in a narrow column */
+  table.fields tr.variant .chip {
+    white-space: nowrap;
+  }
+  table.fields .variant-name {
+    font-weight: 600;
+    color: var(--sb-text);
+  }
   .statuses,
   .examples,
   .steps {
@@ -1586,6 +1599,8 @@
   }
   .field-doc-enum code {
     margin-right: 6px;
+    /* a break opportunity between the values, so a long list wraps instead of running on */
+    display: inline-block;
   }
   .issues {
     margin-top: var(--sb-space-2);
@@ -2066,18 +2081,60 @@
       min-width: 0;
       max-width: 100%;
     }
-    /* wide tables scroll sideways inside the panel instead of being cut off */
+    /* a field is its name and type on one line, and what the document says about it below at the full width:
+       nothing scrolls sideways, and a list of values or a long description wraps where it is read */
     table.fields {
       display: block;
       max-width: 100%;
-      overflow-x: auto;
     }
-    /* descriptions keep to a line or two and the table scrolls sideways rather than stacking words */
-    table.fields td:last-child {
-      min-width: 440px;
+    table.fields thead {
+      display: none;
     }
+    table.fields tbody {
+      display: block;
+    }
+    table.fields tr {
+      display: grid;
+      grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+      column-gap: 8px;
+      align-items: baseline;
+      padding: 7px 8px 7px 0;
+      border-bottom: 1px solid var(--sb-border);
+    }
+    table.fields tr:last-child {
+      border-bottom: 0;
+    }
+    table.fields td {
+      display: block;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+    }
+    /* the name keeps the indent it was given (`style`), and may wrap rather than push the type off the screen */
     table.fields td:first-child {
-      white-space: nowrap;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    /* what the document says sits under the name, in line with it (`--indent` is the name's indent) */
+    table.fields td:last-child {
+      grid-column: 1 / -1;
+      padding-left: var(--indent, 8px);
+    }
+    table.fields td:last-child .doc-inline:not(:empty),
+    table.fields td:last-child .field-note,
+    table.fields td:last-child .field-doc-enum {
+      display: block;
+      margin-top: 3px;
+    }
+    table.fields tr.variant {
+      background: var(--sb-surface-raised);
+    }
+    table.fields tr.variant td {
+      background: none;
+    }
+    /* a variant's heading has nothing to say below it */
+    table.fields tr.variant td:last-child {
+      display: none;
     }
     .rq-meta {
       flex-wrap: wrap;

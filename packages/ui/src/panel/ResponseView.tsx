@@ -51,8 +51,8 @@ export function ResponseView({ step, error, schemas, defs, hideRequest, services
   const paths = useMemo(() => linePaths(text), [text])
   const doc = useMemo(() => {
     const p = paths[line]
-    return p ? fieldDoc(schema, defs, p) : undefined
-  }, [paths, line, schema, defs])
+    return p ? fieldDoc(schema, defs, p, [], response?.body) : undefined
+  }, [paths, line, schema, defs, response])
   const checks = step?.assertions ?? []
   const failed = checks.filter((a) => !a.pass).length
   // a run that failed a check opens on it: that is what the person came to see

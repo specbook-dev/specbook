@@ -34,6 +34,8 @@ const keyOf = (id: string) => `${service}/${id}`
 const ids = Object.keys(open.metas)
 
 export const mode = 'static' as const
+// the viewer shows the whole document: only a project's `--minimal` build leaves operations out
+export const minimal = false
 export const project = { root: '', outDir: '', requestsDir: 'requests' }
 export const manifests = { [service]: open.manifest }
 export const loadManifests = async (_services?: string[]) => {}

@@ -129,7 +129,7 @@ Capture is declared on the request that makes the response, and the flow reads i
 
 ## Mocks
 
-The `mock` environment (the default for `specbook test` and the UI) answers from the spec's examples with the request's values filled in, and needs no server. When a check needs data the example lacks, wrap the request in `withMock` from `@specbook/core`; the file's one export stays the default:
+The `mock` environment (the default for `specbook test` and the UI) answers from the spec's examples with the request's values filled in, and needs no server. A status the spec gives several answers for (a `oneOf`, or named examples) keeps all of them in its example file; `res.respond(status, data, 'VariantName')` picks one. When a check needs data the example lacks, wrap the request in `withMock` from `@specbook/core`; the file's one export stays the default:
 
 ```ts
 export default withMock(GetOrderById.request({ /* ... */ }), (req, res) => {
