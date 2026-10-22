@@ -86,23 +86,17 @@ const chars = Array.from(text)
     color: var(--accent-strong);
     font-weight: 700;
   }
-  /* each letter shows with a caret at its edge for one step, then the caret moves on to the next */
   .pc {
     opacity: 0;
     animation: pc-in var(--step) steps(1) forwards;
     animation-delay: calc(350ms + var(--i) * var(--step));
   }
   @keyframes pc-in {
-    from {
-      opacity: 1;
-      box-shadow: 2px 0 0 var(--accent-strong);
-    }
     to {
       opacity: 1;
-      box-shadow: 0 0 0 transparent;
     }
   }
-  /* after the last letter the caret stays and blinks */
+  /* once the last letter is in, a caret stays and blinks */
   .pcaret {
     display: inline-block;
     width: 2px;
