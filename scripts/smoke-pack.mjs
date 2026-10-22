@@ -135,6 +135,16 @@ try {
     fail('the installed agent guide has no isomorphic section')
   else ok('init wrote the agent guide')
   if (!existsSync(join(proj, 'AGENTS.md'))) fail('specbook init created no AGENTS.md')
+  // init sets up the typecheck an agent is told to run: a tsconfig whose include reaches the config file, and typescript
+  const tsconfigFile = join(proj, 'tsconfig.json')
+  if (!existsSync(tsconfigFile)) fail('specbook init created no tsconfig.json')
+  else if (!readFileSync(tsconfigFile, 'utf8').includes('.specbook/*.ts'))
+    fail('the tsconfig init wrote does not include .specbook/*.ts')
+  else if (
+    !JSON.parse(readFileSync(join(proj, 'package.json'), 'utf8')).devDependencies?.typescript
+  )
+    fail('specbook init did not add typescript')
+  else ok('init wrote a tsconfig and added typescript')
   sb(
     [
       'add',
