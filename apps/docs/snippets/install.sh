@@ -1,5 +1,7 @@
 # #region install
 npm install --save-dev @specbook/cli @specbook/core @faker-js/faker
+specbook init
+specbook add petstore --spec https://petstore3.swagger.io/api/v3/openapi.json
 # #endregion install
 
 # #region develop
