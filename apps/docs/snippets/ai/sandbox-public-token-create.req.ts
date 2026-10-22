@@ -1,24 +1,21 @@
 import { SandboxPublicTokenCreate } from '#api/plaid'
 
-// Sandbox only: /sandbox/* does not exist on production, so this is not tagged `monitor`.
 export default SandboxPublicTokenCreate.request({
-  name: 'Create sandbox public token',
-  tags: ['plaid', 'sandbox'],
-  // First Platypus Bank, Plaid's standard sandbox institution.
-  init: { institutionId: 'ins_109508' },
+  name: 'Create a sandbox public token',
+  tags: ['smoke'],
+  // First Platypus Bank, one of Plaid's Sandbox test institutions.
   data: {
-    institution_id: '{{institutionId}}',
+    institution_id: 'ins_109508',
     initial_products: ['transactions'],
   },
   capture: {
     publicToken: (res) => (res.status === 200 ? res.data.public_token : undefined),
   },
   assert: (res, { assert }) => {
-    assert.is(res.status, 200, 'sandbox item created')
+    assert.is(res.status, 200, 'public token created')
     if (res.status === 200) {
-      assert.type(res.data.public_token, 'string', 'public_token is a string')
-      assert.match(res.data.public_token, /^public-sandbox-/, 'public_token is a sandbox token')
-      assert.ok(res.data.request_id, 'request_id is returned')
+      assert.type(res.data.public_token, 'string', 'response has a public_token')
+      assert.match(res.data.public_token, /^public-/, 'token looks like a public token')
     }
   },
 })

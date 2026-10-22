@@ -15,43 +15,51 @@ import Page from '../layouts/Page.astro'
       <span class="eyebrow">05 · AI</span>
       <h1 class="display">Describe the flow. Get one that runs.</h1>
       <p class="lede">
-        <code>specbook init</code> puts a guide in your project and points your agent's instruction file at it. A
-        coding agent then writes requests and flows the way your team would: typed from the spec, checked, and
-        runnable on mock data. This page is one real run, against Plaid's spec with its 350 operations.
+        <code>specbook init</code> puts a guide in your project and points your agent's instruction file at it, and{' '}
+        <code>specbook add</code> reads your spec's security and sets up its credentials. A coding agent then writes
+        requests and flows the way your team would: typed from the spec, checked, and runnable on mock data. This
+        page is one real run, against Plaid's spec with its 350 operations.
       </p>
     </div>
   </section>
 
   <section class="block" style="padding-top: 8px">
     <div class="wrap">
-      <h2 class="title">Ask for a request</h2>
+      <h2 class="title">Set up the project</h2>
       <div class="prose">
         <p>
-          The project had Plaid's spec added with <code>specbook add</code> and nothing else: no credentials, no
-          auth setup, no TypeScript. This is the whole prompt.
+          The project is two commands, <code>specbook init</code> and then <code>specbook add</code>. Adding a spec
+          downloads it and reads its security schemes. Plaid asks for three headers, so <code>add</code> wrote one
+          profile that sends all three, and a secret for each.
         </p>
+      </div>
+      <Snippet file="snippets/ai/add-output.txt" title={false} wrap />
+      <Snippet
+        file="snippets/ai/plaid-config.ts"
+        lines="11-30"
+        title="specbook.config.ts, as add wrote it"
+        mark="8-10,19"
+      />
+      <div class="prose">
+        <p>
+          The values come from your environment, never from a file, and the mock needs none. <code>add</code> also
+          says what it left for you: <code>Plaid-Version</code> reads like a version and not a credential, and
+          Plaid accepts OAuth too, which is not set up.
+        </p>
+      </div>
+
+      <h2 class="title">Ask for a request</h2>
+      <div class="prose">
+        <p>That is the whole setup. This is the whole prompt.</p>
       </div>
       <Prompt text="Add a request that creates a Plaid sandbox public token." />
       <div class="prose">
         <p>
-          The agent read the guide, then the spec's security schemes, and wrote one request. It captures the
-          public token, because the next step will need it.
+          The agent read the guide and the spec, then wrote one request. It left the config alone, because the
+          credentials were already there. It captures the public token, because the next step will need it.
         </p>
       </div>
       <Snippet file="snippets/ai/sandbox-public-token-create.req.ts" />
-      <div class="prose">
-        <p>
-          Plaid takes its credentials in headers, so the agent kept them out of the request body. It named two
-          secrets in the config, added an auth profile that sends them, and pointed the service at it. The values
-          come from your environment, never from a file.
-        </p>
-      </div>
-      <Snippet
-        file="snippets/ai/plaid-config.ts"
-        lines="11-29"
-        title="specbook.config.ts"
-        mark="7-9,18"
-      />
 
       <h2 class="title">Ask for a flow</h2>
       <div class="prose">
@@ -66,7 +74,7 @@ import Page from '../layouts/Page.astro'
           its own, and chained them in one flow.
         </p>
       </div>
-      <Snippet file="snippets/ai/link-bank-account.seq.ts" mark="28,31,43" />
+      <Snippet file="snippets/ai/link-bank-account.seq.ts" mark="18,21,26" />
 
       <h2 class="title">Values pass by name, and the names are checked</h2>
       <div class="prose">
@@ -79,8 +87,8 @@ import Page from '../layouts/Page.astro'
         <p>
           A string compiles whatever it says. <code>ctx.captured.publicToken</code> has the type the capture
           returned, and the field it lands in is typed from the spec, so a wrong name on either side is an error
-          in your editor. Two <code>.check</code> steps prove the chain: the accounts belong to the item it just
-          linked, and every transaction sits on an account it read.
+          in your editor. A <code>.check</code> step proves the chain: every transaction it reads is on one of the
+          accounts it read.
         </p>
       </div>
 
@@ -110,10 +118,10 @@ import Page from '../layouts/Page.astro'
       <Snippet file="snippets/ai/test-run.txt" title={false} wrap />
       <div class="prose">
         <p>
-          From a project with only the spec to a passing flow took about seven minutes of the agent's time, two of
-          them spent installing TypeScript, and nobody fixed anything by hand. That was one run, so yours will
-          vary. Running it against Plaid's live sandbox needs a free account's keys in{' '}
-          <code>.specbook/environments/sandbox.secrets.env</code>, and that part is not tested here.
+          Setup took a few seconds, and the agent needed about two minutes to get from there to a passing flow,
+          with no fixes by hand. That was one run, so yours will vary. Running it against Plaid's live sandbox
+          needs a free account's keys, set as <code>PLAID_CLIENT_ID</code>, <code>PLAID_SECRET</code> and{' '}
+          <code>PLAID_VERSION</code>, and that part is not tested here.
         </p>
       </div>
 
@@ -122,6 +130,7 @@ import Page from '../layouts/Page.astro'
         <p>
           Run <code>specbook init</code> and your agent has the guide. It also writes a short Specbook section to
           your <code>AGENTS.md</code>, so agents that read that file open the guide before they touch a request.
+          Then <code>specbook add</code> your spec, and its credentials are set up too.
         </p>
       </div>
       <Snippet file="snippets/install.sh" region="agents" title={false} />

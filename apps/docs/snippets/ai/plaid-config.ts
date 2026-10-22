@@ -8,15 +8,16 @@ export default defineConfig({
     // petstoreUrl: 'https://petstore3.swagger.io/api/v3',
   },
   // values come from environment variables of the same name or a gitignored <env>.secrets.env
-  secrets: { PLAID_CLIENT_ID: {}, PLAID_SECRET: {} },
+  secrets: { PLAID_CLIENT_ID: {}, PLAID_SECRET: {}, PLAID_VERSION: {} },
   auth: {
-    // the spec's global security: the clientId, secret and plaidVersion header schemes
     plaid: {
+      // from the spec's security: clientId, secret, plaidVersion
+      title: 'API keys',
       apply: {
         headers: {
           'PLAID-CLIENT-ID': '{{secrets.PLAID_CLIENT_ID}}',
           'PLAID-SECRET': '{{secrets.PLAID_SECRET}}',
-          'Plaid-Version': '2020-09-14',
+          'Plaid-Version': '{{secrets.PLAID_VERSION}}',
         },
       },
     },
