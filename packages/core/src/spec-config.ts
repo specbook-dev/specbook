@@ -65,6 +65,50 @@ const secretName = (scheme: string) =>
     .replace(/^_+|_+$/g, '')
     .toUpperCase() || 'API_KEY'
 
+export type SchemeKind = 'apiKey' | 'bearer' | 'basic' | 'oauth'
+
+export interface SchemeCredential {
+  kind: SchemeKind
+  title: string
+  apply: JsonAuthProfile['apply']
+}
+
+/**
+ * What one security scheme sends, with `ref` (a `{{secrets.NAME}}` placeholder) standing for the value. Undefined for a
+ * scheme that cannot be expressed as a header or query value (mutualTLS, an unknown type or location).
+ */
+export function schemeCredential(name: string, s: any, ref: string): SchemeCredential | undefined {
+  if (s?.type === 'apiKey') {
+    const key = s.name as string
+    const title = `${name} (API key, ${s.in} "${key}")`
+    if (s.in === 'header') return { kind: 'apiKey', title, apply: { headers: { [key]: ref } } }
+    if (s.in === 'query') return { kind: 'apiKey', title, apply: { query: { [key]: ref } } }
+    if (s.in === 'cookie')
+      return { kind: 'apiKey', title, apply: { headers: { cookie: `${key}=${ref}` } } }
+    return undefined
+  }
+  if (s?.type === 'http' && /^bearer$/i.test(s.scheme))
+    return {
+      kind: 'bearer',
+      title: `${name} (bearer token)`,
+      apply: { headers: { authorization: `Bearer ${ref}` } },
+    }
+  // the template language has no base64, so the user pastes the encoded `user:password`
+  if ((s?.type === 'http' && /^basic$/i.test(s.scheme)) || s?.type === 'basic')
+    return {
+      kind: 'basic',
+      title: `${name} (basic auth, paste base64 of user:password)`,
+      apply: { headers: { authorization: `Basic ${ref}` } },
+    }
+  if (s?.type === 'oauth2' || s?.type === 'openIdConnect')
+    return {
+      kind: 'oauth',
+      title: `${name} (OAuth, paste an access token)`,
+      apply: { headers: { authorization: `Bearer ${ref}` } },
+    }
+  return undefined
+}
+
 /**
  * Turns a document's security schemes into auth profiles whose secrets are filled in at run time, so
  * previewing a protected API only needs the user to paste a key. OAuth-style schemes take an access token.
@@ -106,34 +150,16 @@ export function authFromSpec(api: any, source?: string, servers?: ServerEntry[])
     }
   for (const [name, s] of Object.entries(schemes)) {
     const secret = secretName(name)
-    const ref = `{{secrets.${secret}}}`
-    let apply: JsonAuthProfile['apply'] | undefined
-    let title = name
+    const cred = schemeCredential(name, s, `{{secrets.${secret}}}`)
+    if (!cred) continue
+    let { title } = cred
     let oauth: OAuthSettings | undefined
-    if (s.type === 'apiKey') {
-      const key = s.name as string
-      if (s.in === 'header') apply = { headers: { [key]: ref } }
-      else if (s.in === 'query') apply = { query: { [key]: ref } }
-      else if (s.in === 'cookie') apply = { headers: { cookie: `${key}=${ref}` } }
-      title = `${name} (API key, ${s.in} "${key}")`
-    } else if (s.type === 'http' && /^bearer$/i.test(s.scheme)) {
-      apply = { headers: { authorization: `Bearer ${ref}` } }
-      title = `${name} (bearer token)`
-    } else if (s.type === 'http' && /^basic$/i.test(s.scheme)) {
-      // the template language has no base64, so the user pastes the encoded `user:password`
-      apply = { headers: { authorization: `Basic ${ref}` } }
-      title = `${name} (basic auth, paste base64 of user:password)`
-    } else if (s.type === 'basic') {
-      apply = { headers: { authorization: `Basic ${ref}` } }
-      title = `${name} (basic auth, paste base64 of user:password)`
-    } else if (s.type === 'oauth2' || s.type === 'openIdConnect') {
-      apply = { headers: { authorization: `Bearer ${ref}` } }
+    if (cred.kind === 'oauth') {
       const address = addressFor(name)
       oauth = s.type === 'oauth2' ? codeFlow(s, address) : discovery(s, address)
       title = `${name} (OAuth, ${oauth ? 'sign in or ' : ''}paste an access token)`
     }
-    if (!apply) continue
-    out.auth[name] = { title, apply, ...(oauth ? { oauth } : {}) }
+    out.auth[name] = { title, apply: cred.apply, ...(oauth ? { oauth } : {}) }
     out.secrets[secret] = {}
   }
   // the document's top-level `security` says which scheme most operations use
@@ -142,6 +168,236 @@ export function authFromSpec(api: any, source?: string, servers?: ServerEntry[])
   )
   out.defaultProfile = top?.find((n) => out.auth[n]) ?? Object.keys(out.auth)[0]
   return out
+}
+
+// ---- the credentials one service needs, for `specbook add` to write into a project's config
+
+/** Upper-case words of a name: `clientId` is CLIENT, ID; `x-api-key` is X, API, KEY. */
+const nameWords = (s: string): string[] =>
+  s
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map((w) => w.toUpperCase())
+
+/**
+ * The secret a scheme's value is kept in, named after the service so two services never share one:
+ * `plaid` + `clientId` is PLAID_CLIENT_ID, `petstore` + `api_key` is PETSTORE_API_KEY, and a scheme that already starts
+ * with the service's name is not prefixed twice (`plaid` + `plaidVersion` is PLAID_VERSION).
+ */
+export function serviceSecretName(service: string, scheme: string): string {
+  const p = nameWords(service)
+  const own = nameWords(scheme)
+  const s = own.length ? own : ['API', 'KEY']
+  const startsWithService = s.length >= p.length && p.every((w, i) => w === s[i])
+  if (startsWithService) return (s.length === p.length ? [...s, 'KEY'] : s).join('_')
+  return [...p, ...s].join('_')
+}
+
+export interface SpecCredentials {
+  /** one profile named after the service, with every scheme of the way chosen to authenticate */
+  profile?: {
+    name: string
+    title: string
+    apply: JsonAuthProfile['apply']
+    /** the schemes it applies, in the order the spec lists them */
+    schemes: string[]
+  }
+  /** the secrets its `apply` reads, in the order they are used */
+  secrets: string[]
+  /** one line each, at most three: what is left for a person to finish or decide */
+  notes: string[]
+}
+
+const COST: Record<SchemeKind, number> = { apiKey: 0, bearer: 0, basic: 1, oauth: 2 }
+const METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace']
+
+/** The thing a local reference (`#/components/securitySchemes/x`) points at. */
+function pointer(api: any, ref: string): any {
+  let at = api
+  for (const raw of ref.slice(2).split('/')) {
+    const key = decodeURIComponent(raw).replace(/~1/g, '/').replace(/~0/g, '~')
+    at = at?.[key]
+    if (at === undefined) return undefined
+  }
+  return at
+}
+
+/** Headers and query values of several schemes in one: a header named twice is a clash, except cookies, which join. */
+function mergeApply(parts: JsonAuthProfile['apply'][]): JsonAuthProfile['apply'] | undefined {
+  const headers = new Map<string, [string, string]>()
+  const query: Record<string, string> = {}
+  for (const part of parts) {
+    for (const [k, v] of Object.entries(part.headers ?? {})) {
+      const low = k.toLowerCase()
+      const had = headers.get(low)
+      if (!had) headers.set(low, [k, v])
+      else if (low === 'cookie') headers.set(low, [had[0], `${had[1]}; ${v}`])
+      else return undefined
+    }
+    for (const [k, v] of Object.entries(part.query ?? {})) {
+      if (k in query) return undefined
+      query[k] = v
+    }
+  }
+  return {
+    ...(headers.size ? { headers: Object.fromEntries(headers.values()) } : {}),
+    ...(Object.keys(query).length ? { query } : {}),
+  }
+}
+
+const sameSet = (a: string[], b: string[]) =>
+  a.length === b.length && [...a].sort().join('\0') === [...b].sort().join('\0')
+
+const kindLabel = (kind: SchemeKind, count: number) =>
+  kind === 'apiKey'
+    ? count > 1
+      ? 'API keys'
+      : 'API key'
+    : kind === 'bearer'
+      ? 'bearer token'
+      : kind === 'basic'
+        ? 'basic auth'
+        : 'OAuth token'
+
+/**
+ * How a service's calls authenticate, as one profile a project can use: the cheapest way the spec accepts that a pasted
+ * value can fill (an API key or bearer token before basic auth before OAuth). Schemes a requirement lists together must
+ * all apply, so they share a profile. Everything the spec accepts that is not written is said in `notes`.
+ */
+export function credentialsFromSpec(api: any, service: string): SpecCredentials {
+  const raw: Record<string, any> = api.components?.securitySchemes ?? api.securityDefinitions ?? {}
+  if (!Object.keys(raw).length) return { secrets: [], notes: [] }
+  const schemes: Record<string, any> = {}
+  const elsewhere: string[] = []
+  for (const [name, v] of Object.entries(raw)) {
+    if (typeof v?.$ref !== 'string') schemes[name] = v
+    else {
+      const target = v.$ref.startsWith('#/') ? pointer(api, v.$ref) : undefined
+      if (target) schemes[name] = target
+      else elsewhere.push(name)
+    }
+  }
+
+  // what each operation accepts: its own `security`, else the document's; every entry lists schemes that apply together
+  const ops: string[][][] = []
+  for (const item of Object.values<any>(api.paths ?? {}))
+    for (const method of METHODS) {
+      const op = item?.[method]
+      if (!op || typeof op !== 'object') continue
+      const sec = op.security ?? api.security
+      if (!Array.isArray(sec)) continue
+      const reqs = sec.map((r: any) => Object.keys(r ?? {})).filter((k: string[]) => k.length)
+      if (reqs.length) ops.push(reqs)
+    }
+
+  type Way = { names: string[]; uses: number }
+  let ways: Way[] = []
+  const top: string[][] = Array.isArray(api.security)
+    ? api.security.map((r: any) => Object.keys(r ?? {})).filter((k: string[]) => k.length)
+    : []
+  if (top.length) ways = top.map((names) => ({ names, uses: 0 }))
+  else
+    for (const reqs of ops)
+      for (const names of reqs) {
+        const have = ways.find((w) => sameSet(w.names, names))
+        if (have) have.uses++
+        else ways.push({ names, uses: 1 })
+      }
+  // schemes that nothing uses secure nothing: there is nothing to write
+  if (!ways.length) return { secrets: [], notes: [] }
+
+  // a way is usable when every scheme it lists can be written and the headers do not clash
+  const usable: (Way & { index: number; cost: number })[] = []
+  const unwritable = new Set<string>()
+  const clashes: string[][] = []
+  const unreadable = [
+    ...new Set([...elsewhere, ...ways.flatMap((w) => w.names).filter((n) => !(n in raw))]),
+  ]
+  for (const [index, way] of ways.entries()) {
+    const creds = way.names.map((n) =>
+      schemes[n] ? schemeCredential(n, schemes[n], 'x') : undefined,
+    )
+    way.names.forEach((n, i) => {
+      if (!creds[i] && schemes[n]) unwritable.add(n)
+    })
+    if (creds.some((c) => !c)) continue
+    const parts = creds.map((c) => (c as SchemeCredential).apply)
+    if (!mergeApply(parts)) {
+      clashes.push(way.names)
+      continue
+    }
+    usable.push({
+      ...way,
+      index,
+      cost: Math.max(...creds.map((c) => COST[(c as SchemeCredential).kind])),
+    })
+  }
+  const notes: string[] = []
+  const unreadableNote = () =>
+    `${unreadable.join(', ')} ${unreadable.length === 1 ? 'is' : 'are'} not defined in the document itself (a reference to another file is not followed)`
+  if (!usable.length) {
+    if (unreadable.length) notes.push(unreadableNote())
+    if (unwritable.size)
+      notes.push(`${[...unwritable].join(', ')} cannot be sent as a header or a query value`)
+    for (const names of clashes)
+      notes.push(`${names.join(' and ')} would set the same header, so they are not written`)
+    return { secrets: [], notes: notes.slice(0, 3) }
+  }
+  const chosen = [...usable].sort(
+    (a, b) => a.cost - b.cost || b.uses - a.uses || a.index - b.index,
+  )[0] as (typeof usable)[number]
+
+  // the secrets, one per scheme, and the profile with the real placeholders
+  const taken = new Set<string>()
+  const secretOf: Record<string, string> = {}
+  for (const n of chosen.names) {
+    let name = serviceSecretName(service, n)
+    for (let i = 2; taken.has(name); i++) name = `${serviceSecretName(service, n)}_${i}`
+    taken.add(name)
+    secretOf[n] = name
+  }
+  const creds = chosen.names.map((n) => ({
+    name: n,
+    scheme: schemes[n],
+    cred: schemeCredential(n, schemes[n], `{{secrets.${secretOf[n]}}}`) as SchemeCredential,
+  }))
+  const apply = mergeApply(creds.map((c) => c.cred.apply)) as JsonAuthProfile['apply']
+  const kinds = [...new Set(creds.map((c) => c.cred.kind))]
+  const title = kinds.length === 1 ? kindLabel(kinds[0] as SchemeKind, creds.length) : 'credentials'
+
+  if (unreadable.length) notes.push(unreadableNote())
+  for (const { name, scheme } of creds)
+    if (scheme.type === 'apiKey' && /version/i.test(String(scheme.name)))
+      notes.push(
+        `${scheme.name} reads like a version, not a credential: put its value in ${secretOf[name]}`,
+      )
+  for (const { name, cred } of creds) {
+    if (cred.kind === 'basic') notes.push(`${secretOf[name]} is the base64 of user:password`)
+    if (cred.kind === 'oauth')
+      notes.push(
+        `${secretOf[name]} takes an access token: sign-in settings are not written (paste a token, or add an oauth block)`,
+      )
+  }
+  // secured operations that do not accept this way, and what else the spec offers
+  const missed = ops.filter((reqs) => !reqs.some((names) => sameSet(names, chosen.names)))
+  if (missed.length) {
+    const only = [...new Set(missed.flat(2))].filter((n) => !chosen.names.includes(n))
+    notes.push(
+      `${missed.length} operation${missed.length === 1 ? '' : 's'} take${missed.length === 1 ? 's' : ''} only ${only.join(', ')}, which ${only.length === 1 ? 'is' : 'are'} not set up`,
+    )
+  } else {
+    const also = [...new Set([...ways.flatMap((w) => w.names), ...ops.flat(2)])].filter(
+      (n) => !chosen.names.includes(n) && schemes[n],
+    )
+    if (also.length) notes.push(`also accepted: ${also.join(', ')} (not set up)`)
+  }
+  return {
+    profile: { name: service, title, apply, schemes: chosen.names },
+    secrets: chosen.names.map((n) => secretOf[n] as string),
+    notes: notes.slice(0, 3),
+  }
 }
 
 /** One server a spec lists, as an environment the UI can switch to. */

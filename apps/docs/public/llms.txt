@@ -10,7 +10,7 @@ Words used here: an **operation** is one endpoint of the spec. A **request** is 
 
 1. `npm install --save-dev @specbook/cli @specbook/core`
 2. `npx specbook init` creates `.specbook/specbook.config.ts`, `.specbook/environments/` and the `#api/*` import in `package.json`.
-3. `npx specbook add <service> --spec <path or URL>` registers a spec and generates its types. A URL is downloaded to `openapi/` and recorded in `openapi/sources.json`. Set the service's address in `vars` (for example `petstoreUrl`) in the config; each environment can override it in `.specbook/environments/<env>.env`.
+3. `npx specbook add <service> --spec <path or URL>` registers a spec and generates its types. A URL is downloaded to `openapi/` and recorded in `openapi/sources.json`. `add` also sets the service's address in `vars` (for example `petstoreUrl`; each environment can override it in `.specbook/environments/<env>.env`) and writes the credentials the spec's security asks for (see Auth and secrets).
 4. `npx specbook check` validates specs, imports and environment files. `npx specbook generate` regenerates types; `test`, `dev` and `build` do it when they need to.
 5. Typecheck. `init` adds `typescript` to `package.json` and writes a `tsconfig.json`, unless the project has them already. Run `npm install` to fetch it, then `npx tsc --noEmit` after every change. It is the only check a flow's wiring gets (see "Chain steps with types"). If the project had its own `tsconfig.json`, `init` left it alone: make sure its `include` has `"requests"`, `"sequences"`, `".specbook/*.ts"` and `".generated/*/index.ts"` (`".specbook"` alone skips the config file) and that `moduleResolution` is `"Bundler"`. A project without one gets:
 
@@ -32,7 +32,7 @@ Never edit `.generated/`. Never put a secret's value in a file (see Auth and sec
 
 Read the spec's `securitySchemes`, and each operation's `security`, before you write the first request. Credentials go where the spec says: usually a header (`Authorization`, `X-API-Key`, `PLAID-SECRET`), sometimes a query parameter. Never put one in a request's `data`, even when the body has a field that looks right: the API ignores it and answers 401.
 
-Name each secret in `.specbook/specbook.config.ts`, add a profile that applies them, and set `auth` on the service (`specbook add` wrote the service with only `spec` and `baseUrl`). Here is a spec that wants two headers:
+`specbook add` reads the spec's security and writes this for you: a secret for each scheme, one profile named after the service that applies them, and `auth` on the service. It picks the way that a pasted value fills most easily (an API key or bearer token before basic auth before OAuth), and its output says what it did not set up. Check what it wrote against `securitySchemes`, and finish what its notes say: OAuth sign-in settings are not written, and a header like `Plaid-Version` is a value that is not secret (put it in the secret's place). For a project that did not use `add`, or to add another way to sign in, write the same by hand. Here is a spec that wants two headers:
 
 ```ts
 export default defineConfig({

@@ -1,0 +1,10 @@
+$ specbook add plaid --spec https://raw.githubusercontent.com/plaid/plaid-openapi/master/2020-09-14.yml --base-url https://sandbox.plaid.com
+✓ downloaded https://raw.githubusercontent.com/plaid/plaid-openapi/master/2020-09-14.yml → openapi/plaid.yml (3.3 MB, sha256 ea443cd78f6f)
+✓ added "plaid" to .specbook/specbook.config.ts
+✓ credentials from the spec: profile "plaid" sends PLAID_CLIENT_ID, PLAID_SECRET, PLAID_VERSION
+  set them as environment variables or in .specbook/environments/<env>.secrets.env; the mock needs none
+  Plaid-Version reads like a version, not a credential: put its value in PLAID_VERSION
+  also accepted: oauth2 (not set up)
+✓ other servers became environments in .specbook/environments/:
+  sandbox.env  plaidUrl=https://sandbox.plaid.com
+✓ plaid: 350 operations → ~/my-api/.generated/plaid

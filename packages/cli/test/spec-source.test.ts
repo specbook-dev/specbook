@@ -217,6 +217,118 @@ describe('specbook add, the address of the API', () => {
   }, 60_000)
 })
 
+describe('specbook add, credentials from the spec', () => {
+  const header = (name: string) => ({ type: 'apiKey', in: 'header', name })
+  const plaidLike = {
+    openapi: '3.0.0',
+    info: { title: 'Plaid-like', version: '1' },
+    servers: [{ url: 'https://sandbox.plaid.test' }],
+    security: [{ clientId: [], secret: [], plaidVersion: [] }],
+    paths: {
+      '/item/get': {
+        post: {
+          operationId: 'itemGet',
+          responses: {
+            '200': {
+              description: 'ok',
+              content: { 'application/json': { schema: { type: 'object' } } },
+            },
+          },
+        },
+      },
+    },
+    components: {
+      securitySchemes: {
+        clientId: header('PLAID-CLIENT-ID'),
+        secret: header('PLAID-SECRET'),
+        plaidVersion: header('Plaid-Version'),
+      },
+    },
+  }
+
+  it('writes the Plaid shape: one profile with three headers, and the service uses it', async () => {
+    served.set('/plaid-like.json', JSON.stringify(plaidLike))
+    const dir = await mkdtemp(join(tmpdir(), 'sb-plaid-'))
+    await symlink(join(example, 'node_modules'), join(dir, 'node_modules'))
+    const lines: string[] = []
+    const log = vi.spyOn(console, 'log').mockImplementation((m) => void lines.push(String(m)))
+    const cwd = vi.spyOn(process, 'cwd').mockReturnValue(dir)
+    try {
+      await initCommand(dir, { agents: false })
+      const { project: p, loader } = await reload(dir)
+      try {
+        await addCommand(p, 'plaid', `${base}/plaid-like.json`)
+      } finally {
+        await loader.close()
+      }
+      const cfg = await readFile(join(dir, '.specbook/specbook.config.ts'), 'utf8')
+      expect(cfg).toContain(
+        '  secrets: { PLAID_CLIENT_ID: {}, PLAID_SECRET: {}, PLAID_VERSION: {} },\n  auth: {\n    plaid: {\n',
+      )
+      expect(cfg).toContain("          'Plaid-Version': '{{secrets.PLAID_VERSION}}',")
+      expect(cfg).toContain("      baseUrl: '{{plaidUrl}}',\n      auth: 'plaid',\n")
+      const said = lines.join('\n')
+      expect(said).toContain(
+        'credentials from the spec: profile "plaid" sends PLAID_CLIENT_ID, PLAID_SECRET, PLAID_VERSION',
+      )
+      expect(said).toContain('Plaid-Version reads like a version, not a credential')
+      // what was written is a config that loads, with the profile where the runner looks for it
+      const again = await reload(dir)
+      try {
+        expect(again.project.config.services.plaid?.auth).toBe('plaid')
+        expect(Object.keys(again.project.config.secrets ?? {})).toEqual([
+          'PLAID_CLIENT_ID',
+          'PLAID_SECRET',
+          'PLAID_VERSION',
+        ])
+        expect(again.project.config.auth?.plaid?.apply.headers).toEqual({
+          'PLAID-CLIENT-ID': '{{secrets.PLAID_CLIENT_ID}}',
+          'PLAID-SECRET': '{{secrets.PLAID_SECRET}}',
+          'Plaid-Version': '{{secrets.PLAID_VERSION}}',
+        })
+      } finally {
+        await again.loader.close()
+      }
+    } finally {
+      log.mockRestore()
+      cwd.mockRestore()
+    }
+  }, 60_000)
+
+  it('writes nothing, and says nothing about credentials, for a spec that is open', async () => {
+    const doc = JSON.parse(petstore)
+    doc.components.securitySchemes = undefined
+    doc.security = undefined
+    served.set('/open.json', JSON.stringify(doc))
+    const lines: string[] = []
+    await withProject(async (dir, p) => {
+      vi.spyOn(console, 'log').mockImplementation((m) => void lines.push(String(m)))
+      await addCommand(p, 'open', `${base}/open.json`)
+      const cfg = await readFile(join(dir, '.specbook/specbook.config.ts'), 'utf8')
+      expect(cfg).not.toContain('secrets')
+      expect(cfg).not.toContain('auth')
+    })
+    expect(lines.join('\n')).not.toContain('credentials')
+  }, 60_000)
+
+  it('prints the credentials too when the config cannot be edited at all', async () => {
+    served.set('/plaid-like.json', JSON.stringify(plaidLike))
+    const lines: string[] = []
+    await withProject(async (dir, p) => {
+      const file = join(dir, '.specbook/specbook.config.ts')
+      const odd = `import { defineConfig } from '@specbook/core'\nexport default defineConfig({ project: 'tmp', services: {} })\n`
+      await writeFile(file, odd)
+      vi.spyOn(console, 'log').mockImplementation((m) => void lines.push(String(m)))
+      await addCommand(p, 'plaid', `${base}/plaid-like.json`)
+      expect(await readFile(file, 'utf8')).toBe(odd)
+    })
+    const said = lines.join('\n')
+    expect(said).toContain('Could not edit the config automatically')
+    expect(said).toContain('secrets: { PLAID_CLIENT_ID: {}, PLAID_SECRET: {}, PLAID_VERSION: {} },')
+    expect(said).toContain("`auth: 'plaid',`")
+  }, 60_000)
+})
+
 describe('the size of a download', () => {
   it('is read in KB until it is a megabyte', () => {
     expect(sizeOf(26_000)).toBe('26 KB')

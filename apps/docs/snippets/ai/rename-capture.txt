@@ -1,7 +1,7 @@
 $ npx tsc --noEmit
-sequences/link-bank-account.seq.ts(22,71): error TS2551: Property 'publicToken' does not exist on type '{ publicTokenX: string | undefined; }'. Did you mean 'publicTokenX'?
+sequences/link-bank-account.seq.ts(17,61): error TS2551: Property 'publicToken' does not exist on type '{ publicTokenX: string | undefined; }'. Did you mean 'publicTokenX'?
 
 $ npx specbook test --grep "Link a bank"
  Flows       1 passed (1)
- Steps       6 passed
- Assertions  15 passed
+ Steps       5 passed
+ Assertions  12 passed

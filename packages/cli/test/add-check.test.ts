@@ -5,6 +5,8 @@ import { join, resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { addCommand } from '../src/commands/add'
 import { checkCommand } from '../src/commands/check'
+import { secretsCommand } from '../src/commands/secrets'
+import { testCommand } from '../src/commands/test'
 import { createLoader } from '../src/load'
 import { loadProject } from '../src/project'
 
@@ -52,6 +54,14 @@ describe('add / check', () => {
       // the address is a variable; the config had no `vars`, so one is added
       expect(cfg).toContain("baseUrl: '{{pets2Url}}'")
       expect(cfg).toMatch(/vars: \{\n\s+pets2Url: 'https:\/\/example\.test',\n\s+\},/)
+      // and the credentials the spec asks for: a secret named for the service, a profile, and the service uses it
+      expect(cfg).toContain('secrets: { PETS2_API_KEY: {} },')
+      expect(cfg).toContain("auth: 'pets2',")
+      expect(cfg).toContain("title: 'API key',")
+      expect(cfg).toContain("apply: { headers: { api_key: '{{secrets.PETS2_API_KEY}}' } },")
+      const said = log.mock.calls.map((c) => c.join(' ')).join('\n')
+      expect(said).toContain('credentials from the spec: profile "pets2" sends PETS2_API_KEY')
+      expect(said).toContain('7 operations take only petstore_auth, which is not set up')
 
       // a spec with several servers: the first is the default, the others are environment files
       const spec = JSON.parse(await readFile(join(dir, 'openapi/petstore.json'), 'utf8'))
@@ -70,6 +80,11 @@ describe('add / check', () => {
       const multi = await readFile(join(dir, '.specbook/specbook.config.ts'), 'utf8')
       expect(multi).toMatch(/multiUrl: 'https:\/\/prod\.example\.test\/v1'/)
       expect(multi).toContain("baseUrl: '{{multiUrl}}'")
+      // the same spec added again gets secrets and a profile of its own, in the blocks that are there
+      expect(multi).toContain('secrets: { MULTI_API_KEY: {}, PETS2_API_KEY: {} },')
+      expect(multi).toContain("auth: 'multi',")
+      expect(multi.match(/^ {2}secrets:/gm)).toHaveLength(1)
+      expect(multi.match(/^ {2}auth: \{/gm)).toHaveLength(1)
       // an existing value in an environment file is not overwritten; a new environment gets its file
       expect(await readFile(join(dir, '.specbook/environments/staging.env'), 'utf8')).toBe(
         'multiUrl=https://kept.example.test\nOTHER=1\n',
@@ -140,6 +155,65 @@ export default AddPet.request({
       }
     } finally {
       log.mockRestore()
+      cwd.mockRestore()
+    }
+  }, 60_000)
+})
+
+describe('credentials that add wrote', () => {
+  it('are named by `secrets`, run on the mock with no value, and are required on a real environment', async () => {
+    const dir = await tempProject()
+    const lines: string[] = []
+    const errors: string[] = []
+    const log = vi.spyOn(console, 'log').mockImplementation((...a) => void lines.push(a.join(' ')))
+    const err = vi
+      .spyOn(console, 'error')
+      .mockImplementation((...a) => void errors.push(a.join(' ')))
+    const out = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    const cwd = vi.spyOn(process, 'cwd').mockReturnValue(dir)
+    const loader = await createLoader(dir)
+    try {
+      await addCommand(
+        await loadProject(dir, loader),
+        'pets2',
+        './openapi/petstore.json',
+        'https://example.test',
+      )
+      await mkdir(join(dir, 'requests/pets2'), { recursive: true })
+      await writeFile(
+        join(dir, 'requests/pets2/find.req.ts'),
+        `import { FindPetsByStatus } from '#api/pets2'
+export default FindPetsByStatus.request({ query: { status: 'available' } })
+`,
+      )
+      const reloaded = await createLoader(dir)
+      try {
+        const project = await loadProject(dir, reloaded)
+        lines.length = 0
+        expect(await secretsCommand(project, 'live')).toBe(1)
+        expect(lines.join('\n')).toContain('✗ PETS2_API_KEY')
+
+        const o = {
+          patterns: ['requests/pets2/find.req.ts'],
+          inputs: {},
+          vars: {},
+          reporters: [],
+          tags: [],
+        }
+        // the mock needs no value, whatever the scheme: the profile sent its credential, so the mock does not say 401
+        expect(await testCommand(project, reloaded, { ...o, env: 'mock' })).toBe(0)
+        // a real environment cannot run without it, and says which
+        errors.length = 0
+        expect(await testCommand(project, reloaded, { ...o, env: 'live' })).toBe(2)
+        expect(errors.join('\n')).toContain('PETS2_API_KEY')
+      } finally {
+        await reloaded.close()
+      }
+    } finally {
+      await loader.close()
+      log.mockRestore()
+      err.mockRestore()
+      out.mockRestore()
       cwd.mockRestore()
     }
   }, 60_000)

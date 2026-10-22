@@ -22,7 +22,8 @@ const HELP = `specbook <command>
       --agents                 add a Specbook section to an existing AGENTS.md or CLAUDE.md (never edited otherwise)
       --no-agents              skip the agent guide and AGENTS.md
   add <service> --spec <p|url> register an OpenAPI spec in the config and generate it; an address is downloaded to
-                               openapi/ and recorded in openapi/sources.json
+                               openapi/ and recorded in openapi/sources.json. The spec's security becomes secrets
+                               and an auth profile
   add --refresh [service...]   download the recorded addresses again, say what changed and regenerate it
       --base-url <url>         address to use instead of the spec's first server
   generate [service...]        generate types, operations, examples and metadata from specs
