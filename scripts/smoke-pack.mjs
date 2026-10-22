@@ -156,6 +156,11 @@ try {
     ],
     'specbook add',
   )
+  // add reads the spec's security: Petstore has an API key, so the config gets a secret, a profile, and the service uses it
+  const config = readFileSync(join(proj, '.specbook/specbook.config.ts'), 'utf8')
+  if (!config.includes('PETSTORE_API_KEY: {}') || !config.includes("auth: 'petstore'"))
+    fail('specbook add wrote no credentials for a spec that declares an API key')
+  else ok('add wrote the credentials from the spec')
   sb(['generate'], 'specbook generate')
 
   writeFileSync(
