@@ -1,6 +1,6 @@
 {
   "name": "@specbook/codegen",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "description": "Turns an OpenAPI or Swagger document into types, examples, schemas and metadata, in Node or in a browser.",
   "keywords": [
     "specbook",
