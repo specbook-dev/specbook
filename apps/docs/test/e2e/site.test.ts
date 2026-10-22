@@ -214,9 +214,12 @@ describe('the built site', () => {
         m.brandBottom - 1,
       )
       expect(m.count).toBe(6)
-      // wide enough for all six: none is cut off. Narrower: the row scrolls, and the first links show
+      // from 375 up all six fit. Narrower, a link is never lost: either all six still fit, or the row scrolls
       if (width >= 375) expect(m.overshoot, `${width}: all six fit`).toBeLessThanOrEqual(0)
-      else expect(m.scrolls, `${width}: the row scrolls`).toBe(true)
+      else
+        expect(m.overshoot <= 0 || m.scrolls, `${width}: all six fit, or the row scrolls`).toBe(
+          true,
+        )
       expect(m.header, `${width}: the header stays slim`).toBeLessThan(110)
       await context.close()
     }
