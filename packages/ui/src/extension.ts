@@ -10,11 +10,9 @@ import {
   wireToResponse,
 } from '@specbook/core'
 
-/**
- * Where to get the extension: the docs page with the install steps, which links the download. A store listing
- * replaces this.
- */
-const INSTALL_URL = 'https://docs.specbook.dev/reference/browser-extension/'
+/** Where to get the extension: its Chrome Web Store listing, which Brave installs from and Edge can once it allows other stores. */
+export const INSTALL_URL =
+  'https://chromewebstore.google.com/detail/specbook/dkkfffjkliimgpadidgabpkmocdefjha'
 
 /**
  * Where this browser gets the extension, or undefined when there is nothing to install: it is built for

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extensionInstallUrl } from '../src/extension'
+import { extensionInstallUrl, INSTALL_URL } from '../src/extension'
 
 const UA = {
   chrome:
@@ -15,9 +15,12 @@ const UA = {
 }
 
 describe('where a browser gets the extension', () => {
-  it('sends Chrome, Edge and other Chromium browsers on a computer to the download', () => {
-    expect(extensionInstallUrl(UA.chrome)).toMatch(/^https:\/\//)
-    expect(extensionInstallUrl(UA.edge)).toMatch(/^https:\/\//)
+  it('sends Chrome, Edge and other Chromium browsers on a computer to the Chrome Web Store listing', () => {
+    expect(INSTALL_URL).toMatch(
+      /^https:\/\/chromewebstore\.google\.com\/detail\/specbook\/[a-p]{32}$/,
+    )
+    expect(extensionInstallUrl(UA.chrome)).toBe(INSTALL_URL)
+    expect(extensionInstallUrl(UA.edge)).toBe(INSTALL_URL)
   })
 
   it('sends no one else to a download that cannot work for them', () => {

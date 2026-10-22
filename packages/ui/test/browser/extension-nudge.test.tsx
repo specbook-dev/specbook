@@ -34,9 +34,9 @@ describe('what the person can do about a failed call, said in the failed respons
     expect(host.textContent).toContain('can send this call for you')
     expect(host.textContent).toContain('api.acme.com')
     expect(host.textContent).toContain('choose Enable.')
-    // the install steps, which link the download
+    // the extension's store listing
     expect(host.querySelector('a')?.getAttribute('href')).toBe(
-      'https://docs.specbook.dev/reference/browser-extension/',
+      'https://chromewebstore.google.com/detail/specbook/dkkfffjkliimgpadidgabpkmocdefjha',
     )
     expect(host.querySelector('a')?.getAttribute('target')).toBe('_blank')
     expect(host.querySelector('button')).toBeNull()
