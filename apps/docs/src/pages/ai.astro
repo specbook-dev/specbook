@@ -28,12 +28,18 @@ import Page from '../layouts/Page.astro'
       <h2 class="title">Set up the project</h2>
       <div class="prose">
         <p>
-          The project is two commands, <code>specbook init</code> and then <code>specbook add</code>. Adding a spec
-          downloads it and reads its security schemes. Plaid asks for three headers, so <code>add</code> wrote one
-          profile that sends all three, and a secret for each.
+          Install Specbook, run <code>specbook init</code>, then <code>specbook add</code> the spec. Adding a spec
+          downloads it and reads its security schemes.
         </p>
       </div>
-      <Snippet file="snippets/ai/add-output.txt" title={false} wrap />
+      <Snippet file="snippets/install.sh" region="install-plaid" title={false} />
+      <div class="prose">
+        <p>
+          Plaid asks for three headers, so <code>add</code> wrote one profile that sends all three, and a secret
+          for each.
+        </p>
+      </div>
+      <Snippet file="snippets/ai/add-output.txt" title={false} />
       <Snippet
         file="snippets/ai/plaid-config.ts"
         lines="11-30"
@@ -99,7 +105,7 @@ import Page from '../layouts/Page.astro'
           and the tests.
         </p>
       </div>
-      <Snippet file="snippets/ai/rename-capture.txt" title={false} wrap />
+      <Snippet file="snippets/ai/rename-capture.txt" title={false} />
       <div class="prose">
         <p>
           The compiler points at the broken step. The test run still passes on the mock, so a green run does not
@@ -115,7 +121,7 @@ import Page from '../layouts/Page.astro'
           No server and no keys.
         </p>
       </div>
-      <Snippet file="snippets/ai/test-run.txt" title={false} wrap />
+      <Snippet file="snippets/ai/test-run.txt" title={false} />
       <div class="prose">
         <p>
           Setup took a few seconds, and the agent needed about two minutes to get from there to a passing flow,
