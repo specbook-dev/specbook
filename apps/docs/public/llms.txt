@@ -20,7 +20,7 @@ Words used here: an **operation** is one endpoint of the spec. A **request** is 
        "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler", "lib": ["ES2022", "DOM"],
        "strict": true, "skipLibCheck": true, "noEmit": true, "types": []
      },
-     "include": ["requests", "sequences", ".specbook", ".generated/*/index.ts"]
+     "include": ["requests", "sequences", ".specbook/*.ts", ".generated/*/index.ts"]
    }
    ```
 
@@ -83,7 +83,7 @@ export default FindPetsByStatus.request({
 - Fields: `name`, `tags`, `init` (default values), `path`, `query`, `headers`, `data` (the body), `capture`, `assert`, `auth`, `safe`, `timeoutMs`.
 - Give every `{{name}}` the request uses a default in `init`. Then the request also runs on its own, and its `vars` are typed. A default is for running the request alone: in a flow, a value that comes from an earlier step arrives through the flow's `ctx` (see "Chain steps with types"), because a default also fills in silently when the chain breaks.
 - `{{name}}` is filled from `init`, a flow's inputs, values captured by earlier steps, and the config's `vars`.
-- Path, query and body are typed from the spec. Let the compiler tell you what is missing.
+- Path, query and body are typed from the spec. Let the compiler tell you what is missing. It checks names and shapes, not string values: a field with a fixed set of values (an enum) accepts any string, so read the allowed ones in the spec.
 - Credentials are not request fields: use a profile (see Auth and secrets).
 - Add `tags: ['monitor']` to what should run against production.
 - `safe: true` marks a POST that only reads (a search, a GraphQL query) so it is allowed in a `--safe` run.
@@ -170,7 +170,7 @@ Values move between steps by name, and there are two ways to write the name:
 - Use `{{...}}` for config `vars`, `{{secrets.*}}`, `{{faker.*}}` and a request's own `init` defaults. Between steps, use `ctx`.
 - `.with({ vars: { name: ... } })` is checked only for names the request lists in `init`; any other name is accepted. Prefer `data`, `path` or `query`.
 - Every name lives in one scope, and a later layer beats an earlier one: config `vars`, `init`, flow inputs, captures, `.with({ vars })`, `--var`. A capture named like an `init` key replaces it. That is how a bare `{{name}}` finds an earlier step's value, and why renaming one end breaks it without a sound.
-- Prove the chain in the later step, so a stale value fails instead of passing: `assert.is(res.data.id, ctx.captured.orderId, 'same order')`.
+- Prove the chain with a `.check` step, so a stale value fails instead of passing: capture what the later response says, then compare it with what the earlier step captured: `.check('Same order', (ctx, { assert }) => assert.is(ctx.captured.readBackId, ctx.captured.orderId, 'the order read back is the one placed'))`. `.with({ assert })` replaces the request's own asserts for that step, so use it only when you mean to.
 - Finish with `npx tsc --noEmit`. `specbook check` reads requests, never flows, so the compiler is the only check a flow's wiring gets. Fix the cause of a type error (a wrong name, or a missing check on `res.status`) rather than silencing it with `any` or `as`.
 
 ### Recipe: list, check, pick, act
@@ -205,6 +205,7 @@ export default withMock(GetOrderById.request({ /* ... */ }), (req, res) => {
 
 - Before you finish: `npx tsc --noEmit`, `npx specbook check`, `npx specbook test`. A green test run does not prove a flow is wired to the right names; the compiler does.
 - `npx specbook test` runs everything against mock data. `--env staging` runs against a real environment. `--tag monitor`, `--grep <re>`, `--list`, `--input name=value`, `--retries 1` (a pass on retry is reported as flaky), `--timeout <ms>`.
+- It runs every request on its own as well as each flow, with the request's `init` defaults. A request that only makes sense after an earlier step passes on the mock with stand-in defaults but fails alone on a real environment, so tag the flow and the requests that work alone, and select them with `--tag`.
 - Against production always pass `--safe`: a request that is not a GET, HEAD or OPTIONS is refused.
 - Exit codes: 0 passed, 1 a flow failed or errored, 2 it could not run (missing secrets, a missing spec), 3 usage.
 - `npx specbook dev` opens the UI; `npx specbook build --minimal` publishes a small portal of only the project's requests and flows for QA; `npx specbook bundle` writes one `.mjs` that runs with just node, for CI and ops.
