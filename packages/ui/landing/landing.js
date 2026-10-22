@@ -169,11 +169,6 @@ else addEventListener('load', () => idle(warmViewer), { once: true })
 const carried = new URLSearchParams(location.search).get('spec')
 if (carried) toViewer(carried)
 
-// the viewer sends a link here when it could not read the document's address (`?unreadable=local|cors`):
-// the same explanation and paste box as when the address is typed in. Only the reason is in the address.
-const unreadable = new URLSearchParams(location.search).get('unreadable')
-if (unreadable && Object.hasOwn(UNREADABLE, unreadable)) showFallback(UNREADABLE[unreadable])
-
 // "Open in Specbook" button: the markdown for a README, for any document served from a public address.
 // The rules match the viewer's share menu, so a button never points at something only the author can open.
 const SITE = 'https://ui.specbook.dev'

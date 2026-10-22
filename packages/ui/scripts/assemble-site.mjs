@@ -36,7 +36,7 @@ await cp(viewer, resolve(out, channel), { recursive: true })
 // The hosted viewer registers one stable callback address with identity providers (the unversioned page in
 // `landing/oauth/callback/`), not its own path, which changes with the channel. The viewer reads this tag;
 // builds that do not have it (a self-hosted copy, an embed) use the page's own address. The same goes for the
-// landing page: only the hosted viewer has one to send a link to when it cannot read the document's address.
+// landing page: only the hosted viewer has one to link to from its picker.
 {
   const index = resolve(out, channel, 'index.html')
   const html = await readFile(index, 'utf8')

@@ -236,7 +236,7 @@ beforeAll(async () => {
   const port = new URL(await listen(api)).port
   apiUrl = `http://api.fixture.test:${port}`
   browser = await chromium.launch({
-    args: ['--host-resolver-rules=MAP api.fixture.test 127.0.0.1'],
+    args: ['--host-resolver-rules=MAP api.fixture.test 127.0.0.1, MAP site.fixture.test 127.0.0.1'],
   })
 })
 
@@ -312,13 +312,16 @@ describe('the hosted viewer opens a spec at run time', () => {
     await page.close()
   })
 
-  it('sends a link the browser may not read to the landing page, which explains and takes the pasted text', async () => {
+  it('keeps a link the browser may not read where it is: the error, the address to edit, and the paste box', async () => {
     const { page } = await open(spec('nocors/petstore3.json'))
-    await page.waitForURL(`${siteUrl}/?unreadable=cors`)
-    await page.waitForSelector('#fallback:not([hidden])')
-    expect(await page.locator('#why').innerText()).toMatch(/CORS/)
-    // the home page is measured: the document's address stays out of its own
-    expect(page.url()).not.toContain('fixture.test')
+    await page.waitForSelector('.vw-error')
+    expect(await page.locator('.vw-error').innerText()).toMatch(/CORS/)
+    expect(await page.locator('.vw-error').innerText()).toMatch(/Paste the document below/)
+    // no trip to another page: the address is still in the box, to be fixed, and the link is still the address bar's
+    expect(page.url()).toContain('/v1/?spec=')
+    expect(
+      await page.getByLabel('Address of an OpenAPI or Swagger document').inputValue(),
+    ).toContain('/nocors/petstore3.json')
     // the same document, pasted, opens
     const text = await readFile(join(fixtures, 'petstore3.json'), 'utf8')
     await page.getByLabel('OpenAPI or Swagger document text').fill(text)
@@ -330,14 +333,29 @@ describe('the hosted viewer opens a spec at run time', () => {
     await page.close()
   })
 
-  it('does the same for a link to the visitor’s own machine, and for a file address', async () => {
+  it('says why a hosted page cannot read a link to the visitor’s own machine, and a file address', async () => {
+    // served from a public-looking name, as the hosted site is
+    const hosted = `http://site.fixture.test:${new URL(siteUrl).port}`
     for (const address of ['http://localhost:9/openapi.json', 'file:///Users/me/openapi.json']) {
-      const { page } = await open(`spec=${encodeURIComponent(address)}`)
-      await page.waitForURL(`${siteUrl}/?unreadable=local`)
-      await page.waitForSelector('#fallback:not([hidden])')
-      expect(await page.locator('#why').innerText()).toMatch(/your own machine or network/)
+      const page = await browser.newPage()
+      await page.goto(`${hosted}/v1/?spec=${encodeURIComponent(address)}`)
+      await page.waitForSelector('.vw-error')
+      const said = await page.locator('.vw-error').innerText()
+      expect(said).toMatch(/your own machine or network, which a hosted page cannot reach/)
+      expect(said).toMatch(/Paste the document below/)
+      expect(page.url()).toContain('/v1/?spec=')
       await page.close()
     }
+  })
+
+  it('does not say that of a copy served from a private address, which reaches them as anyone', async () => {
+    // the fixture site is on 127.0.0.1
+    const { page } = await open(`spec=${encodeURIComponent('http://localhost:9/openapi.json')}`)
+    await page.waitForSelector('.vw-error')
+    const said = await page.locator('.vw-error').innerText()
+    expect(said).toMatch(/CORS/)
+    expect(said).not.toMatch(/hosted page cannot reach/)
+    await page.close()
   })
 
   it('shows only the error, in the frame, when a viewer embedded on another site cannot open its document', async () => {

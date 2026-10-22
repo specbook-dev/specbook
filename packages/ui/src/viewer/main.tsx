@@ -49,17 +49,17 @@ const specUrl = (u: string) => `${location.origin}${location.pathname}?spec=${so
 const framed = window.top !== window
 
 /**
- * Sends the visitor to the hosted site's landing page, which says why the address could not be read and
- * has the box to paste the document into. Only the reason travels: the home page is measured, and the
- * address can carry a token. `replace`, so Back does not return to a link that would only bounce again.
- * A self-hosted copy has no landing page (its build does not declare one), and a viewer framed on another
- * site keeps its error in the frame rather than turning the frame into the home page: both answer false.
+ * Why an address could not be read, in words, when the page can tell: it is a file on the visitor's own machine, or a
+ * private address that a page served from the public internet cannot reach. A copy of the viewer served from a private
+ * address (a laptop, an intranet) reaches such addresses as well as anything, so it says nothing of the kind.
  */
-function toHome(why: 'local' | 'cors'): boolean {
-  const home = hostedHome()
-  if (!home) return false
-  location.replace(`${home}?unreadable=${why}`)
-  return true
+const LOCAL = 'That address is on your own machine or network, which a hosted page cannot reach.'
+function whyUnreadable(address: string): { message: string; code: 'local' } | undefined {
+  const here = unreadableWhy(location.origin) === 'cors'
+  const file = /^file:/i.test(address)
+  return file || (here && unreadableWhy(address) === 'local')
+    ? { message: LOCAL, code: 'local' }
+    : undefined
 }
 
 /** The hosted site's landing page: only where the build declares one, and never inside another site's frame. */
@@ -74,7 +74,7 @@ function hostedHome(): string | undefined {
 type Phase =
   | { kind: 'idle' }
   | { kind: 'loading'; what: string; progress?: string }
-  | { kind: 'error'; message: string; code?: OpenFailure['code'] }
+  | { kind: 'error'; message: string; code?: OpenFailure['code'] | 'local' }
   | { kind: 'base'; open: OpenResult; apply(base: string | undefined): void }
 
 function Picker({ initial }: { initial: Phase }) {
@@ -84,8 +84,7 @@ function Picker({ initial }: { initial: Phase }) {
   const [over, setOver] = useState(false)
   const worker = useRef<SpecWorker | undefined>(undefined)
 
-  // `fromLink`: the address came with the page's own link (`?spec=`), not from the form on this page
-  const start = async (source: Source, label: string, remember?: string, fromLink = false) => {
+  const start = async (source: Source, label: string, remember?: string) => {
     worker.current ??= new SpecWorker()
     setPhase({ kind: 'loading', what: label })
     const { promise } = worker.current.open(source, (progress) =>
@@ -103,29 +102,26 @@ function Picker({ initial }: { initial: Phase }) {
       else await finish()
     } catch (e) {
       const f = e as OpenFailure
-      if (
-        fromLink &&
-        f.code === 'cors' &&
-        source.kind === 'url' &&
-        toHome(unreadableWhy(source.url))
-      )
-        return
+      // a fetch that failed for an address a hosted page cannot reach is that, not "the server may not allow it"
+      const why = f.code === 'cors' && source.kind === 'url' ? whyUnreadable(source.url) : undefined
+      if (why) return setPhase({ kind: 'error', ...why })
       setPhase({ kind: 'error', message: f.message, code: f.code })
     }
   }
 
-  const openUrl = (u: string, fromLink = false) => {
+  const openUrl = (u: string) => {
     const clean = rawGithub(u.trim())
     if (!clean) return
     if (!/^https?:\/\//i.test(clean)) {
-      if (fromLink && /^file:/i.test(clean) && toHome('local')) return
-      return setPhase({
-        kind: 'error',
-        message: 'Enter an address starting with http:// or https://',
-      })
+      const why = whyUnreadable(clean)
+      return setPhase(
+        why
+          ? { kind: 'error', ...why }
+          : { kind: 'error', message: 'Enter an address starting with http:// or https://' },
+      )
     }
     history.replaceState(null, '', specUrl(clean))
-    void start({ kind: 'url', url: clean }, clean, clean, fromLink)
+    void start({ kind: 'url', url: clean }, clean, clean)
   }
 
   const openText = async (name: string, body: string) => {
@@ -137,7 +133,7 @@ function Picker({ initial }: { initial: Phase }) {
   useEffect(() => {
     const s = params.get('spec')
     const up = params.get('upload')
-    if (s) openUrl(s, true)
+    if (s) openUrl(s)
     else if (up)
       void loadUpload(up).then((u) =>
         u
@@ -209,7 +205,7 @@ function Picker({ initial }: { initial: Phase }) {
         {phase.kind === 'error' && (
           <div class="vw-error" role="alert">
             {phase.message}
-            {phase.code === 'cors' && (
+            {(phase.code === 'cors' || phase.code === 'local') && (
               <> Paste the document below or drop the file instead; it works the same.</>
             )}
           </div>

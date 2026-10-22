@@ -32,9 +32,8 @@ function privateAddress(host: string): boolean {
 }
 
 /**
- * Why a hosted page could not read an address, as the landing page words it: the address is on the
- * visitor's own machine or network (a `file:` address, `localhost`, a private range), or the server it names
- * does not let other sites fetch from it.
+ * Why a hosted page could not read an address: it is on the visitor's own machine or network (a `file:` address,
+ * `localhost`, a private range), or the server it names does not let other sites fetch from it.
  */
 export function unreadableWhy(address: string): 'local' | 'cors' {
   try {
