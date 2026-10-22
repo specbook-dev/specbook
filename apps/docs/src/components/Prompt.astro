@@ -48,7 +48,8 @@ const chars = Array.from(text)
 
 <style>
   .prompt {
-    --step: 32ms;
+    --step: 50ms;
+    --fade: 140ms;
     margin: 22px 0;
     max-width: 100%;
     border: 1px solid var(--line);
@@ -88,10 +89,13 @@ const chars = Array.from(text)
   }
   .pc {
     opacity: 0;
-    animation: pc-in var(--step) steps(1) forwards;
+    animation: pc-in var(--fade) linear forwards;
     animation-delay: calc(350ms + var(--i) * var(--step));
   }
   @keyframes pc-in {
+    from {
+      opacity: 0;
+    }
     to {
       opacity: 1;
     }
