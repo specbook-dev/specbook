@@ -1,5 +1,6 @@
 import { render } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
+import markUrl from '../assets/mark.svg'
 import { handleOAuthCallback } from '../oauth-callback'
 import { applyTheme } from '../theme'
 import { type OpenFailure, SpecWorker } from './client'
@@ -55,11 +56,19 @@ const framed = window.top !== window
  * site keeps its error in the frame rather than turning the frame into the home page: both answer false.
  */
 function toHome(why: 'local' | 'cors'): boolean {
-  if (framed) return false
-  const home = document.querySelector<HTMLMetaElement>('meta[name="specbook-home"]')?.content.trim()
+  const home = hostedHome()
   if (!home) return false
   location.replace(`${home}?unreadable=${why}`)
   return true
+}
+
+/** The hosted site's landing page: only where the build declares one, and never inside another site's frame. */
+function hostedHome(): string | undefined {
+  if (framed) return undefined
+  return (
+    document.querySelector<HTMLMetaElement>('meta[name="specbook-home"]')?.content.trim() ||
+    undefined
+  )
 }
 
 type Phase =
@@ -140,6 +149,7 @@ function Picker({ initial }: { initial: Phase }) {
       )
   }, [])
 
+  const home = hostedHome()
   const busy = phase.kind === 'loading'
   if (autostart && (phase.kind === 'idle' || phase.kind === 'loading'))
     return (
@@ -153,7 +163,7 @@ function Picker({ initial }: { initial: Phase }) {
   if (framed && params.has('spec') && phase.kind === 'error')
     return (
       <main class="vw">
-        <div class="vw-card">
+        <div class="vw-card vw-bare">
           <div class="vw-error" role="alert">
             {phase.message}
           </div>
@@ -163,7 +173,10 @@ function Picker({ initial }: { initial: Phase }) {
   return (
     <main class="vw">
       <div class="vw-card">
-        <h1>Specbook</h1>
+        <header class="vw-brand">
+          <img src={markUrl} alt="" width="32" height="32" />
+          <h1>Specbook</h1>
+        </header>
         <p>
           Open any OpenAPI or Swagger document. It is read in your browser; nothing is uploaded.
         </p>
@@ -256,10 +269,10 @@ function Picker({ initial }: { initial: Phase }) {
 
         <section>
           <p>Try one</p>
-          <ul>
+          <ul class="vw-chips">
             {EXAMPLES.map((x) => (
               <li>
-                <button type="button" class="link" onClick={() => openUrl(x.url)}>
+                <button type="button" class="vw-chip" onClick={() => openUrl(x.url)}>
                   {x.label}
                 </button>
               </li>
@@ -270,7 +283,7 @@ function Picker({ initial }: { initial: Phase }) {
         {recentSpecs().length > 0 && (
           <section>
             <p>Recent</p>
-            <ul>
+            <ul class="vw-recent">
               {recentSpecs().map((u) => (
                 <li>
                   <button type="button" class="link" title={u} onClick={() => openUrl(u)}>
@@ -280,6 +293,11 @@ function Picker({ initial }: { initial: Phase }) {
               ))}
             </ul>
           </section>
+        )}
+        {home && (
+          <footer class="vw-foot">
+            <a href={home}>What is Specbook?</a>
+          </footer>
         )}
       </div>
     </main>

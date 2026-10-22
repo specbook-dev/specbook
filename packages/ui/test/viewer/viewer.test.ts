@@ -366,6 +366,19 @@ describe('the hosted viewer opens a spec at run time', () => {
     const frame = page.frameLocator('iframe[title="viewer"]')
     await frame.getByLabel('Address of an OpenAPI or Swagger document').waitFor({ timeout: 30_000 })
     expect(await frame.getByText('Try one').count()).toBe(1)
+    // a link to Specbook's own home page is for the page when it is the site's, not inside another site's frame
+    expect(await frame.getByText('What is Specbook?').count()).toBe(0)
+    await page.close()
+  })
+
+  it('shows the picker as the hosted site’s own page, with its mark and a way to the home page', async () => {
+    const { page } = await open('')
+    await page.waitForSelector('.vw-brand img', { timeout: 20_000 })
+    expect(await page.locator('.vw h1').innerText()).toBe('Specbook')
+    const home = page.getByRole('link', { name: 'What is Specbook?' })
+    expect(await home.getAttribute('href')).toBe('/')
+    // the examples are things to press, side by side
+    expect(await page.locator('.vw-chips .vw-chip').count()).toBeGreaterThanOrEqual(3)
     await page.close()
   })
 
@@ -1309,6 +1322,14 @@ describe('the self-hosted viewer from the release zip', () => {
     expect(await page.title()).toContain('Petstore')
     expect([...origins]).toEqual([hostUrl])
     expect(errors).toEqual([])
+    await page.close()
+  })
+
+  it('shows the picker without a link to a home page, which a copy of the viewer does not have', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${hostUrl}/docs/specbook/`)
+    await page.waitForSelector('.vw-brand img', { timeout: 20_000 })
+    expect(await page.getByText('What is Specbook?').count()).toBe(0)
     await page.close()
   })
 
