@@ -176,7 +176,7 @@ the scoped name, for example `npx @specbook/cli preview <url|file>`.
 ```sh
 npx specbook init                # scaffold config, the #api/* import, an environments folder, an agent guide, and typescript with a tsconfig
 npm install                      # fetch the typescript and faker that init added to package.json
-npx specbook add petstore --spec ./openapi/petstore.json   # or a URL: it is downloaded and recorded
+npx specbook add petstore --spec ./openapi/petstore.json   # or a URL: it is downloaded and recorded; the spec's credentials are set up too
 npx specbook generate            # types and mock examples from the specs; dev, build and test do it when needed
 npx specbook dev                 # the UI: docs, a play panel and a credential proxy
 npx specbook build               # a static docs site, and specbook.js to embed it
@@ -279,7 +279,10 @@ services: { petstore: { spec: './openapi/petstore.json', baseUrl: '{{petstoreUrl
 petstoreUrl=https://staging.petstore.example/api/v3
 ```
 
-`specbook add` writes this from a spec's `servers`. In the UI, **Environment settings** shows an environment's
+`specbook add` writes this from a spec's `servers`, and the credentials from its security schemes: a secret for each,
+one `auth` profile named after the service that applies them, and `auth` on the service (an API key or bearer token
+is preferred to basic auth, and basic to OAuth; its output says what it did not set up, and OAuth sign-in settings
+are not written). In the UI, **Environment settings** shows an environment's
 variables and where its calls go, and **New environment…** copies one (kept in the browser when there are no
 project files). `npx specbook secrets --env <name>` shows where each secret comes from, never the values.
 

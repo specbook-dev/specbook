@@ -208,6 +208,10 @@ npx specbook add stripe --spec https://raw.githubusercontent.com/stripe/openapi/
 npx specbook add --refresh             # fetch the recorded addresses again and say what changed
 ```
 
+`add` also reads the document's security and writes the credentials: for Stripe, a secret `STRIPE_BEARER_AUTH` and a
+profile that sends it as a bearer token. Set the value as an environment variable, or in
+`.specbook/environments/<env>.secrets.env`, for a run against a real environment.
+
 The document is saved as `openapi/stripe.json` and recorded in `openapi/sources.json` (address, sha256, size), which
 you commit. Use an address pinned to a commit so a refresh is a choice. A `.json.gz` or `.yaml.gz` spec is read as it
 is, if a project prefers to keep it compressed.
