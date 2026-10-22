@@ -90,7 +90,7 @@ import { PAGES } from '../lib/pages'
       <div class="tiles">
         {
           PAGES.map((p, i) => (
-            <a class="tile" href={`/${p.slug}/`}>
+            <a class:list={['tile', p.slug === 'ai' && 'tile-ai']} href={`/${p.slug}/`}>
               <span class="num">{String(i + 1).padStart(2, '0')}</span>
               <h3>{p.tile}</h3>
               <p>{p.line}</p>

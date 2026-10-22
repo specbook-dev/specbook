@@ -11,6 +11,7 @@ describe('link previews', () => {
       'document',
       'test',
       'monitor',
+      'ai',
     ])
     for (const { slug } of CARDS as { slug: string }[]) {
       const file = resolve(import.meta.dirname, `../public/og/${slug}.png`)

@@ -16,6 +16,11 @@ export const DOCS = [
   ['Document', `${SITE}/document/`, 'notes beside operations, "Try it" on any docs page'],
   ['Test', `${SITE}/test/`, 'checks, flows, the QA portal and CI'],
   ['Monitor', `${SITE}/monitor/`, 'production monitoring with the bundle'],
+  [
+    'AI',
+    `${SITE}/ai/`,
+    'prompts that make a coding agent write requests and flows, and what it wrote',
+  ],
   ['Command line', `${SITE}/reference/cli/`, 'every command and flag'],
   ['Config', `${SITE}/reference/config/`, '`specbook.config.ts` fields'],
   [

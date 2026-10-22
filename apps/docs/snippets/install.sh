@@ -4,6 +4,11 @@ specbook init
 specbook add petstore --spec https://petstore3.swagger.io/api/v3/openapi.json
 # #endregion install
 
+# #region agents
+npx specbook init             # writes .specbook/agent-guide.md, and an AGENTS.md if you have none
+npx specbook init --agents    # adds the Specbook section to an AGENTS.md or CLAUDE.md you already have
+# #endregion agents
+
 # #region develop
 npx specbook dev                      # try requests and flows in a play panel
 npx specbook test                     # run them all, against mock data

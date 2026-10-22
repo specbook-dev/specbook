@@ -10,16 +10,24 @@ interface Props {
   lines?: string
   /** the frame's title; the file's name when not given */
   title?: string | false
-  /** line numbers or ranges to highlight, like `{2,5-7}` */
+  /** line numbers or ranges of the code shown to highlight, like `2,5-7` */
   mark?: string
+  /** wrap long lines instead of scrolling sideways: for output that is read, not code that is copied */
+  wrap?: boolean
   /** `flow:adopt-pet` or `try:requests/petstore/get-pet.req.ts` (the file shown, so its checks run): shows a Run button */
   run?: string
   /** preset flow inputs for the Run button */
   inputs?: Record<string, unknown>
 }
 
-const { file, region, lines, title, mark, run, inputs } = Astro.props
+const { file, region, lines, title, mark, wrap, run, inputs } = Astro.props
 const snippet = readSnippet({ file, region, lines })
+// `mark="7-9,18"` is line numbers and ranges of the code shown; a plain string would be searched for as text
+const markers = mark
+  ?.replace(/[{}\s]/g, '')
+  .split(',')
+  .filter(Boolean)
+  .map((m) => (/^\d+$/.test(m) ? Number(m) : { range: m }))
 const [kind, target] = run?.split(':') ?? []
 const attr =
   kind === 'flow' ? 'data-specbook-flow' : kind === 'try' ? 'data-specbook-try' : undefined
@@ -30,7 +38,8 @@ const attr =
     code={snippet.code}
     lang={snippet.lang}
     title={title === false ? undefined : (title ?? snippet.name)}
-    mark={mark ? mark.split(',') : undefined}
+    mark={markers}
+    wrap={wrap}
   />
   {
     attr && target && (

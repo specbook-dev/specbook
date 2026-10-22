@@ -241,6 +241,7 @@ Markdown next to what it describes is shown in the UI: `requests/<service>/<Oper
 - [Document](https://docs.specbook.dev/document/): notes beside operations, "Try it" on any docs page
 - [Test](https://docs.specbook.dev/test/): checks, flows, the QA portal and CI
 - [Monitor](https://docs.specbook.dev/monitor/): production monitoring with the bundle
+- [AI](https://docs.specbook.dev/ai/): prompts that make a coding agent write requests and flows, and what it wrote
 - [Command line](https://docs.specbook.dev/reference/cli/): every command and flag
 - [Config](https://docs.specbook.dev/reference/config/): `specbook.config.ts` fields
 - [Environments and secrets](https://docs.specbook.dev/reference/environments-and-secrets/): variables per environment, where secrets come from

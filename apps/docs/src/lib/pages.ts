@@ -24,6 +24,12 @@ export const PAGES = [
     line: 'Compile the same tests into one file that runs with just node. Run it on a schedule in production.',
     tile: 'Monitor',
   },
+  {
+    slug: 'ai',
+    name: 'AI',
+    line: 'Point a coding agent at your spec. It writes typed requests and flows, and proves them on mock data.',
+    tile: 'AI',
+  },
 ] as const
 
 export type PageSlug = (typeof PAGES)[number]['slug']

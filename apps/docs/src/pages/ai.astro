@@ -1,0 +1,139 @@
+---
+import Next from '../components/Next.astro'
+import Prompt from '../components/Prompt.astro'
+import Snippet from '../components/Snippet.astro'
+import Page from '../layouts/Page.astro'
+---
+
+<Page
+  page="ai"
+  title="AI"
+  description="Point a coding agent at your OpenAPI spec and it writes typed requests and flows. The prompts, what it wrote, and the check that catches what a test run misses."
+>
+  <section class="hero" style="padding-bottom: 24px">
+    <div class="wrap">
+      <span class="eyebrow">05 · AI</span>
+      <h1 class="display">Describe the flow. Get one that runs.</h1>
+      <p class="lede">
+        <code>specbook init</code> puts a guide in your project and points your agent's instruction file at it. A
+        coding agent then writes requests and flows the way your team would: typed from the spec, checked, and
+        runnable on mock data. This page is one real run, against Plaid's spec with its 350 operations.
+      </p>
+    </div>
+  </section>
+
+  <section class="block" style="padding-top: 8px">
+    <div class="wrap">
+      <h2 class="title">Ask for a request</h2>
+      <div class="prose">
+        <p>
+          The project had Plaid's spec added with <code>specbook add</code> and nothing else: no credentials, no
+          auth setup, no TypeScript. This is the whole prompt.
+        </p>
+      </div>
+      <Prompt text="Add a request that creates a Plaid sandbox public token." />
+      <div class="prose">
+        <p>
+          The agent read the guide, then the spec's security schemes, and wrote one request. It captures the
+          public token, because the next step will need it.
+        </p>
+      </div>
+      <Snippet file="snippets/ai/sandbox-public-token-create.req.ts" />
+      <div class="prose">
+        <p>
+          Plaid takes its credentials in headers, so the agent kept them out of the request body. It named two
+          secrets in the config, added an auth profile that sends them, and pointed the service at it. The values
+          come from your environment, never from a file.
+        </p>
+      </div>
+      <Snippet
+        file="snippets/ai/plaid-config.ts"
+        lines="11-29"
+        title="specbook.config.ts"
+        mark="7-9,18"
+      />
+
+      <h2 class="title">Ask for a flow</h2>
+      <div class="prose">
+        <p>The second prompt says what should end up working. It does not list the calls.</p>
+      </div>
+      <Prompt
+        text="Now make a flow that links a bank account in the Plaid sandbox and reads back its accounts and transactions."
+      />
+      <div class="prose">
+        <p>
+          The agent found the four operations in the spec, wrote a request for each so every step also runs on
+          its own, and chained them in one flow.
+        </p>
+      </div>
+      <Snippet file="snippets/ai/link-bank-account.seq.ts" mark="28,31,43" />
+
+      <h2 class="title">Values pass by name, and the names are checked</h2>
+      <div class="prose">
+        <p>
+          The first request captures <code>publicToken</code>. The next step sends it as{' '}
+          <code>public_token</code>, the exchange captures <code>accessToken</code>, and the last two steps send
+          that. The agent wrote each hand-off as <code>ctx.captured.publicToken</code>, not as a{' '}
+          <code>{'{{publicToken}}'}</code> string.
+        </p>
+        <p>
+          A string compiles whatever it says. <code>ctx.captured.publicToken</code> has the type the capture
+          returned, and the field it lands in is typed from the spec, so a wrong name on either side is an error
+          in your editor. Two <code>.check</code> steps prove the chain: the accounts belong to the item it just
+          linked, and every transaction sits on an account it read.
+        </p>
+      </div>
+
+      <h2 class="title">Rename a capture</h2>
+      <div class="prose">
+        <p>
+          Rename <code>publicToken</code> to <code>publicTokenX</code> in the first request, then run the compiler
+          and the tests.
+        </p>
+      </div>
+      <Snippet file="snippets/ai/rename-capture.txt" title={false} wrap />
+      <div class="prose">
+        <p>
+          The compiler points at the broken step. The test run still passes on the mock, so a green run does not
+          prove the names line up. That is why the guide ends with <code>npx tsc --noEmit</code>, and why the
+          agent reads values from <code>ctx</code> and not from strings.
+        </p>
+      </div>
+
+      <h2 class="title">It runs on mock data</h2>
+      <div class="prose">
+        <p>
+          <code>npx specbook test</code> runs the flow against the mock, which answers from the spec's examples.
+          No server and no keys.
+        </p>
+      </div>
+      <Snippet file="snippets/ai/test-run.txt" title={false} wrap />
+      <div class="prose">
+        <p>
+          From a project with only the spec to a passing flow took about seven minutes of the agent's time, two of
+          them spent installing TypeScript, and nobody fixed anything by hand. That was one run, so yours will
+          vary. Running it against Plaid's live sandbox needs a free account's keys in{' '}
+          <code>.specbook/environments/sandbox.secrets.env</code>, and that part is not tested here.
+        </p>
+      </div>
+
+      <h2 class="title">Do the same in your project</h2>
+      <div class="prose">
+        <p>
+          Run <code>specbook init</code> and your agent has the guide. It also writes a short Specbook section to
+          your <code>AGENTS.md</code>, so agents that read that file open the guide before they touch a request.
+        </p>
+      </div>
+      <Snippet file="snippets/install.sh" region="agents" title={false} />
+      <div class="prose">
+        <p>
+          Agents that read from the web can fetch <a href="/llms.txt">/llms.txt</a>, which is the same guide with
+          links to these pages. Write your own prompts the way these were written: say what should end up working,
+          and name the API in plain words. The agent finds the operations in the spec.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><Next page="ai" /></div>
+</Page>
