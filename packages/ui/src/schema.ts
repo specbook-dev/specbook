@@ -156,10 +156,15 @@ export function typeInfo(schema: JsonSchema, defs: Defs): { text: string; title?
       const { text, title } = unionLabel(inner, defs)
       return { text: `(${text})[]`, title }
     }
-    return { text: `${kindOf(unwrap(u.items, defs))}[]` }
+    // a list of one named object says which: `Album[]`, not `object[]`
+    const named = typeof u.items?.$ref === 'string' ? nameOf(u.items.$ref) : undefined
+    const itemKind = kindOf(unwrap(u.items, defs))
+    return { text: `${named && itemKind === 'object' ? named : itemKind}[]` }
   }
   const un = unionFor(schema, defs)
   if (un) return unionLabel(un, defs)
+  // one named object says which, as a list of them does: `Person`, not `object`
+  if (kind === 'object' && typeof schema.$ref === 'string') return { text: nameOf(schema.$ref) }
   return { text: u.format ? `${kind} · ${u.format}` : kind }
 }
 

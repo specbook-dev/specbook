@@ -154,6 +154,24 @@ describe('how a union is shown', () => {
     expect(typeInfo({ type: 'integer', format: 'int32' }, defs).text).toBe('integer · int32')
   })
 
+  it('names the object, or the object a list holds, when the document does, not "object"', () => {
+    // a list of one named schema is that schema; a list of anything else keeps the kind it always had
+    const named = { type: 'array', items: { $ref: 'specbook://books/defs#/$defs/Album' } }
+    expect(typeInfo(named, defs).text).toBe('Album[]')
+    // and so is one object that is a named schema
+    expect(typeInfo({ $ref: 'specbook://books/defs#/$defs/Album' }, defs).text).toBe('Album')
+    expect(typeInfo({ type: 'object', properties: {} }, defs).text).toBe('object')
+    expect(typeInfo({ type: 'array', items: { type: 'object', properties: {} } }, defs).text).toBe(
+      'object[]',
+    )
+    expect(typeInfo({ type: 'array', items: { type: 'string' } }, defs).text).toBe('string[]')
+    // a named schema that is not an object (an enum) stays what it is
+    const withEnum = { $defs: { Status: { type: 'string', enum: ['a', 'b'] } } }
+    expect(typeInfo({ type: 'array', items: { $ref: '#/$defs/Status' } }, withEnum).text).toBe(
+      'string[]',
+    )
+  })
+
   it('counts the variants past the first few, with all of them as the title', () => {
     const many = {
       oneOf: ['A', 'B', 'C', 'D', 'E'].map((n) => ({
@@ -179,7 +197,7 @@ describe('how a union is shown', () => {
       '    kind string',
       '    title string',
       '    pages integer',
-      '    related object[]',
+      '    related Album[]',
       '      kind string',
       '      title string',
       '      tracks integer',
