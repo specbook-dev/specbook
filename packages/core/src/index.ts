@@ -28,13 +28,19 @@ export type { SnippetInput, SnippetLang } from './snippets'
 export { snippetLangs, toSnippet } from './snippets'
 export {
   authFromSpec,
+  credentialsFromSpec,
   environmentsFromServers,
   type JsonAuthProfile,
   liveBaseUrl,
   MAX_SERVERS,
   openApiServers,
+  type SchemeCredential,
+  type SchemeKind,
   type ServerEntry,
   type SpecAuth,
+  type SpecCredentials,
+  schemeCredential,
+  serviceSecretName,
 } from './spec-config'
 export {
   collectPlaceholders,

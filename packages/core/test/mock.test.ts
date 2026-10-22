@@ -50,6 +50,31 @@ describe('mock transport', () => {
     const r = await runRequest(GetOrder.request({ path: { id: 'x' } }), { env: 'mock', transport })
     expect(r.steps[0]?.response?.status).toBe(401)
   })
+  it('a profile that sends its credential in a query value is credentials enough', async () => {
+    const r = await runRequest(GetOrder.request({ path: { id: 'x' } }), {
+      env: 'mock',
+      transport,
+      auth: { q: { apply: { query: { token: 'x' } } } },
+      serviceAuth: { order: 'q' },
+    })
+    expect(r.steps[0]?.response?.status).toBe(200)
+  })
+  it('so is a profile that sends it in a header the mock would not recognize', async () => {
+    const r = await runRequest(GetOrder.request({ path: { id: 'x' } }), {
+      env: 'mock',
+      transport,
+      auth: { p: { apply: { headers: { 'X-Partner': 'acme' } } } },
+      serviceAuth: { order: 'p' },
+    })
+    expect(r.steps[0]?.response?.status).toBe(200)
+  })
+  it('without a profile, a header of an unrecognized name does not count as credentials', async () => {
+    const r = await runRequest(
+      GetOrder.request({ path: { id: 'x' }, headers: { 'X-Partner': 'acme' } }),
+      { env: 'mock', transport },
+    )
+    expect(r.steps[0]?.response?.status).toBe(401)
+  })
   it('a credential in a header named for a secret or a client id counts as one', async () => {
     const r = await runRequest(
       GetOrder.request({

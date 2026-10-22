@@ -447,7 +447,8 @@ async function execute(
               vars: scope,
               pathParams,
               rawQuery: query,
-              secured: def.op.security,
+              // a profile sent credentials, in whatever header or query value the spec names them
+              secured: profile ? false : def.op.security,
             }
           : undefined,
     }
