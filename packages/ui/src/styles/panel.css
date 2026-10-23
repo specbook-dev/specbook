@@ -117,39 +117,47 @@
     margin: 0 0 var(--sb-space-2);
     font-size: 12.5px;
   }
-  /* the chevron that opens a field to what is in it */
-  /* the chevron and the name stay on one line, and a name too long for the column breaks inside itself */
+  /* the [+] box that opens a field to what is in it */
+  /* the box and the name stay on one line, and a name too long for the column breaks inside itself */
   table.fields .field-name {
     display: flex;
     align-items: baseline;
   }
+  /* a name is the first thing read in a row: larger than the text beside it, and broken only at a dot or underscore (the column is kept wide enough that most never are) */
   table.fields .field-name code {
     min-width: 0;
-    overflow-wrap: anywhere;
+    font-size: 14px;
+    font-weight: 500;
+    overflow-wrap: break-word;
   }
+  table.fields th:first-child {
+    width: 30%;
+    min-width: 12rem;
+  }
+  /* [+] opens a field and [−] closes it; the empty box of a plain field keeps the names in line */
   table.fields .expand {
     flex: none;
     display: inline-block;
-    width: 22px;
-    height: 22px;
-    margin: -4px 0 -4px -6px;
+    box-sizing: border-box;
+    width: 18px;
+    height: 18px;
+    margin: 0 8px 0 0;
     padding: 0;
-    border: 0;
-    background: none;
+    border: 1px solid var(--sb-border);
+    border-radius: 4px;
+    background: var(--sb-surface);
     color: var(--sb-text-muted);
-    font-size: 12px;
-    line-height: 22px;
+    font: 600 13px / 16px var(--sb-font-mono);
     text-align: center;
-    vertical-align: middle;
     cursor: pointer;
   }
   table.fields button.expand:hover {
     color: var(--sb-text);
-  }
-  table.fields .expand.open {
-    transform: rotate(90deg);
+    border-color: var(--sb-text-muted);
   }
   table.fields .expand.gap {
+    border-color: transparent;
+    background: none;
     cursor: default;
   }
   .req {

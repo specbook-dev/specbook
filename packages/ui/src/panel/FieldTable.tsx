@@ -150,9 +150,39 @@ export function topRows(schema: JsonSchema | undefined, defs: Defs): Row[] {
   return top(isList ? unwrap(u.items, defs) : u, '')
 }
 
+/** A name that may break after a dot or an underscore, where a person would, and nowhere else. */
+function Breakable({ name }: { name: string }) {
+  return (
+    <>
+      {(name.match(/[^._]*[._]?/g) ?? []).filter(Boolean).map((part, i) => (
+        <>
+          {i > 0 && <wbr />}
+          {part}
+        </>
+      ))}
+    </>
+  )
+}
+
 function RowView({ r, open, onToggle }: { r: Row; open?: boolean; onToggle?: () => void }) {
   return (
-    <tr class={r.variant ? 'variant' : undefined} style={`--indent:${r.depth * 16 + 8}px`}>
+    <tr
+      class={
+        [r.variant && 'variant', onToggle && 'openable'].filter(Boolean).join(' ') || undefined
+      }
+      style={`--indent:${r.depth * 16 + 8}px`}
+      // the whole row opens the field (the [+] box's own click comes here too); a link in the text, or text being
+      // selected to copy, does not
+      onClick={
+        onToggle
+          ? (e) => {
+              if ((e.target as HTMLElement).closest('a')) return
+              if (window.getSelection()?.toString()) return
+              onToggle()
+            }
+          : undefined
+      }
+    >
       <td style={{ paddingLeft: `${r.depth * 16 + 8}px` }}>
         {r.variant ? (
           <span class="variant-name">{r.name}</span>
@@ -164,14 +194,15 @@ function RowView({ r, open, onToggle }: { r: Row; open?: boolean; onToggle?: () 
                 class={`expand ${open ? 'open' : ''}`}
                 aria-expanded={open}
                 aria-label={`${open ? 'Hide' : 'Show'} what is in ${r.name}`}
-                onClick={onToggle}
               >
-                ▸
+                {open ? '−' : '+'}
               </button>
             ) : (
               <span class="expand gap" />
             )}
-            <code>{r.name}</code>
+            <code>
+              <Breakable name={r.name} />
+            </code>
             {r.required && (
               <span class="req" title="required">
                 *

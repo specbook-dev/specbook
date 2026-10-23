@@ -508,7 +508,8 @@ describe('the hosted viewer opens a spec at run time', () => {
     expect(await pane.locator('table.fields tr').count()).toBeGreaterThan(before)
     // an object among them is a group of its own, named by its whole path, opened in its turn
     expect(await pane.locator('table.fields').innerText()).toContain('items.related')
-    await pane.getByRole('button', { name: 'Show what is in items.related', exact: true }).click()
+    // a click anywhere on the row opens it too, not only on the chevron
+    await pane.locator('table.fields tr', { hasText: 'items.related' }).locator('td').nth(2).click()
     expect(await pane.locator('table.fields').innerText()).toContain('tracks')
     // the other status is a different answer: two kinds of error, each with its own fields
     await page.getByRole('tab', { name: /409/ }).click()
