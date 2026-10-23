@@ -72,11 +72,15 @@ declare module 'virtual:specbook/registry' {
   export const brandingAssets: Partial<Record<'logo' | 'favicon', () => Promise<string>>>
   /** Non-secret variables from `.specbook/environments/<env>.env`, by environment. */
   export const environmentVars: Record<string, Record<string, string>>
-  /** Long description and example titles per `service/OperationId`, loaded when its page opens. */
+  /** Long description, example titles and what each response is, per `service/OperationId`, loaded when its page opens. */
   export const operationDocs: Record<
     string,
     () => Promise<{
-      default: { description?: string; examples: { name: string; title: string; source: string }[] }
+      default: {
+        description?: string
+        examples: { name: string; title: string; source: string }[]
+        responses?: Record<string, { description?: string; contentType?: string }>
+      }
     }>
   >
   export const operations: Record<string, (version: number) => Promise<Record<string, any>>>

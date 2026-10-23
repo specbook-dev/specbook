@@ -1328,3 +1328,69 @@ describe('round 2: what the spec still says', () => {
     expect(synthesize(string, none, 0, [], 'master_branch')).toBe('main')
   })
 })
+
+describe('what each response is, for the docs page', () => {
+  const docs = (files: { path: string; content: string }[], id: string) =>
+    JSON.parse(files.find((f) => f.path === `docs/${id}.json`)?.content ?? 'null')
+
+  it('keeps the description and media type of every status', async () => {
+    const { files } = await generate({ spec: fx('bookstore.json'), service: 'books' })
+    expect(docs(files, 'ListShelf').responses).toEqual({
+      '200': { description: 'The shelf', contentType: 'application/json' },
+      '409': { description: 'Not available', contentType: 'application/json' },
+    })
+  })
+
+  it('keeps the description of a status that has no body', async () => {
+    const { files } = await generate({ spec: fx('petstore3.json'), service: 'petstore' })
+    const responses = docs(files, 'GetPetById').responses
+    expect(responses['400']).toEqual({ description: 'Invalid ID supplied' })
+    expect(responses['200'].contentType).toBe('application/json')
+  })
+
+  it('gives a default response to every status it stands for, and names non-JSON media types', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'specbook-docs-'))
+    dirs.push(dir)
+    const spec = join(dir, 'spec.json')
+    await writeFile(
+      spec,
+      JSON.stringify({
+        openapi: '3.0.3',
+        info: { title: 't', version: '1' },
+        paths: {
+          '/a': {
+            get: {
+              operationId: 'GetA',
+              responses: {
+                '200': {
+                  description: 'Fine',
+                  content: { 'text/csv': { schema: { type: 'string' } } },
+                },
+                default: {
+                  description: 'Something went wrong',
+                  content: {
+                    'application/json': {
+                      schema: { type: 'object', properties: { message: { type: 'string' } } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+    )
+    const { files } = await generate({ spec, service: 'a' })
+    const responses = docs(files, 'GetA').responses
+    expect(responses['200']).toEqual({ description: 'Fine', contentType: 'text/csv' })
+    for (const code of [400, 401, 402, 403, 404, 409, 422, 429, 500])
+      expect(responses[String(code)]).toEqual({
+        description: 'Something went wrong',
+        contentType: 'application/json',
+      })
+    const schemas = JSON.parse(
+      files.find((f) => f.path === 'schemas/GetA.responses.schema.json')?.content ?? '{}',
+    )
+    expect(schemas['200']).toBeUndefined()
+  })
+})
