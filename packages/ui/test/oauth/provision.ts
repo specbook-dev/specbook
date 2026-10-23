@@ -17,6 +17,8 @@ export const USER = { username: 'tester', password: 'tester-pw' }
 export const CLIENT_ID = 'specbook-docs'
 /** The same, with no web origins: its token endpoint answers no browser (the CORS-refusal case). */
 export const NO_CORS_CLIENT_ID = 'specbook-nocors'
+/** A public client for the implicit flow (the token comes back in the address; no code, no PKCE). */
+export const IMPLICIT_CLIENT_ID = 'specbook-implicit'
 
 export async function reachable(url: string): Promise<boolean> {
   try {
@@ -58,7 +60,7 @@ const client = (clientId: string, redirectOrigins: string[], webOrigins: string[
   attributes: { 'pkce.code.challenge.method': 'S256' },
 })
 
-/** (Re)creates the realm with its two clients and one user. `origins` are where the pages run. */
+/** (Re)creates the realm with its three clients and one user. `origins` are where the pages run. */
 export async function createRealm(kc: Keycloak, origins: string[]): Promise<void> {
   const token = await adminToken(kc)
   const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' }
@@ -82,7 +84,16 @@ export async function createRealm(kc: Keycloak, origins: string[]): Promise<void
         credentials: [{ type: 'password', value: USER.password, temporary: false }],
       },
     ],
-    clients: [client(CLIENT_ID, origins, origins), client(NO_CORS_CLIENT_ID, origins, [])],
+    clients: [
+      client(CLIENT_ID, origins, origins),
+      client(NO_CORS_CLIENT_ID, origins, []),
+      {
+        ...client(IMPLICIT_CLIENT_ID, origins, origins),
+        standardFlowEnabled: false,
+        implicitFlowEnabled: true,
+        attributes: {},
+      },
+    ],
   }
   const r = await fetch(`${kc.url}/admin/realms`, {
     method: 'POST',

@@ -10,10 +10,11 @@ type Status = { kind: 'idle' } | { kind: 'busy' } | { kind: 'error'; message: st
 interface Endpoints {
   authorizationUrl: string
   scopes: Record<string, string>
+  flow?: 'authorizationCode' | 'implicit'
 }
 
 /**
- * "Sign in" for a scheme with an authorization code flow, or an OpenID Connect provider. The token lands
+ * "Sign in" for a scheme with an authorization code flow (or the legacy implicit one), or an OpenID Connect provider. The token lands
  * in the same tab-scoped store, bound to the API's origin, that a pasted value would, so everything
  * downstream is unchanged. A failure or a cancel only reports itself: the paste field next to this stays
  * usable.
@@ -90,8 +91,20 @@ export function OAuthSignIn({
       clientId: id,
       scopes: picked,
       signal: ctl.signal,
-      exchange: (fields, signal) =>
-        engine.oauthExchange({ env: env.value, version: version.value, profile, fields, signal }),
+      flow: endpoints.flow,
+      // the implicit flow has no token endpoint: the token comes back in the address
+      ...(endpoints.flow === 'implicit'
+        ? {}
+        : {
+            exchange: (fields: Record<string, string>, signal?: AbortSignal) =>
+              engine.oauthExchange({
+                env: env.value,
+                version: version.value,
+                profile,
+                fields,
+                signal,
+              }),
+          }),
     })
       .then((token) => {
         secretStore.set(origin, secret, token.accessToken)
@@ -160,7 +173,7 @@ export function OAuthSignIn({
             ? status.message
             : !endpoints
               ? 'Looking up the provider…'
-              : `Register this redirect URI with the provider: ${redirectUri()}`}
+              : `Register this redirect URI with the provider${endpoints.flow === 'implicit' ? ' (implicit flow: no client secret, the token is short-lived)' : ''}: ${redirectUri()}`}
       </span>
     </span>
   )

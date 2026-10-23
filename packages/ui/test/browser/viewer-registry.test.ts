@@ -8,6 +8,7 @@ const opened = (servers: { name: string; url: string; description?: string }[]) 
   metas: {},
   exampleNames: {},
   auth: {},
+  profiles: [] as string[],
   secrets: {},
   authVars: {},
   authEnvironmentVars: {},
@@ -113,5 +114,26 @@ describe('the hosted viewer’s registry offers every server as an environment',
     expect(await engine.oauthOf('sso', 'sandbox', 0)).toMatchObject({
       tokenUrl: 'https://sandbox.example.com/oauth/token',
     })
+  })
+
+  it('lists every profile of the document for the service, the cheapest first', async () => {
+    const profile = (title: string) => ({ title, apply: { headers: { 'x-key': '{{secrets.K}}' } } })
+    const many = await registryFor({
+      ...opened(servers),
+      auth: { key: profile('key'), tok: profile('tok') },
+      profiles: ['key', 'tok'],
+    })
+    const cfg = (await many.loadConfig()).default as {
+      services: Record<string, { auth?: unknown }>
+    }
+    expect(cfg.services.shop?.auth).toEqual(['key', 'tok'])
+    const one = await registryFor({
+      ...opened(servers),
+      auth: { key: profile('key') },
+      profiles: ['key'],
+    })
+    expect(((await one.loadConfig()).default as any).services.shop.auth).toBe('key')
+    const none = await registryFor({ ...opened(servers) })
+    expect(((await none.loadConfig()).default as any).services.shop.auth).toBeUndefined()
   })
 })

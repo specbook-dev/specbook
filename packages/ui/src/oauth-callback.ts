@@ -1,6 +1,7 @@
 /**
  * The return leg of a sign-in. The identity provider redirects the popup to a page with `?code=&state=`
- * (or `?error=`). Run first on boot: when the tab that started the sign-in is waiting for this `state`
+ * (or `?error=`); the implicit flow answers in the address fragment instead (`#access_token=&state=`, or
+ * `#error=`), which never reaches a server. Run first on boot: when the tab that started the sign-in is waiting for this `state`
  * it takes the result and this popup closes without drawing the app.
  *
  * Two ways to reach the waiting tab, because each survives what the other does not:
@@ -16,7 +17,15 @@
 export const OAUTH_CHANNEL = 'specbook-oauth'
 
 export type OAuthMessage =
-  | { type: 'callback'; state: string; code?: string; error?: string; description?: string }
+  | {
+      type: 'callback'
+      state: string
+      code?: string
+      error?: string
+      description?: string
+      /** the implicit flow's answer */
+      token?: { accessToken: string; expiresIn?: number; scope?: string }
+    }
   | { type: 'ack'; state: string }
 
 /** How long a callback page waits to be told that someone is waiting for it. */
@@ -37,18 +46,40 @@ export function handleOAuthCallback(options: CallbackOptions = {}): Promise<bool
   if (!here || (typeof BroadcastChannel === 'undefined' && !globalThis.opener))
     return Promise.resolve(false)
   const q = new URLSearchParams(here.search)
-  const state = q.get('state')
-  if (!state || !(q.has('code') || q.has('error'))) return Promise.resolve(false)
+  const h = new URLSearchParams(here.hash.replace(/^#/, ''))
+  // the implicit flow answers in the fragment; the code flow in the query
+  const inQuery = q.has('state') && (q.has('code') || q.has('error'))
+  const inFragment = !inQuery && h.has('state') && (h.has('access_token') || h.has('error'))
+  const source = inFragment ? h : q
+  const state = source.get('state')
+  if (!state || !(inQuery || inFragment)) return Promise.resolve(false)
 
+  const expires = Number(source.get('expires_in'))
   const message: OAuthMessage = {
     type: 'callback',
     state,
-    ...(q.get('code') ? { code: q.get('code') as string } : {}),
-    ...(q.get('error') ? { error: q.get('error') as string } : {}),
-    ...(q.get('error_description') ? { description: q.get('error_description') as string } : {}),
+    ...(source.get('code') ? { code: source.get('code') as string } : {}),
+    ...(source.get('error') ? { error: source.get('error') as string } : {}),
+    ...(source.get('error_description')
+      ? { description: source.get('error_description') as string }
+      : {}),
+    ...(source.get('access_token')
+      ? {
+          token: {
+            accessToken: source.get('access_token') as string,
+            ...(source.get('expires_in') && Number.isFinite(expires) ? { expiresIn: expires } : {}),
+            ...(source.get('scope') ? { scope: source.get('scope') as string } : {}),
+          },
+        }
+      : {}),
   }
-  // the code and state are single-use and do not belong in history or a copied address
-  const clean = () => history.replaceState(null, '', here.pathname + here.hash)
+  // the code, the token and the state are single-use and do not belong in history or a copied address
+  const clean = () =>
+    history.replaceState(
+      null,
+      '',
+      inFragment ? here.pathname + here.search : here.pathname + here.hash,
+    )
   if (strip) clean()
 
   return new Promise((resolve) => {

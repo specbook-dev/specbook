@@ -691,6 +691,44 @@ describe('the sign-in callback page', () => {
     await page.close()
   })
 
+  it('hands an implicit-flow token from the address fragment to the waiting tab, then closes', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${siteUrl}/`)
+    await page.evaluate(() => {
+      const w = window as unknown as { __got: unknown[] }
+      w.__got = []
+      const ch = new BroadcastChannel('specbook-oauth')
+      ch.onmessage = (e) => {
+        if (e.data?.type !== 'callback') return
+        w.__got.push(e.data)
+        ch.postMessage({ type: 'ack', state: e.data.state })
+      }
+    })
+    const popup = page.waitForEvent('popup')
+    await page.evaluate(() =>
+      window.open('/oauth/callback/#access_token=t1&expires_in=60&scope=read&state=s2', 'cb'),
+    )
+    const opened = await popup
+    if (!opened.isClosed()) await opened.waitForEvent('close', { timeout: 15_000 })
+    const got = (await page.evaluate(
+      () => (window as unknown as { __got: unknown[] }).__got,
+    )) as unknown[]
+    expect(got[0]).toEqual({
+      type: 'callback',
+      state: 's2',
+      token: { accessToken: 't1', expiresIn: 60, scope: 'read' },
+    })
+    await page.close()
+  })
+
+  it('keeps a stray token out of the address when nobody is waiting', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${siteUrl}/oauth/callback/#access_token=stray&state=stray`)
+    await page.getByText('No Specbook window is waiting').waitFor({ timeout: 10_000 })
+    expect(page.url()).toBe(`${siteUrl}/oauth/callback/`)
+    await page.close()
+  })
+
   it('says nobody is waiting when opened by itself, and keeps the code out of the address', async () => {
     const page = await browser.newPage()
     await page.goto(`${siteUrl}/oauth/callback/?code=stray&state=stray`)

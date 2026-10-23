@@ -2,13 +2,19 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   authFromSpec,
   authorizeUrl,
+  authServiceName,
   challengeFor,
+  clientCredentialsFields,
   createPkce,
+  isClientCredentials,
+  isDiscovery,
   newState,
   OAuthError,
   parseCallback,
   parseDiscovery,
+  parseImplicitCallback,
   parseTokenResponse,
+  profileOfAuthService,
   tokenRequestBody,
 } from '../src'
 
@@ -281,5 +287,79 @@ describe('OpenID Connect', () => {
     const r = authFromSpec({ components: { securitySchemes: { sso: { type: 'openIdConnect' } } } })
     expect(r.auth.sso).toBeDefined()
     expect(r.auth.sso?.oauth).toBeUndefined()
+  })
+})
+
+describe('the implicit flow', () => {
+  const base = {
+    authorizationUrl: 'https://a.test/authorize?tenant=1',
+    clientId: 'cid',
+    redirectUri: 'https://app.test/cb',
+    scopes: ['read', 'write'],
+    state: 's1',
+  }
+
+  it('asks for a token, with no PKCE challenge', () => {
+    const q = new URL(authorizeUrl({ ...base, responseType: 'token' })).searchParams
+    expect(q.get('response_type')).toBe('token')
+    expect(q.get('scope')).toBe('read write')
+    expect(q.get('state')).toBe('s1')
+    expect(q.get('tenant')).toBe('1')
+    expect(q.has('code_challenge')).toBe(false)
+  })
+
+  it('refuses to build a code request without a challenge', () => {
+    expect(() => authorizeUrl(base)).toThrow(/PKCE challenge/)
+  })
+
+  it('reads the token from the fragment once state matches', () => {
+    expect(
+      parseImplicitCallback(
+        new URLSearchParams('access_token=t&expires_in=300&scope=read&state=s1&token_type=Bearer'),
+        's1',
+      ),
+    ).toEqual({ accessToken: 't', expiresIn: 300, scope: 'read' })
+    expect(parseImplicitCallback({ access_token: 't', state: 's1' }, 's1')).toEqual({
+      accessToken: 't',
+    })
+  })
+
+  it('rejects another state, a refusal, and a response with no token', () => {
+    expect(() => parseImplicitCallback({ access_token: 't', state: 'other' }, 's1')).toThrow(
+      /state/,
+    )
+    expect(() =>
+      parseImplicitCallback({ error: 'access_denied', error_description: 'no', state: 's1' }, 's1'),
+    ).toThrow(/access_denied \(no\)/)
+    expect(() => parseImplicitCallback({ state: 's1' }, 's1')).toThrow(/no access token/)
+  })
+})
+
+describe('client credentials and the reserved auth service', () => {
+  it('builds the form of a token request, with the credentials in the body unless basic', () => {
+    expect(
+      clientCredentialsFields({ clientId: 'i', clientSecret: 's', scopes: ['a', 'b'] }),
+    ).toEqual({
+      grant_type: 'client_credentials',
+      scope: 'a b',
+      client_id: 'i',
+      client_secret: 's',
+    })
+    expect(clientCredentialsFields({ clientId: 'i', clientSecret: 's', basic: true })).toEqual({
+      grant_type: 'client_credentials',
+    })
+  })
+
+  it('addresses a profile as a service and reads the profile back', () => {
+    expect(authServiceName('My OAuth')).toBe('auth:My%20OAuth')
+    expect(profileOfAuthService('auth:My%20OAuth')).toBe('My OAuth')
+    expect(profileOfAuthService('petstore')).toBeUndefined()
+  })
+
+  it('tells the settings apart by shape', () => {
+    const cc = { tokenUrl: 't', clientId: 'i', clientSecret: 's' }
+    expect(isClientCredentials(cc)).toBe(true)
+    expect(isClientCredentials({ authorizationUrl: 'a' })).toBe(false)
+    expect(isDiscovery({ openIdConnectUrl: 'o' })).toBe(true)
   })
 })

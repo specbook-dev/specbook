@@ -94,9 +94,8 @@ describe('every example request and sequence passes against mocks', () => {
         return new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } })
       }) as typeof fetch
       try {
-        const def = await staticEngine.operationRequest('petstore/FindPetsByStatus', 0, {
-          query: { status: 'available' },
-        })
+        // the inventory takes only the API key, so the key is the profile it uses
+        const def = await staticEngine.operationRequest('petstore/GetInventory', 0, {})
         const result = await staticEngine.run(def, { env: 'live', version: 0 })
         return { step: result.steps[0], urls, headers }
       } finally {
@@ -114,7 +113,7 @@ describe('every example request and sequence passes against mocks', () => {
         const { step, urls, headers } = await call()
         expect(step?.error).toBeUndefined()
         expect(step?.response?.status).toBe(200)
-        expect(urls[0]).toMatch(/^https:\/\/petstore3\.swagger\.io\/api\/v3\/pet\/findByStatus/)
+        expect(urls[0]).toMatch(/^https:\/\/petstore3\.swagger\.io\/api\/v3\/store\/inventory/)
         expect(urls.some((u) => u.includes('/__specbook/proxy'))).toBe(false)
         expect(headers[0]).toContain('k-123')
         // the recorded request keeps the placeholder: the value is never shown back
@@ -197,9 +196,7 @@ describe('who makes the call', () => {
   }
   const ok = () => new Response('[]', { headers: { 'content-type': 'application/json' } })
   const send = async (engine: ReturnType<typeof createEngine>) => {
-    const def = await engine.operationRequest('petstore/FindPetsByStatus', 0, {
-      query: { status: 'available' },
-    })
+    const def = await engine.operationRequest('petstore/GetInventory', 0, {})
     return (await engine.run(def, { env: 'live', version: 0 })).steps[0]
   }
 
@@ -211,7 +208,7 @@ describe('who makes the call', () => {
         await send(engine)
         return seen.find((x) => x.url.includes('/__specbook/proxy/'))
       })
-      expect(typed?.url).toMatch(/^\/__specbook\/proxy\/live\/petstore\/pet\/findByStatus/)
+      expect(typed?.url).toMatch(/^\/__specbook\/proxy\/live\/petstore\/store\/inventory/)
       expect(typed?.headers).toContain('typed-1')
     } finally {
       secretStore.remove(origin, 'PETSTORE_API_KEY')
@@ -253,7 +250,7 @@ describe('who makes the call', () => {
       })
       // the page never called the API itself; the extension did, with the value
       expect(page).toHaveLength(0)
-      expect(calls[0]?.url).toContain('petstore3.swagger.io/api/v3/pet/findByStatus')
+      expect(calls[0]?.url).toContain('petstore3.swagger.io/api/v3/store/inventory')
       expect(calls[0]?.header).toBe('ext-key')
     } finally {
       secretStore.remove(origin, 'PETSTORE_API_KEY')
@@ -279,7 +276,7 @@ describe('who makes the call', () => {
         await send(engine)
         return s
       })
-      expect(seen[0]?.url).toBe(`${location.origin}/api/v3/pet/findByStatus?status=available`)
+      expect(seen[0]?.url).toBe(`${location.origin}/api/v3/store/inventory`)
       expect(seen[0]?.headers).toContain('same')
       expect(asked).toBe(false)
     } finally {
