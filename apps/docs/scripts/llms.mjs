@@ -24,6 +24,11 @@ export const DOCS = [
   ['Command line', `${SITE}/reference/cli/`, 'every command and flag'],
   ['Config', `${SITE}/reference/config/`, '`specbook.config.ts` fields'],
   [
+    'Authorization',
+    `${SITE}/reference/authorization/`,
+    'security schemes as profiles, choosing one, sign-in, client credentials, runs and monitors',
+  ],
+  [
     'Environments and secrets',
     `${SITE}/reference/environments-and-secrets/`,
     'variables per environment, where secrets come from',

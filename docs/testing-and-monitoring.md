@@ -209,8 +209,9 @@ npx specbook add --refresh             # fetch the recorded addresses again and 
 ```
 
 `add` also reads the document's security and writes the credentials: for Stripe, a secret `STRIPE_BEARER_AUTH` and a
-profile that sends it as a bearer token. Set the value as an environment variable, or in
-`.specbook/environments/<env>.secrets.env`, for a run against a real environment.
+profile that sends it as a bearer token, and another for basic auth, which the service lists after it. Set the value
+as an environment variable, or in `.specbook/environments/<env>.secrets.env`, for a run against a real environment.
+A run uses the first listed profile that an operation accepts, and needs only that profile's secrets.
 
 The document is saved as `openapi/stripe.json` and recorded in `openapi/sources.json` (address, sha256, size), which
 you commit. Use an address pinned to a commit so a refresh is a choice. A `.json.gz` or `.yaml.gz` spec is read as it
@@ -354,6 +355,11 @@ Runs send everything by default, so a developer can test flows that create and d
 Against production pass **`--safe`**: a request that is not a GET, HEAD or OPTIONS (or a GraphQL query) is refused
 before it is sent, so a monitor cannot change production data. Mark a POST that only reads with `safe: true` on the
 request. Logging in through an auth profile is always allowed.
+
+A monitor cannot sign in as a person. For an API that issues a client id and secret, `add` writes a profile that fetches
+its token (OAuth client credentials) from `<NAME>_CLIENT_ID` and `<NAME>_CLIENT_SECRET`, so a scheduled run needs only
+those two environment variables. For a token a person gets, put one you issued in the profile's environment variable;
+it works until it expires.
 
 - `--retries 1` runs a failed flow once more; one that then passes is flaky, exits 0 and is still reported.
 - `--timeout` is per request (the config's `timeoutMs`, else 30 s; `0` waits); `--global-timeout` stops the whole run.

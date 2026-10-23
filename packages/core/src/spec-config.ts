@@ -546,7 +546,7 @@ export function profilesFromSpec(api: any, o: ProfilesOptions): SpecProfiles {
       (x) => x.kind !== 'clientCredentials' && x.schemes.join() === p.schemes.join(),
     )
     notes.push(
-      `${p.name} signs in server-side with ${p.secrets.join(' and ')} (dev, test and bundle runs)${paste ? `; a static portal offers ${paste.name} instead` : ''}`,
+      `${p.name} needs a server to hold its secret (dev, test and bundle runs)${paste ? `; a static portal offers ${paste.name} instead` : ''}`,
     )
   }
   return {

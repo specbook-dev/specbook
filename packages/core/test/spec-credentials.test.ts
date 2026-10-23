@@ -80,7 +80,7 @@ describe('credentialsFromSpec', () => {
     expect(r.notes[0]).toBe(
       'Plaid-Version reads like a version, not a credential: put its value in PLAID_VERSION',
     )
-    expect(r.notes[1]).toContain('plaid-oauth2-client signs in server-side with')
+    expect(r.notes[1]).toContain('plaid-oauth2-client needs a server to hold its secret')
     expect(r.notes[1]).toContain('a static portal offers plaid-oauth2 instead')
   })
 

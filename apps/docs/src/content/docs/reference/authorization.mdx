@@ -1,0 +1,134 @@
+---
+title: Authorization
+description: How a spec's security schemes become profiles, how a person or a run picks one, and what works where.
+---
+
+import Snippet from '../../../components/Snippet.astro'
+
+An API's spec says how it can be called: an API key, a bearer token, basic auth, an OAuth 2.0 flow. Specbook turns
+each way into a **profile**, lets a person choose one in the UI, and picks one by itself in a run.
+
+## The model
+
+1. The spec declares **security schemes**, and each operation says which of them it accepts. One requirement can name
+   several schemes that must apply together.
+2. `specbook add` writes a profile in `auth` for every way the spec accepts, the cheapest to fill first: an API key or
+   bearer token, then basic auth, then OAuth.
+3. A service lists its profiles in `auth`. The first is the default, and the others are alternatives.
+4. A request or a flow can name a profile with `auth: 'name'`, or none with `auth: false`. Otherwise a run uses the
+   first listed profile that the operation accepts, and the default when none does.
+
+<Snippet file="../example/.specbook/specbook.config.ts" region="petstore-auth" title="specbook.config.ts" />
+
+In the public Petstore, `GET /pet/{petId}` accepts either way, so it uses `petstore`. `POST /pet` accepts only
+`petstore_auth`, so it uses `petstore-auth` whatever the default is. A profile with no `scheme` is taken to suit every
+operation.
+
+## Profile fields
+
+| Field | What it does |
+| --- | --- |
+| `title` | The name shown when a person chooses. |
+| `scheme` | The scheme, or schemes, of the spec that the profile satisfies. With it, each operation gets the profile it accepts. |
+| `apply.headers`, `apply.query` | What the profile sends. Values are templates: `{{secrets.NAME}}` is a credential, `{{session.accessToken}}` is a token the run fetched. |
+| `login`, `token`, `retryOn401` | A token from a login operation. `login` returns the request, `token` reads the session from its answer, and a 401 logs in again once unless `retryOn401` is `false`. |
+| `oauth` | A sign-in a person can use, or a client credentials grant the run performs. See below. |
+
+The fields of `oauth` depend on what it is:
+
+| Kind | Fields |
+| --- | --- |
+| Sign in with the authorization code | `authorizationUrl`, `tokenUrl`, `scopes`, `clientId` |
+| Sign in with the implicit flow | `flow: 'implicit'`, `authorizationUrl`, `scopes`, `clientId` |
+| Sign in with OpenID Connect | `openIdConnectUrl`, `scopes`, `clientId` |
+| Client credentials | `tokenUrl`, `clientId`, `clientSecret`, `scopes`, `clientAuth` |
+
+Addresses and `clientId` can be templates over the environment's variables, such as `'{{issuer}}/token'`, so each
+environment can sign in at its own provider.
+
+## Where credentials come from
+
+| Where it runs | Credentials come from |
+| --- | --- |
+| A published portal, the hosted viewer, an embed | A visitor types them once per tab. They are kept per API origin and never become part of the site. |
+| `specbook dev` and `specbook preview` | The same, or the dev server's own environment variables and secrets files, which it fills in when the request goes out. |
+| `specbook test` and a bundle | Environment variables named in the config, then `--secrets-file` and the environment's secrets files. A bundle reads only environment variables. |
+| The browser extension | It holds no keys. The page fills in what the visitor typed, and the extension only makes the call. |
+
+## Choosing in the UI
+
+When an operation accepts more than one of a service's profiles, the credentials bar above the request shows them as a
+choice. Each says what it still needs: a check mark when it is ready, or sign in, paste, set on server, or needs a
+server. The choice lasts for the tab, and the code sample follows it.
+
+An operation that accepts only one profile says so and offers no choice. A flow asks for each profile its steps need.
+The Docs tab lists what the spec says an operation accepts, with its scopes, and the padlock beside the operation
+names the schemes.
+
+## Signing in
+
+A scheme with an authorization code flow, an implicit flow or an OpenID Connect provider gets a **Sign in** button
+beside the field for a pasted token. The code flow uses PKCE, so there is no client secret. The token stays in the tab,
+bound to the API's origin, and the scopes the operation needs are ticked first.
+
+Register a public client with your provider, and allow this redirect URI:
+
+| Where the viewer runs | Redirect URI |
+| --- | --- |
+| The hosted viewer | `https://ui.specbook.dev/oauth/callback/` |
+| A viewer you host or embed | That page's own address |
+| `specbook dev` and `specbook preview` | The address they print |
+
+From a static page the browser makes the token exchange, so the provider must allow calls from the page's origin
+(CORS). Through `dev` and `preview` the dev server makes it. If the provider will not talk to a browser, or needs a
+client secret, paste a token instead.
+
+The implicit flow returns the token in the address fragment, which no server sees, and the page removes it from the
+address at once. Providers are moving away from it, so use the code flow where you have the choice. Specbook offers it
+because some APIs, such as the public Petstore, still use only that. Its tokens are short-lived.
+
+## A client id and secret a server must hold
+
+Some APIs authenticate a service, not a person. They hand out a client id and secret, and a browser cannot keep the
+secret. For these Specbook performs the **client credentials** grant itself. It fetches a token when a request first
+needs one, reuses it until it expires, and fetches another once after a 401.
+
+<Snippet file="snippets/auth/client-credentials.config.ts" region="client-credentials" title="specbook.config.ts" />
+
+`clientSecret` must be a `{{secrets.NAME}}` placeholder, and `specbook check` fails a value written in the file.
+`scopes` lists what to ask for, and leaving it out takes the provider's default. `clientAuth: 'basic'` sends the
+credentials in a Basic header instead of the body, when the run holds the values. Through the dev server the secret is
+filled in on the server, so the body form is used.
+
+| Where | What happens |
+| --- | --- |
+| `specbook test` and a bundle | The run fetches the token with secrets from the environment. |
+| `specbook dev` and `specbook preview` | The page sends placeholders and the dev server fills them in, so the secret never reaches the browser. |
+| A published portal | There is no server to hold the secret. The profile shows as needing a server, and the page offers the profile that takes a pasted token. |
+| The `mock` environment | Nothing is fetched, and the request carries a stand-in token. |
+
+The secrets of a profile are only required when a run uses it. The token request counts as a login, so `--safe` always
+allows it.
+
+## Runs and monitors
+
+A sign-in needs a person and a browser, so it cannot run in CI or on a schedule. This is what a headless run can do:
+
+| Kind of credential | In a run |
+| --- | --- |
+| API key, bearer token, basic auth | Works. The value is an environment variable. |
+| A token from a login operation | Works. |
+| Client credentials | Works. The run fetches the token. |
+| A person's OAuth token (code, implicit, OpenID Connect) | Put a token you issued in the profile's environment variable. It works until it expires. |
+| Refresh tokens, the password grant | Not supported. |
+
+<Snippet file="snippets/auth/monitor-secrets.yml" region="monitor-secrets" title={false} />
+
+## Checking
+
+`specbook secrets --env <name>` shows where each secret resolves from, and never a value. `specbook check` reports:
+
+- a service that lists a profile the config does not have;
+- a profile whose `scheme` is not a security scheme of the service's spec;
+- operations that none of a service's profiles accept, and which scheme the spec wants for them;
+- a client secret written as a value, and a client credentials profile with no token address.
