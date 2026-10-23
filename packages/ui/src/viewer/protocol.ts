@@ -24,7 +24,8 @@ export interface OpenResult {
   exampleNames: Record<string, string[]>
   auth: Record<string, AuthProfileLike>
   secrets: Record<string, Record<string, never>>
-  defaultProfile?: string
+  /** every profile of `auth`, the default first (the cheapest to fill) */
+  profiles: string[]
   /**
    * Sign-in addresses the document gives relative to its servers, as variables: the values for `live`,
    * and per other environment. The profiles in `auth` read them as `{{name}}`.

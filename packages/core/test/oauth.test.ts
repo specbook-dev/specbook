@@ -169,9 +169,36 @@ describe('authFromSpec: OAuth schemes', () => {
     })
   })
 
-  it('leaves implicit, client credentials and password flows as paste-only', () => {
+  it('reads the implicit flow as a sign-in with no token endpoint', () => {
+    const r = authFromSpec(
+      v3({ implicit: { authorizationUrl: 'https://a/authorize', scopes: { read: 'Read' } } }),
+    )
+    expect(r.auth.petAuth?.oauth).toEqual({
+      flow: 'implicit',
+      authorizationUrl: 'https://a/authorize',
+      scopes: { read: 'Read' },
+    })
+  })
+
+  it('prefers the authorization code flow when a scheme offers both', () => {
+    const r = authFromSpec(
+      v3({
+        implicit: { authorizationUrl: 'https://a/authorize', scopes: {} },
+        authorizationCode: {
+          authorizationUrl: 'https://a/authorize',
+          tokenUrl: 'https://a/token',
+          scopes: {},
+        },
+      }),
+    )
+    expect(r.auth.petAuth?.oauth).toEqual({
+      authorizationUrl: 'https://a/authorize',
+      tokenUrl: 'https://a/token',
+    })
+  })
+
+  it('leaves client credentials and password flows as paste-only in the viewer', () => {
     for (const flows of [
-      { implicit: { authorizationUrl: 'https://a/authorize', scopes: {} } },
       { clientCredentials: { tokenUrl: 'https://a/token', scopes: {} } },
       { password: { tokenUrl: 'https://a/token', scopes: {} } },
     ]) {
@@ -179,6 +206,22 @@ describe('authFromSpec: OAuth schemes', () => {
       expect(r.auth.petAuth).toBeDefined()
       expect(r.auth.petAuth?.oauth).toBeUndefined()
     }
+  })
+
+  it('offers a client credentials profile when asked (a server can hold the secret)', () => {
+    const r = authFromSpec(
+      v3({ clientCredentials: { tokenUrl: 'https://a/token', scopes: { read: 'Read' } } }),
+      undefined,
+      undefined,
+      { clientCredentials: true },
+    )
+    expect(r.profiles).toEqual(['petAuth', 'petAuth-client'])
+    expect(r.auth['petAuth-client']?.oauth).toEqual({
+      tokenUrl: 'https://a/token',
+      clientId: '{{secrets.PETAUTH_CLIENT_ID}}',
+      clientSecret: '{{secrets.PETAUTH_CLIENT_SECRET}}',
+      scopes: { read: 'Read' },
+    })
   })
 })
 

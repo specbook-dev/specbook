@@ -97,10 +97,10 @@ export async function previewCommand(
   const {
     auth,
     secrets,
-    defaultProfile,
+    profiles,
     vars: authVars,
     environmentVars,
-  } = authFromSpec(api, source, servers)
+  } = authFromSpec(api, source, servers, { clientCredentials: true })
   const addresses = environmentsFromServers(servers, 'baseUrl')
   const environments: Record<string, { description?: string; vars?: Record<string, string> }> = {
     ...addresses.environments,
@@ -121,7 +121,7 @@ export async function previewCommand(
         spec: specFile,
         // no server to read an address from: none, so a call says so rather than going nowhere
         baseUrl: servers.some((s) => s.name === 'live') ? addresses.baseUrl : {},
-        ...(defaultProfile ? { auth: defaultProfile } : {}),
+        ...(profiles.length ? { auth: profiles.length > 1 ? profiles : profiles[0] } : {}),
       },
     },
   } as unknown as SpecbookConfig

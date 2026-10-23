@@ -55,13 +55,20 @@ describe('add / check', () => {
       expect(cfg).toContain("baseUrl: '{{pets2Url}}'")
       expect(cfg).toMatch(/vars: \{\n\s+pets2Url: 'https:\/\/example\.test',\n\s+\},/)
       // and the credentials the spec asks for: a secret named for the service, a profile, and the service uses it
-      expect(cfg).toContain('secrets: { PETS2_API_KEY: {} },')
-      expect(cfg).toContain("auth: 'pets2',")
+      expect(cfg).toContain('secrets: { PETS2_API_KEY: {}, PETS2_PETSTORE_AUTH: {} },')
+      // every way the spec accepts is a profile, the cheapest the default
+      expect(cfg).toContain("auth: ['pets2', 'pets2-petstore-auth'],")
       expect(cfg).toContain("title: 'API key',")
+      expect(cfg).toContain("scheme: 'api_key',")
       expect(cfg).toContain("apply: { headers: { api_key: '{{secrets.PETS2_API_KEY}}' } },")
+      expect(cfg).toContain("'pets2-petstore-auth': {")
+      expect(cfg).toContain("flow: 'implicit',")
       const said = log.mock.calls.map((c) => c.join(' ')).join('\n')
-      expect(said).toContain('credentials from the spec: profile "pets2" sends PETS2_API_KEY')
-      expect(said).toContain('7 operations take only petstore_auth, which is not set up')
+      expect(said).toContain('2 ways to authenticate, the first is the default')
+      expect(said).toContain('profile "pets2" sends PETS2_API_KEY')
+      expect(said).toContain(
+        'profile "pets2-petstore-auth" signs in with OAuth, or takes a pasted token in PETS2_PETSTORE_AUTH',
+      )
 
       // a spec with several servers: the first is the default, the others are environment files
       const spec = JSON.parse(await readFile(join(dir, 'openapi/petstore.json'), 'utf8'))
@@ -81,8 +88,10 @@ describe('add / check', () => {
       expect(multi).toMatch(/multiUrl: 'https:\/\/prod\.example\.test\/v1'/)
       expect(multi).toContain("baseUrl: '{{multiUrl}}'")
       // the same spec added again gets secrets and a profile of its own, in the blocks that are there
-      expect(multi).toContain('secrets: { MULTI_API_KEY: {}, PETS2_API_KEY: {} },')
-      expect(multi).toContain("auth: 'multi',")
+      expect(multi).toContain(
+        'secrets: { MULTI_API_KEY: {}, MULTI_PETSTORE_AUTH: {}, PETS2_API_KEY: {}, PETS2_PETSTORE_AUTH: {} },',
+      )
+      expect(multi).toContain("auth: ['multi', 'multi-petstore-auth'],")
       expect(multi.match(/^ {2}secrets:/gm)).toHaveLength(1)
       expect(multi.match(/^ {2}auth: \{/gm)).toHaveLength(1)
       // an existing value in an environment file is not overwritten; a new environment gets its file
@@ -160,6 +169,77 @@ export default AddPet.request({
   }, 60_000)
 })
 
+describe('check on auth profiles', () => {
+  const checkWith = async (auth: string, services: string) => {
+    const dir = await tempProject()
+    const lines: string[] = []
+    const log = vi.spyOn(console, 'log').mockImplementation((...a) => void lines.push(a.join(' ')))
+    const cwd = vi.spyOn(process, 'cwd').mockReturnValue(dir)
+    try {
+      await writeFile(
+        join(dir, '.specbook/specbook.config.ts'),
+        `import { defineConfig } from '@specbook/core'
+export default defineConfig({
+  project: 'tmp',
+  secrets: { KEY: {}, TOKEN: {}, ID: {}, SECRET: {} },
+  auth: { ${auth} },
+  services: { petstore: { spec: './openapi/petstore.json', baseUrl: { live: 'https://p.test' }, ${services} } },
+})
+`,
+      )
+      const loader = await createLoader(dir)
+      try {
+        const code = await checkCommand(await loadProject(dir, loader), loader)
+        return { code, said: lines.join('\n') }
+      } finally {
+        await loader.close()
+      }
+    } finally {
+      log.mockRestore()
+      cwd.mockRestore()
+    }
+  }
+  const key = "key: { scheme: 'api_key', apply: { headers: { api_key: '{{secrets.KEY}}' } } },"
+  const oauth =
+    "tok: { scheme: 'petstore_auth', apply: { headers: { authorization: 'Bearer {{secrets.TOKEN}}' } } },"
+
+  it('is quiet when the profiles cover what the spec accepts', async () => {
+    const r = await checkWith(`${key} ${oauth}`, "auth: ['key', 'tok']")
+    expect(r.code).toBe(0)
+    for (const text of ['auth lists', '[auth ', 'auth profiles']) expect(r.said).not.toContain(text)
+  }, 60_000)
+
+  it('errors on a listed profile the config does not have', async () => {
+    const r = await checkWith(key, "auth: ['key', 'ghost']")
+    expect(r.code).toBe(1)
+    expect(r.said).toContain('[petstore] auth lists "ghost", which is not a profile in config.auth')
+  }, 60_000)
+
+  it('warns on a scheme the spec does not define, and on operations no listed profile accepts', async () => {
+    const r = await checkWith(
+      "other: { scheme: 'nope', apply: { headers: { a: '{{secrets.KEY}}' } } }, " + key,
+      "auth: ['other', 'key']",
+    )
+    expect(r.said).toContain('[auth other] scheme "nope" is not a security scheme of "petstore"')
+    // the seven pet operations take only petstore_auth
+    expect(r.said).toContain(
+      '7 operations accept none of its auth profiles (the spec wants petstore_auth)',
+    )
+  }, 60_000)
+
+  it('errors on a client secret that is a value, and a client without a token address', async () => {
+    const r = await checkWith(
+      "c: { apply: {}, oauth: { tokenUrl: 'https://i.test/t', clientId: '{{secrets.ID}}', clientSecret: 'hunter2' } }, d: { apply: {}, oauth: { tokenUrl: '', clientId: '{{secrets.ID}}', clientSecret: '{{secrets.SECRET}}' } }",
+      "auth: ['c']",
+    )
+    expect(r.code).toBe(1)
+    expect(r.said).toContain(
+      '[auth c] oauth.clientSecret must be a {{secrets.NAME}} placeholder, not a value',
+    )
+    expect(r.said).toContain('[auth d] oauth.tokenUrl is missing')
+  }, 60_000)
+})
+
 describe('credentials that add wrote', () => {
   it('are named by `secrets`, run on the mock with no value, and are required on a real environment', async () => {
     const dir = await tempProject()
@@ -192,6 +272,7 @@ export default FindPetsByStatus.request({ query: { status: 'available' } })
         lines.length = 0
         expect(await secretsCommand(project, 'live')).toBe(1)
         expect(lines.join('\n')).toContain('✗ PETS2_API_KEY')
+        expect(lines.join('\n')).toContain('✗ PETS2_PETSTORE_AUTH')
 
         const o = {
           patterns: ['requests/pets2/find.req.ts'],
@@ -205,7 +286,9 @@ export default FindPetsByStatus.request({ query: { status: 'available' } })
         // a real environment cannot run without it, and says which
         errors.length = 0
         expect(await testCommand(project, reloaded, { ...o, env: 'live' })).toBe(2)
-        expect(errors.join('\n')).toContain('PETS2_API_KEY')
+        // this operation takes only the OAuth scheme, so it is that profile's secret the run asks for
+        expect(errors.join('\n')).toContain('PETS2_PETSTORE_AUTH')
+        expect(errors.join('\n')).not.toContain('PETS2_API_KEY')
       } finally {
         await reloaded.close()
       }

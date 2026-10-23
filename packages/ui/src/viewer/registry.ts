@@ -190,7 +190,9 @@ export const loadConfig = () =>
           spec: '',
           // a document that gives no address at all has no live environment either
           baseUrl: live || open.servers.length ? addresses.baseUrl : {},
-          ...(open.defaultProfile ? { auth: open.defaultProfile } : {}),
+          ...(open.profiles.length
+            ? { auth: open.profiles.length > 1 ? open.profiles : open.profiles[0] }
+            : {}),
         },
       },
     },

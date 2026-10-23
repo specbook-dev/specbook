@@ -1,8 +1,8 @@
 import type { SpecCredentials } from '@specbook/core'
 
 /**
- * The credentials `specbook add` writes into a project's config: `secrets`, one `auth` profile, and `auth: '<profile>'` on
- * the service. The config is edited as text, like the rest of `add`, so what a person wrote stays as they wrote it: a
+ * The credentials `specbook add` writes into a project's config: `secrets`, an `auth` profile for each way the spec accepts,
+ * and `auth: '<profile>'` (or a list, the default first) on the service. The config is edited as text, like the rest of `add`, so what a person wrote stays as they wrote it: a
  * block that is there is added to at the top, a block that is not is made before `services`, and a name that is already
  * there is left alone.
  */
@@ -12,11 +12,11 @@ export const quote = (s: string) => `'${s.replace(/\\/g, '\\\\').replace(/'/g, "
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/
 const key = (k: string) => (IDENTIFIER.test(k) ? k : quote(k))
 
-type Profile = NonNullable<SpecCredentials['profile']>
+type Profile = SpecCredentials['profiles'][number]
 
 export interface CredentialPlan {
-  /** the profile to write, which the service names as its `auth`; none when nothing is written */
-  profile?: Profile
+  /** the profiles to write, the default first, which the service names as its `auth`; none when nothing is written */
+  profiles: Profile[]
   /** secrets that are not in the config yet */
   add: string[]
   /** secrets the config already declares */
@@ -120,6 +120,7 @@ export function planCredentials(
   const top = /^([ \t]*)services\s*:/m.exec(text)?.[1] ?? '  '
   const step = top === '' ? '  ' : top.includes('\t') ? '\t' : top.length >= 4 ? top : '  '
   const plan: CredentialPlan = {
+    profiles: [],
     add: [],
     reused: [],
     notes: [...creds.notes],
@@ -127,7 +128,7 @@ export function planCredentials(
     top,
     step,
   }
-  if (!creds.profile) return plan
+  if (!creds.profiles.length) return plan
   const secrets = blockAt(text, 'secrets', top)
   const auth = blockAt(text, 'auth', top)
   if (secrets === 'opaque' || auth === 'opaque') {
@@ -138,10 +139,10 @@ export function planCredentials(
     ...Object.keys(loaded.auth ?? {}),
     ...(auth && 'keys' in auth ? auth.keys : []),
   ])
-  if (hasProfiles.has(creds.profile.name)) {
-    plan.notes.unshift(
-      `a profile named "${creds.profile.name}" is already in the config; left as it is`,
-    )
+  // the service's own profile is its default: when the config has one by that name, the person has set this up already
+  const lead = creds.profiles[0] as Profile
+  if (hasProfiles.has(lead.name)) {
+    plan.notes.unshift(`a profile named "${lead.name}" is already in the config; left as it is`)
     return plan
   }
   // a profile that is a one-line block with entries is rare, and not worth guessing where a comma goes
@@ -149,13 +150,32 @@ export function planCredentials(
     plan.manual = true
     return plan
   }
+  const skipped = creds.profiles.filter((p) => hasProfiles.has(p.name))
+  for (const p of skipped)
+    plan.notes.push(`a profile named "${p.name}" is already in the config; left as it is`)
+  plan.profiles = creds.profiles.filter((p) => !hasProfiles.has(p.name))
   const declared = new Set([
     ...Object.keys(loaded.secrets ?? {}),
     ...(secrets && 'keys' in secrets ? secrets.keys : []),
   ])
-  plan.profile = creds.profile
-  for (const name of creds.secrets) (declared.has(name) ? plan.reused : plan.add).push(name)
+  const wanted = [...new Set(plan.profiles.flatMap((p) => p.secrets))]
+  for (const name of wanted) (declared.has(name) ? plan.reused : plan.add).push(name)
   return plan
+}
+
+/** A JSON-like value as config text; `ind` is where the line it starts on is indented. */
+function literal(v: unknown, ind: string, step: string, eol: string): string {
+  if (typeof v === 'string') return quote(v)
+  if (Array.isArray(v)) return `[${v.map((x) => literal(x, ind, step, eol)).join(', ')}]`
+  if (v && typeof v === 'object') {
+    const entries = Object.entries(v)
+    if (!entries.length) return '{}'
+    const inner = entries
+      .map(([k, x]) => `${ind}${step}${key(k)}: ${literal(x, `${ind}${step}`, step, eol)},${eol}`)
+      .join('')
+    return `{${eol}${inner}${ind}}`
+  }
+  return String(v)
 }
 
 /** One profile as config text; `ind` is where its name starts. */
@@ -164,6 +184,7 @@ function profileText(p: Profile, ind: string, step: string, eol: string): string
     `${ind}${key(p.name)}: {`,
     `${ind}${step}// from the spec's security: ${p.schemes.join(', ')}`,
     `${ind}${step}title: ${quote(p.title)},`,
+    `${ind}${step}scheme: ${literal(p.schemes.length === 1 ? p.schemes[0] : p.schemes, '', '', eol)},`,
   ]
   const groups = (['headers', 'query'] as const)
     .map((g) => [g, Object.entries(p.apply[g] ?? {})] as const)
@@ -182,9 +203,16 @@ function profileText(p: Profile, ind: string, step: string, eol: string): string
     }
     lines.push(`${ind}${step}},`)
   }
+  if (p.oauth) lines.push(`${ind}${step}oauth: ${literal(p.oauth, `${ind}${step}`, step, eol)},`)
   lines.push(`${ind}},`)
   return lines.map((l) => `${l}${eol}`).join('')
 }
+
+/** What the service's `auth` is: the one profile's name, or the list with the default first. */
+export const authValue = (profiles: Pick<Profile, 'name'>[]): string =>
+  profiles.length === 1
+    ? quote((profiles[0] as Profile).name)
+    : `[${profiles.map((p) => quote(p.name)).join(', ')}]`
 
 const SECRETS_COMMENT =
   '// values come from environment variables of the same name or a gitignored <env>.secrets.env'
@@ -216,11 +244,11 @@ function withSecrets(text: string, plan: CredentialPlan, eol: string): string {
   return text.slice(0, at) + block + text.slice(at)
 }
 
-/** `auth` with the profile in it: added to the block that is there, or a block of its own before `services`. */
+/** `auth` with the profiles in it: added to the block that is there, or a block of its own before `services`. */
 function withProfile(text: string, plan: CredentialPlan, eol: string): string {
   const { top, step } = plan
   const auth = blockAt(text, 'auth', top)
-  const profile = profileText(plan.profile as Profile, `${top}${step}`, step, eol)
+  const profile = plan.profiles.map((p) => profileText(p, `${top}${step}`, step, eol)).join('')
   if (auth && auth !== 'opaque') {
     if (auth.multiline) {
       const at = text.indexOf('\n', auth.open) + 1
@@ -237,7 +265,7 @@ function withProfile(text: string, plan: CredentialPlan, eol: string): string {
  * edited here. A block that is made is made just before `services`, `secrets` above `auth`.
  */
 export function applyCredentials(text: string, plan: CredentialPlan): string | undefined {
-  if (!plan.profile || plan.manual || servicesAt(text) === undefined) return undefined
+  if (!plan.profiles.length || plan.manual || servicesAt(text) === undefined) return undefined
   const eol = eolOf(text)
   const withNames = plan.add.length ? withSecrets(text, plan, eol) : text
   return withProfile(withNames, plan, eol)
@@ -245,12 +273,12 @@ export function applyCredentials(text: string, plan: CredentialPlan): string | u
 
 /** The same credentials as text to paste, for a config that cannot be edited here. */
 export function credentialsSnippet(creds: SpecCredentials): string {
-  if (!creds.profile) return ''
+  if (!creds.profiles.length) return ''
   const eol = '\n'
   const names = creds.secrets.map((n) => `${n}: {}`).join(', ')
   return [
     `  ${SECRETS_COMMENT}${eol}  secrets: { ${names} },${eol}`,
-    `  auth: {${eol}${profileText(creds.profile, '    ', '  ', eol)}  },${eol}`,
-    `and \`auth: ${quote(creds.profile.name)},\` in the service`,
+    `  auth: {${eol}${creds.profiles.map((p) => profileText(p, '    ', '  ', eol)).join('')}  },${eol}`,
+    `and \`auth: ${authValue(creds.profiles)},\` in the service`,
   ].join(eol)
 }

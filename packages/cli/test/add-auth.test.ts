@@ -4,7 +4,12 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { credentialsFromSpec, type SpecCredentials } from '@specbook/core'
 import { describe, expect, it, vi } from 'vitest'
-import { applyCredentials, credentialsSnippet, planCredentials } from '../src/commands/add-auth'
+import {
+  applyCredentials,
+  authValue,
+  credentialsSnippet,
+  planCredentials,
+} from '../src/commands/add-auth'
 import { initCommand } from '../src/commands/init'
 
 const header = (name: string) => ({ type: 'apiKey', in: 'header', name })
@@ -56,6 +61,7 @@ describe('credentials in the config init writes', () => {
         '    plaid: {',
         "      // from the spec's security: clientId, secret, plaidVersion",
         "      title: 'API keys',",
+        "      scheme: ['clientId', 'secret', 'plaidVersion'],",
         '      apply: {',
         '        headers: {',
         "          'PLAID-CLIENT-ID': '{{secrets.PLAID_CLIENT_ID}}',",
@@ -140,7 +146,7 @@ describe('credentials in a config that has secrets and auth already', () => {
   it('adds the secret to the one-line block and the profile to the existing auth block', () => {
     const out = edit(example, oneKey('pets2')) as string
     expect(out).toContain(
-      'secrets: { PETS2_API_KEY: {}, PETSTORE_API_KEY: {}, STRIPE_API_KEY: {}, GITHUB_TOKEN: {} },',
+      'secrets: { PETS2_API_KEY: {}, PETSTORE_API_KEY: {}, PETSTORE_AUTH: {}, STRIPE_API_KEY: {}, GITHUB_TOKEN: {} },',
     )
     expect(out).toContain(
       "  auth: {\n    pets2: {\n      // from the spec's security: api_key\n      title: 'API key',",
@@ -148,9 +154,10 @@ describe('credentials in a config that has secrets and auth already', () => {
     // one block each, and what was there is as it was
     expect(count(out, /^ {2}secrets:/gm)).toBe(1)
     expect(count(out, /^ {2}auth: \{/gm)).toBe(1)
-    expect(count(out, /^ {6}auth: '/gm)).toBe(3)
+    expect(count(out, /^ {6}auth: '/gm)).toBe(2)
+    expect(count(out, /^ {6}auth: \[/gm)).toBe(1)
     expect(out).toContain(
-      '// Static-token profile: no login, the secret is applied to every secured request.',
+      '// Static-token profile: no login, the secret is applied to every request that accepts it.',
     )
     expect(out).toContain("'x-github-api-version': '2022-11-28',")
   })
@@ -168,7 +175,7 @@ describe('credentials in a config that has secrets and auth already', () => {
 
   it('leaves a profile of the same name alone and says so', () => {
     const plan = planCredentials(example, oneKey('stripe'))
-    expect(plan.profile).toBeUndefined()
+    expect(plan.profiles).toEqual([])
     expect(plan.notes[0]).toContain('a profile named "stripe" is already in the config')
     expect(applyCredentials(example, plan)).toBeUndefined()
   })
@@ -177,7 +184,7 @@ describe('credentials in a config that has secrets and auth already', () => {
     // two adds in one process: the loaded config is from before the first
     const first = edit(example, oneKey('pets2')) as string
     const plan = planCredentials(first, oneKey('pets2'), {})
-    expect(plan.profile).toBeUndefined()
+    expect(plan.profiles).toEqual([])
   })
 })
 
@@ -214,11 +221,14 @@ describe('credentials in a config that is written another way', () => {
 
   it('does nothing when the spec has no credentials, and keeps its notes', () => {
     const creds: SpecCredentials = {
+      profiles: [],
       secrets: [],
       notes: ['mtls cannot be sent as a header or a query value'],
+      vars: {},
+      environmentVars: {},
     }
     const plan = planCredentials(shell(''), creds)
-    expect(plan.profile).toBeUndefined()
+    expect(plan.profiles).toEqual([])
     expect(plan.notes).toEqual(creds.notes)
     expect(applyCredentials(shell(''), plan)).toBeUndefined()
   })
@@ -233,6 +243,83 @@ describe('the snippet for a config that cannot be edited', () => {
     expect(snippet).toContain('auth: {')
     expect(snippet).toContain("'Plaid-Version': '{{secrets.PLAID_VERSION}}',")
     expect(snippet).toContain("`auth: 'plaid',`")
-    expect(credentialsSnippet({ secrets: [], notes: [] })).toBe('')
+    expect(
+      credentialsSnippet({ profiles: [], secrets: [], notes: [], vars: {}, environmentVars: {} }),
+    ).toBe('')
+  })
+})
+
+describe('every way a spec accepts', () => {
+  const petstoreDoc = {
+    components: {
+      securitySchemes: {
+        api_key: header('api_key'),
+        petstore_auth: {
+          type: 'oauth2',
+          flows: {
+            implicit: {
+              authorizationUrl: 'https://auth.test/authorize',
+              scopes: { 'read:pets': 'Read' },
+            },
+          },
+        },
+      },
+    },
+    paths: {
+      '/a': { get: { security: [{ api_key: [] }, { petstore_auth: ['read:pets'] }] } },
+      '/b': { get: { security: [{ petstore_auth: ['read:pets'] }] } },
+    },
+  }
+  const creds = credentialsFromSpec(petstoreDoc, 'petstore')
+
+  it('writes a profile for each, with the scheme it satisfies and the sign-in settings', async () => {
+    const out = edit(await initConfig(), creds) as string
+    expect(out).toContain('secrets: { PETSTORE_API_KEY: {}, PETSTORE_AUTH: {} },')
+    expect(out).toContain(
+      [
+        '    petstore: {',
+        "      // from the spec's security: api_key",
+        "      title: 'API key',",
+        "      scheme: 'api_key',",
+        "      apply: { headers: { api_key: '{{secrets.PETSTORE_API_KEY}}' } },",
+        '    },',
+        "    'petstore-auth': {",
+        "      // from the spec's security: petstore_auth",
+        "      title: 'OAuth sign-in',",
+        "      scheme: 'petstore_auth',",
+        "      apply: { headers: { authorization: 'Bearer {{secrets.PETSTORE_AUTH}}' } },",
+        '      oauth: {',
+        "        flow: 'implicit',",
+        "        authorizationUrl: 'https://auth.test/authorize',",
+        '        scopes: {',
+        "          'read:pets': 'Read',",
+        '        },',
+        '      },',
+        '    },',
+      ].join('\n'),
+    )
+  })
+
+  it('names the service by its list when there are several, and by its name when there is one', () => {
+    expect(authValue(creds.profiles)).toBe("['petstore', 'petstore-auth']")
+    expect(authValue(creds.profiles.slice(0, 1))).toBe("'petstore'")
+  })
+
+  it('leaves a profile the config has under another name of its own and writes the rest', async () => {
+    const text = (await initConfig()).replace(
+      '  services: {',
+      "  auth: {\n    'petstore-auth': { apply: {} },\n  },\n  services: {",
+    )
+    const plan = planCredentials(text, creds)
+    expect(plan.profiles.map((p) => p.name)).toEqual(['petstore'])
+    expect(plan.notes).toContain(
+      'a profile named "petstore-auth" is already in the config; left as it is',
+    )
+  })
+
+  it('has every profile in the snippet for a config that cannot be edited', () => {
+    const snippet = credentialsSnippet(creds)
+    expect(snippet).toContain("'petstore-auth': {")
+    expect(snippet).toContain("`auth: ['petstore', 'petstore-auth'],`")
   })
 })
