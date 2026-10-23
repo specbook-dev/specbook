@@ -496,9 +496,12 @@ describe('the hosted viewer opens a spec at run time', () => {
       'Zine',
     ])
     const before = await pane.locator('table.fields tr').count()
-    await pane.getByRole('button', { name: /what is in items/ }).click()
+    await pane.getByRole('button', { name: 'Show what is in items', exact: true }).click()
     expect(await pane.locator('table.fields tr').count()).toBeGreaterThan(before)
-    expect(await pane.locator('table.fields').innerText()).toContain('related.tracks')
+    // an object among them is a group of its own, named by its whole path, opened in its turn
+    expect(await pane.locator('table.fields').innerText()).toContain('items.related')
+    await pane.getByRole('button', { name: 'Show what is in items.related', exact: true }).click()
+    expect(await pane.locator('table.fields').innerText()).toContain('tracks')
     // the other status is a different answer: two kinds of error, each with its own fields
     await page.getByRole('tab', { name: /409/ }).click()
     expect(await pane.locator('.body-type').innerText()).toContain('OutOfStock | Discontinued')
@@ -520,10 +523,7 @@ describe('the hosted viewer opens a spec at run time', () => {
     await page.getByRole('tab', { name: 'Docs' }).click()
     await page.waitForSelector('.doc table.fields tr.variant', { timeout: 10_000 })
     // open the list of variants: the fields under it are as far in as any field ever goes
-    await page
-      .getByRole('button', { name: /what is in items/ })
-      .first()
-      .click()
+    await page.getByRole('button', { name: 'Show what is in items', exact: true }).first().click()
     await page.waitForSelector('.doc table.fields tr:has-text("title")')
     const fit = await page.evaluate(() =>
       [...document.querySelectorAll('table.fields')].map((t) => t.scrollWidth <= t.clientWidth + 1),

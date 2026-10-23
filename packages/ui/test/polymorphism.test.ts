@@ -201,17 +201,14 @@ describe('how a union is shown', () => {
     ])
   })
 
-  it('opens a union field to the fields of each variant, one level of indent whatever the depth', () => {
-    const items = topRows(shelf, defs).find((r) => r.name === 'items')
-    expect(lines(expansion(items?.schema as any, defs))).toEqual([
+  it('opens a union field to the fields of each variant, an object among them at the left under its path', () => {
+    const items = topRows(shelf, defs).find((r) => r.name === 'items') as never
+    expect(lines(expansion(items, defs))).toEqual([
       '  — Book kind = "book"',
       '  kind string',
       '  title string',
       '  pages integer',
-      '  related Album[]',
-      '  related.kind string',
-      '  related.title string',
-      '  related.tracks integer',
+      'items.related Album[]',
       '  — Album kind = "album"',
       '  kind string',
       '  title string',
@@ -221,6 +218,16 @@ describe('how a union is shown', () => {
       '  title string',
       '  issue integer',
     ])
+  })
+
+  it('opens an object under an open field in its turn, its fields one step in', () => {
+    const items = topRows(shelf, defs).find((r) => r.name === 'items') as never
+    const rows = visibleRows(shelf, defs, new Set(['items', 'items/Book>related']))
+      .flatMap((s) => ('row' in s ? [s.row] : []))
+      .map((r) => `${'  '.repeat(r.depth)}${r.name}`)
+    const at = rows.indexOf('items.related')
+    expect(rows.slice(at, at + 4)).toEqual(['items.related', '  kind', '  title', '  tracks'])
+    expect(items).toBeDefined()
   })
 
   it('lists a response that is a union as its variants, each with its fields', () => {

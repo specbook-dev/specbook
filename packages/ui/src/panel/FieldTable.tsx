@@ -13,11 +13,13 @@ import {
 } from '../schema'
 
 export interface Row {
-  /** what the row is called in the table: a field's name, or a dotted path below the field that is open */
+  /** what the row is called: a field's name, or for an object under an open field its whole path (`address.county`) */
   name: string
   /** what an open field is looked up by */
   key: string
-  /** 0 for a field of the object, 1 for what is under an open field; a table is never indented further */
+  /** the path of the field from the top of the table, which is what the fields of an object below it are named under */
+  path: string
+  /** 0 for the fields of the table and for an object under an open field, 1 for the other fields under it: never further */
   depth: 0 | 1
   type: string
   /** the whole text of a type shortened to fit */
@@ -33,10 +35,10 @@ export interface Row {
 
 /** The most rows one open field shows. */
 const MAX_EXPANDED = 150
-/** How many levels of objects one open field shows. */
-const LEVELS = 3
 
-const objectBranches = (union: NonNullable<ReturnType<typeof unionFor>>, defs: Defs) =>
+type Union = NonNullable<ReturnType<typeof unionFor>>
+
+const objectBranches = (union: Union, defs: Defs) =>
   union.branches.filter((b) => kindOf(unwrap(b.schema, defs)) === 'object')
 
 const tagText = (union: { tagProp?: string }, tag?: string) =>
@@ -49,35 +51,16 @@ function unionOfProp(schema: JsonSchema, defs: Defs) {
   return { u, isList, union: unionFor(isList ? u.items : schema, defs) }
 }
 
-function heading(
-  union: NonNullable<ReturnType<typeof unionFor>>,
-  b: { name?: string; tag?: string },
-  key: string,
-): Row {
+function heading(union: Union, b: { name?: string; tag?: string }, key: string): Row {
   const name = b.name ?? 'variant'
   return {
     name,
     key: `${key}/${name}`,
+    path: '',
     depth: 1,
     type: tagText(union, b.tag),
     required: false,
     variant: true,
-  }
-}
-
-function propRow(p: Prop, defs: Defs, name: string, depth: 0 | 1, key: string): Row {
-  const u = unwrap(p.schema, defs)
-  const info = typeInfo(p.schema, defs)
-  return {
-    name,
-    key,
-    depth,
-    type: info.text,
-    typeTitle: info.title,
-    required: p.required,
-    description: describe(u),
-    enum: Array.isArray(u.enum) && u.enum.length <= 10 ? u.enum.map(String) : undefined,
-    schema: openable(p.schema, defs) ? p.schema : undefined,
   }
 }
 
@@ -89,59 +72,82 @@ function openable(schema: JsonSchema, defs: Defs): boolean {
   return kindOf(inner) === 'object' && propsOf(inner, defs).length > 0
 }
 
-/** The rows below a field, as dotted paths from it, `level` levels of objects deep. */
-function below(schema: JsonSchema | undefined, defs: Defs, prefix: string, level: number): Row[] {
-  if (!schema || level >= LEVELS) return []
-  const rows: Row[] = []
-  for (const p of propsOf(schema, defs)) {
-    const name = prefix ? `${prefix}.${p.name}` : p.name
-    rows.push(propRow(p, defs, name, 1, name))
-    rows.push(...inside(p.schema, defs, name, level + 1))
+function propRow(
+  p: Prop,
+  defs: Defs,
+  at: { name: string; key: string; path: string; depth: 0 | 1 },
+): Row {
+  const u = unwrap(p.schema, defs)
+  const info = typeInfo(p.schema, defs)
+  return {
+    ...at,
+    type: info.text,
+    typeTitle: info.title,
+    required: p.required,
+    description: describe(u),
+    enum: Array.isArray(u.enum) && u.enum.length <= 10 ? u.enum.map(String) : undefined,
+    schema: openable(p.schema, defs) ? p.schema : undefined,
   }
-  return rows
 }
 
-/** What a field holds: a heading and the fields of each variant of a union, else the fields of an object. */
-function inside(schema: JsonSchema, defs: Defs, name: string, level: number): Row[] {
-  const { u, isList, union } = unionOfProp(schema, defs)
+/**
+ * The fields of an object as they sit under an open field: the plain ones indented one step, then each object
+ * among them at the left under its whole path, to be opened in its turn. (An object's fields are never pushed
+ * further in, so a table is as narrow at the bottom as at the top.)
+ */
+function fieldsUnder(obj: JsonSchema, defs: Defs, scope: string, path: string): Row[] {
+  const props = propsOf(obj, defs)
+  const plain = props.filter((p) => !openable(p.schema, defs))
+  const nested = props.filter((p) => openable(p.schema, defs))
+  const at = (p: Prop, depth: 0 | 1) => {
+    const whole = path ? `${path}.${p.name}` : p.name
+    return { name: depth === 0 ? whole : p.name, key: `${scope}>${p.name}`, path: whole, depth }
+  }
+  return [
+    ...plain.map((p) => propRow(p, defs, at(p, 1))),
+    ...nested.map((p) => propRow(p, defs, at(p, 0))),
+  ]
+}
+
+/** What an open field holds: a heading and the fields of each variant of a union, else the fields of an object. */
+export function expansion(row: Row, defs: Defs): Row[] {
+  if (!row.schema) return []
+  const { u, isList, union } = unionOfProp(row.schema, defs)
   if (union) {
     return objectBranches(union, defs).flatMap((b) => [
-      heading(union, b, name),
-      ...below(b.schema, defs, name, level),
+      heading(union, b, row.key),
+      ...fieldsUnder(unwrap(b.schema, defs), defs, `${row.key}/${b.name ?? 'variant'}`, row.path),
     ])
   }
   const inner = isList ? unwrap(u.items, defs) : u
-  return kindOf(inner) === 'object' ? below(inner, defs, name, level) : []
-}
-
-/** The rows an open field shows. */
-export function expansion(schema: JsonSchema, defs: Defs): Row[] {
-  return inside(schema, defs, '', 0)
+  return kindOf(inner) === 'object' ? fieldsUnder(inner, defs, row.key, row.path) : []
 }
 
 /** The variants of a union field, named, for when the field is closed: what it can be, without what is in it. */
-function variantsOf(schema: JsonSchema, defs: Defs, key: string): Row[] {
-  const { union } = unionOfProp(schema, defs)
-  return union ? objectBranches(union, defs).map((b) => heading(union, b, key)) : []
+function variantsOf(row: Row, defs: Defs): Row[] {
+  if (!row.schema) return []
+  const { union } = unionOfProp(row.schema, defs)
+  return union ? objectBranches(union, defs).map((b) => heading(union, b, row.key)) : []
 }
 
 /**
  * The fields of an object, or of the objects of a list, or the variants of a union with the fields of each, all
- * at the top: what is in a field is shown when the field is opened (see `expansion`).
+ * at the left: what is in a field is shown when the field is opened (see `expansion`).
  */
 export function topRows(schema: JsonSchema | undefined, defs: Defs): Row[] {
   if (!schema) return []
   const { u, isList, union } = unionOfProp(schema, defs)
+  const top = (obj: JsonSchema, scope: string) =>
+    propsOf(obj, defs).map((p) =>
+      propRow(p, defs, { name: p.name, key: `${scope}${p.name}`, path: p.name, depth: 0 }),
+    )
   if (union) {
     return objectBranches(union, defs).flatMap((b) => [
       { ...heading(union, b, ''), depth: 0 as const },
-      ...propsOf(b.schema, defs).map((p) =>
-        propRow(p, defs, p.name, 0, `${b.name ?? 'variant'}/${p.name}`),
-      ),
+      ...top(unwrap(b.schema, defs), `${b.name ?? 'variant'}/`),
     ])
   }
-  const root = isList ? unwrap(u.items, defs) : u
-  return propsOf(root, defs).map((p) => propRow(p, defs, p.name, 0, p.name))
+  return top(isList ? unwrap(u.items, defs) : u, '')
 }
 
 function RowView({ r, open, onToggle }: { r: Row; open?: boolean; onToggle?: () => void }) {
@@ -199,26 +205,25 @@ function RowView({ r, open, onToggle }: { r: Row; open?: boolean; onToggle?: () 
   )
 }
 
-/** A row to draw: a field of the table, what is under it, or a count of what is left out. */
-export type Shown = { row: Row; under?: boolean } | { more: number; key: string }
+/** A row to draw, or a count of what is left out. */
+export type Shown = { row: Row } | { more: number; key: string }
 
-/** What the table shows with the fields in `opened` open: their fields, or for a closed union field, its variants. */
+/** What the table shows with the fields in `opened` open: what is under them, or for a closed union field, its variants. */
 export function visibleRows(
   schema: JsonSchema | undefined,
   defs: Defs,
   opened: ReadonlySet<string>,
 ): Shown[] {
-  return topRows(schema, defs).flatMap((row): Shown[] => {
+  const walk = (row: Row): Shown[] => {
     const out: Shown[] = [{ row }]
     if (!row.schema) return out
-    const more = opened.has(row.key)
-      ? expansion(row.schema, defs)
-      : variantsOf(row.schema, defs, row.key)
-    for (const m of more.slice(0, MAX_EXPANDED)) out.push({ row: m, under: true })
+    const more = opened.has(row.key) ? expansion(row, defs) : variantsOf(row, defs)
+    for (const m of more.slice(0, MAX_EXPANDED)) out.push(...walk(m))
     if (more.length > MAX_EXPANDED)
       out.push({ more: more.length - MAX_EXPANDED, key: `${row.key}>more` })
     return out
-  })
+  }
+  return topRows(schema, defs).flatMap(walk)
 }
 
 export function FieldTable({ schema, defs }: { schema?: JsonSchema; defs: Defs }) {
@@ -231,7 +236,6 @@ export function FieldTable({ schema, defs }: { schema?: JsonSchema; defs: Defs }
       if (!next.delete(key)) next.add(key)
       return next
     })
-  let parent = ''
   return (
     <table class="fields">
       <thead>
@@ -242,27 +246,22 @@ export function FieldTable({ schema, defs }: { schema?: JsonSchema; defs: Defs }
         </tr>
       </thead>
       <tbody>
-        {shown.map((s) => {
-          if ('more' in s)
-            return (
-              <tr key={s.key}>
-                <td colSpan={3} class="muted">
-                  +{s.more} more fields in the spec
-                </td>
-              </tr>
-            )
-          if (!s.under) parent = s.row.key
-          const key = s.under ? `${parent}>${s.row.key}` : s.row.key
-          const row = s.row
-          return (
+        {shown.map((s) =>
+          'more' in s ? (
+            <tr key={s.key}>
+              <td colSpan={3} class="muted">
+                +{s.more} more fields in the spec
+              </td>
+            </tr>
+          ) : (
             <RowView
-              key={key}
-              r={row}
-              open={opened.has(row.key)}
-              onToggle={!s.under && row.schema ? () => toggle(row.key) : undefined}
+              key={s.row.key}
+              r={s.row}
+              open={opened.has(s.row.key)}
+              onToggle={s.row.schema ? () => toggle(s.row.key) : undefined}
             />
-          )
-        })}
+          ),
+        )}
       </tbody>
     </table>
   )
