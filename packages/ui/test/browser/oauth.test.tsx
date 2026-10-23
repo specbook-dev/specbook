@@ -397,6 +397,43 @@ describe('Sign in beside the credentials prompt', () => {
     expect(JSON.stringify({ ...localStorage })).toContain('my-client')
   })
 
+  it('asks for the scopes the operation needs, not every scope the scheme lists', async () => {
+    const scoped = {
+      ...config,
+      auth: {
+        shopAuth: { ...(config.auth as Record<string, object>).shopAuth, scheme: 'orders_auth' },
+      },
+    } as unknown as SpecbookConfig
+    vi.spyOn(engine, 'config').mockResolvedValue(scoped)
+    vi.spyOn(engine, 'oauthEndpoints').mockResolvedValue({
+      authorizationUrl: AUTHORIZE,
+      tokenUrl: TOKEN,
+      scopes: { 'read:orders': '', 'write:orders': '', 'delete:orders': '' },
+    })
+    vi.spyOn(engine, 'oauthExchange').mockResolvedValue({ access_token: 'tok-scoped' })
+    const { popup } = fakePopup()
+    render(
+      <SecretsBar
+        services={['shop']}
+        securities={{ shop: [[{ orders_auth: ['write:orders'] }]] }}
+        supplied={{}}
+      />,
+      host,
+    )
+    await vi.waitFor(() => expect(host.textContent).toContain('Scopes (1 of 3)'))
+    const id = host.querySelector<HTMLInputElement>(
+      'input[aria-label^="Client id"]',
+    ) as HTMLInputElement
+    id.value = 'my-client'
+    id.dispatchEvent(new Event('input', { bubbles: true }))
+    await new Promise((r) => setTimeout(r, 0))
+    button('Sign in')?.click()
+    const back = await comeBack(popup, { code: 'c-2' })
+    expect(back.sent.searchParams.get('scope')).toBe('write:orders')
+    await vi.waitFor(() => expect(secretStore.get(API, 'SHOPAUTH')).toBe('tok-scoped'))
+    back.done()
+  })
+
   it('reports a failed exchange and leaves the paste field usable', async () => {
     vi.spyOn(engine, 'oauthExchange').mockRejectedValue(
       new Error('The token endpoint answered 500'),

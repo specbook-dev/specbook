@@ -1,6 +1,7 @@
 import { type AuthProfile, absoluteBase } from '@specbook/core'
 import { useEffect, useState } from 'preact/hooks'
 import { getChoice, setChoice } from '../auth-choice'
+import { requiredScopes } from '../auth-describe'
 import {
   type AuthOption,
   authOptions,
@@ -216,6 +217,7 @@ export function SecretsBar({
                   origin={n.origin}
                   secret={name}
                   oauth={o.oauth}
+                  requiredScopes={requiredScopes(n.securities, o.schemes)}
                   onSignedIn={() => bump((x) => x + 1)}
                 />
               )}

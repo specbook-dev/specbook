@@ -887,6 +887,16 @@
     min-width: 0;
     overflow-wrap: anywhere;
   }
+  .doc-auth .auth-list {
+    margin: 0 0 var(--sb-space-2);
+    padding-left: 1.2em;
+  }
+  .doc-auth .auth-list li {
+    overflow-wrap: anywhere;
+  }
+  .secret-server {
+    margin: 2px 0 var(--sb-space-1);
+  }
   /* a thumb needs a larger target, and a row of its own so a long title has the width */
   @media (max-width: 820px), (pointer: coarse) {
     .auth-opt {

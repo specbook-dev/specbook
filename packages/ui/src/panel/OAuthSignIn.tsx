@@ -25,6 +25,7 @@ export function OAuthSignIn({
   origin,
   secret,
   oauth,
+  requiredScopes,
   onSignedIn,
 }: {
   service: string
@@ -33,6 +34,8 @@ export function OAuthSignIn({
   /** the secret the profile's `apply` reads; the token is stored under it */
   secret: string
   oauth: Exclude<OAuthSettings, OAuthClientCredentials>
+  /** the scopes the operation about to run needs: ticked first, instead of every scope the scheme lists */
+  requiredScopes?: string[]
   onSignedIn(): void
 }) {
   // one provider, one remembered client id: keyed by the address that identifies the provider
@@ -64,7 +67,15 @@ export function OAuthSignIn({
         setEndpoints(found)
         // OpenID Connect asks for `openid` alone until more is ticked; a plain OAuth scheme lists what
         // its operations need, so those are all ticked
-        setPicked(isDiscovery(oauth) ? ['openid'] : Object.keys(found.scopes))
+        const listed = Object.keys(found.scopes)
+        const needed = (requiredScopes ?? []).filter((x) => listed.includes(x))
+        setPicked(
+          isDiscovery(oauth)
+            ? ['openid', ...needed.filter((x) => x !== 'openid')]
+            : needed.length
+              ? needed
+              : listed,
+        )
       })
       .catch((e: unknown) => {
         if (on) setStatus({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
@@ -72,7 +83,7 @@ export function OAuthSignIn({
     return () => {
       on = false
     }
-  }, [profile, env.value, version.value, attempt, envVarsVersion.value])
+  }, [profile, env.value, version.value, attempt, envVarsVersion.value, requiredScopes?.join(' ')])
 
   const scopeNames = Object.keys(endpoints?.scopes ?? {})
 

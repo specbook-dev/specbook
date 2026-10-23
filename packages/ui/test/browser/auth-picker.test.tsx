@@ -5,7 +5,7 @@ import { page } from 'vitest/browser'
 import { setChoice } from '../../src/auth-choice'
 import type { Security } from '../../src/auth-options'
 import { SecretsBar } from '../../src/panel/SecretsBar'
-import { engine } from '../../src/runtime'
+import { engine, registry } from '../../src/runtime'
 import { secretStore } from '../../src/secrets'
 import { env } from '../../src/store'
 import '../../src/styles/tokens.css'
@@ -224,5 +224,64 @@ describe('a profile only a server may hold', () => {
     )
     await vi.waitFor(() => expect(host.querySelector('.secrets-chip')).not.toBeNull())
     expect(host.querySelector('.secrets-chip')?.textContent).toContain('OAuth client credentials')
+  })
+})
+
+describe('what the Docs tab and the catalog say about credentials', () => {
+  let host: HTMLElement
+  beforeEach(() => {
+    host = document.body.appendChild(document.createElement('div'))
+  })
+  afterEach(() => {
+    render(null, host)
+    host.remove()
+  })
+
+  it('lists the ways an operation accepts, with scopes, and the profiles of the project that work', async () => {
+    const { OperationDocs } = await import('../../src/panel/OperationDocs')
+    const manifest = registry.manifests.petstore?.operations.find((o) => o.id === 'GetPetById')
+    expect(manifest?.security).toBeTruthy()
+    render(
+      <OperationDocs service="petstore" op={manifest as never} variants={[]} onTry={() => {}} />,
+      host,
+    )
+    await vi.waitFor(() => expect(host.querySelector('.doc-auth')).not.toBeNull())
+    const text = (host.querySelector('.doc-auth') as HTMLElement).textContent ?? ''
+    expect(text).toContain('Send one of:')
+    expect(text).toContain('api_key')
+    expect(text).toContain('API key in header "api_key"')
+    expect(text).toContain('petstore_auth')
+    expect(text).toContain('OAuth 2.0 (implicit)')
+    expect(text).toContain('with scopes write:pets, read:pets')
+    await vi.waitFor(() =>
+      expect(host.querySelector('.doc-auth')?.textContent).toContain(
+        'In this project: API key, OAuth sign-in.',
+      ),
+    )
+  })
+
+  it('says an operation needs no credentials, when the document has schemes and this one does not use them', async () => {
+    const { OperationDocs } = await import('../../src/panel/OperationDocs')
+    const open = registry.manifests.petstore?.operations.find((o) => !o.secured)
+    expect(open).toBeTruthy()
+    render(
+      <OperationDocs service="petstore" op={open as never} variants={[]} onTry={() => {}} />,
+      host,
+    )
+    await vi.waitFor(() => expect(host.querySelector('.doc-auth')).not.toBeNull())
+    expect(host.querySelector('.doc-auth')?.textContent).toContain('No credentials needed.')
+  })
+
+  it('names the schemes and scopes for the lock’s tooltip, from the real manifest', async () => {
+    const { Catalog } = await import('../../src/components/Catalog').then((m) => ({
+      Catalog: m.CatalogList,
+    }))
+    expect(Catalog).toBeTruthy()
+    const { lockTitle } = await import('../../src/auth-describe')
+    const m = registry.manifests.petstore
+    const op = m?.operations.find((o) => o.id === 'GetPetById')
+    expect(lockTitle(op?.security, m?.securitySchemes)).toBe(
+      'Needs credentials: api_key or petstore_auth (write:pets, read:pets)',
+    )
   })
 })
