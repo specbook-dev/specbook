@@ -36,21 +36,23 @@ import Page from '../layouts/Page.astro'
       <div class="prose">
         <p>
           Plaid asks for three headers, so <code>add</code> wrote one profile that sends all three, and a secret
-          for each.
+          for each. Plaid accepts OAuth too, so it wrote a profile for that, and one more that fetches a token
+          with a client id and secret.
         </p>
       </div>
       <Snippet file="snippets/ai/add-output.txt" title={false} />
       <Snippet
         file="snippets/ai/plaid-config.ts"
-        lines="11-30"
+        lines="19-31"
         title="specbook.config.ts, as add wrote it"
-        mark="8-10,19"
+        mark="8-10"
       />
+      <Snippet file="snippets/ai/plaid-config.ts" lines="50-55" title={false} mark="5" />
       <div class="prose">
         <p>
-          The values come from your environment, never from a file, and the mock needs none. <code>add</code> also
-          says what it left for you: <code>Plaid-Version</code> reads like a version and not a credential, and
-          Plaid accepts OAuth too, which is not set up.
+          The first profile is the default, and the service lists them all. The values come from your environment,
+          never from a file, and the mock needs none. <code>add</code> also says what it left for you:{' '}
+          <code>Plaid-Version</code> reads like a version and not a credential.
         </p>
       </div>
 

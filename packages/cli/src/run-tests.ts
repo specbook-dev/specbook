@@ -30,6 +30,8 @@ import {
   installFaker,
   MissingSecretsError,
   maskDeep,
+  oauthFor,
+  profileOfAuthService,
   type RequestDef,
   type RunEvent,
   type RunResult,
@@ -40,6 +42,7 @@ import {
   runSuite,
   type Sequence,
   type SpecbookConfig,
+  serviceProfiles,
   type Transport,
   testExitCode,
   toJUnit,
@@ -199,8 +202,8 @@ const authOf = (config: SpecbookConfig) => (config.auth ?? {}) as Record<string,
 const serviceAuthOf = (config: SpecbookConfig) =>
   Object.fromEntries(
     Object.entries(config.services)
-      .filter(([, s]) => s.auth)
-      .map(([n, s]) => [n, s.auth as string]),
+      .filter(([, s]) => serviceProfiles(s).length)
+      .map(([n, s]) => [n, serviceProfiles(s)]),
   )
 
 /**
@@ -248,6 +251,14 @@ function transportFor(ctx: TestContext, env: string, vars: Record<string, unknow
   if (env === 'mock') return createMockTransport({ loader: ctx.mock as MockLoader })
   return createFetchTransport({
     baseUrl: (service) => {
+      // a token request is made as the reserved service `auth:<profile>`: its origin is the profile's token endpoint
+      const profile = profileOfAuthService(service)
+      if (profile !== undefined) {
+        const oauth = (ctx.config.auth?.[profile] as AuthProfile | undefined)?.oauth
+        if (!oauth || !('tokenUrl' in oauth) || !oauth.tokenUrl)
+          throw new Error(`Profile "${profile}" has no token endpoint`)
+        return new URL(oauthFor(oauth, vars, profile).tokenUrl as string).origin
+      }
       const url = baseUrlFor(ctx.config, service, env, vars)
       if (!url) throw new Error(`No baseUrl for service "${service}" in env "${env}"`)
       return url

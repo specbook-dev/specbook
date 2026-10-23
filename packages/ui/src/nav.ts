@@ -95,6 +95,8 @@ export interface Entry {
   path?: string
   /** the spec requires credentials */
   secured?: boolean
+  /** what the lock says when hovered: which schemes, with which scopes */
+  lockTitle?: string
   /** sequences */
   /** flows and requests */
   tags?: string[]

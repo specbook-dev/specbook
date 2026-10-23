@@ -1,5 +1,6 @@
 import type { RunResult, StepResult } from '@specbook/core'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
+import type { Security } from '../auth-options'
 import { EnvBadge } from '../components/EnvBadge'
 import { defaultFor, type FieldSpec, specFromControl } from '../components/Fields'
 import type { SequenceInfo } from '../engine'
@@ -60,6 +61,14 @@ export function SequencePanel({
       else if (n.kind === 'step' || n.kind === 'each') return undefined
     }
     return [...names]
+  }, [seq])
+  // what the spec says each of those steps accepts, per service, so the bar can offer the ways they all accept
+  const securities = useMemo(() => {
+    const out: Record<string, Security[]> = {}
+    for (const n of seq.nodes)
+      if (n.kind === 'step' && typeof n.def !== 'function')
+        out[n.def.op.service] = [...(out[n.def.op.service] ?? []), n.def.op.security]
+    return out
   }, [seq])
   const [inputs, setInputs] = useState<Record<string, unknown>>({})
   const [result, setResult] = useState<RunResult>()
@@ -196,7 +205,7 @@ export function SequencePanel({
   return (
     <div class={`sequence-panel ${sheet && current ? 'sheet-open' : ''}`} data-seq={seq.meta.id}>
       <div class="seq-left">
-        <SecretsBar services={serviceNames} />
+        <SecretsBar services={serviceNames} securities={securities} />
         <ControlsGrid title="Inputs" specs={specs} values={inputs} onChange={setInputs} />
         <div class="seq-run">
           <button type="button" class="btn primary" disabled={running} onClick={() => run()}>

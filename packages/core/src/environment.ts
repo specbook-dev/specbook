@@ -110,6 +110,8 @@ export function oauthFor<T extends OAuthSettings>(
   for (const field of OAUTH_ADDRESS_FIELDS) {
     const v = out[field]
     if (typeof v !== 'string' || !/\{\{/.test(v)) continue
+    // a client id held as a secret is filled by a server at send time, not rendered here
+    if ([...collectPlaceholders(v)].every((n) => isDeferred(n))) continue
     const rendered = renderAddress(v, scope, `${profile} ${field}`)
     if (rendered) out[field] = rendered
     else delete out[field]

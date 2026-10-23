@@ -50,6 +50,31 @@ describe('petstore 3.0', () => {
     expect(login).toContain('security: false')
   })
 
+  it('carries which schemes each operation accepts, and describes the schemes in the manifest', async () => {
+    const { files, metas } = await generate({ spec: fx('petstore3.json'), service: 'petstore' })
+    const op = (id: string) => files.find((f) => f.path === `operations/${id}.ts`)?.content ?? ''
+    expect(op('GetPetById')).toContain(
+      'security: [{"api_key":[]},{"petstore_auth":["write:pets","read:pets"]}]',
+    )
+    expect(op('GetInventory')).toContain('security: [{"api_key":[]}]')
+    expect(metas.GetInventory?.security).toEqual([{ api_key: [] }])
+    expect(metas.LoginUser?.security).toBe(false)
+    const manifest = JSON.parse(files.find((f) => f.path === 'manifest.json')?.content ?? '{}')
+    expect(manifest.securitySchemes).toEqual({
+      petstore_auth: {
+        type: 'oauth2',
+        flows: { implicit: { scopes: ['write:pets', 'read:pets'] } },
+      },
+      api_key: { type: 'apiKey', in: 'header', name: 'api_key' },
+    })
+    const getPet = manifest.operations.find((o: any) => o.id === 'GetPetById')
+    expect(getPet.secured).toBe(true)
+    expect(getPet.security).toEqual([
+      { api_key: [] },
+      { petstore_auth: ['write:pets', 'read:pets'] },
+    ])
+  })
+
   it('example JSON is valid and uses spec examples where present', async () => {
     const { files } = await generate({ spec: fx('petstore3.json'), service: 'petstore' })
     const read = (path: string) => JSON.parse(files.find((f) => f.path === path)?.content ?? 'null')

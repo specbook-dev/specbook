@@ -27,12 +27,13 @@ export default defineConfig({
     ],
   },
   faker: { locales: { en: ['en'], de: ['de', 'en'], ja: ['ja', 'en'] }, default: 'en' },
-  secrets: { PETSTORE_API_KEY: {}, STRIPE_API_KEY: {}, GITHUB_TOKEN: {} },
+  secrets: { PETSTORE_API_KEY: {}, PETSTORE_AUTH: {}, STRIPE_API_KEY: {}, GITHUB_TOKEN: {} },
   services: {
     petstore: {
       spec: './openapi/petstore.json',
       baseUrl: '{{petstoreUrl}}',
-      auth: 'apiKey',
+      // the ways the spec accepts, the default first: an operation uses the first one it accepts
+      auth: ['petstore', 'petstore-auth'],
     },
     stripe: {
       spec: './openapi/stripe.json',
@@ -50,11 +51,28 @@ export default defineConfig({
     },
   },
   auth: {
-    // Static-token profile: no login, the secret is applied to every secured request.
-    apiKey: {
-      title: 'Petstore API key',
+    // #region petstore-auth
+    // Static-token profile: no login, the secret is applied to every request that accepts it.
+    petstore: {
+      title: 'API key',
+      scheme: 'api_key',
       apply: { headers: { api_key: '{{secrets.PETSTORE_API_KEY}}' } },
     },
+    // The other way the spec accepts: sign in (the implicit flow of the public Petstore), or paste a token.
+    'petstore-auth': {
+      title: 'OAuth sign-in',
+      scheme: 'petstore_auth',
+      apply: { headers: { authorization: 'Bearer {{secrets.PETSTORE_AUTH}}' } },
+      oauth: {
+        flow: 'implicit',
+        authorizationUrl: 'https://petstore3.swagger.io/oauth/authorize',
+        scopes: {
+          'write:pets': 'modify pets in your account',
+          'read:pets': 'read your pets',
+        },
+      },
+    },
+    // #endregion petstore-auth
     // Test-mode secret key (sk_test_...). Never use a live key.
     stripe: {
       title: 'Stripe test key',

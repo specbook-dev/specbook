@@ -63,6 +63,8 @@ export function EnvironmentMenu() {
   const [state, setState] = useState<EnvState>()
   const [view, setView] = useState<EnvironmentView>()
   const [labels, setLabels] = useState<Record<string, string>>({})
+  // secrets only a server may hold (an OAuth client's id and secret): used by the dev server and the CLI, never the page
+  const [serverOnly, setServerOnly] = useState<Set<string>>(new Set())
   const open = envSettingsOpen.value
   const setOpen = (o: boolean) => (envSettingsOpen.value = o)
   const [scope, setScope] = useState<Scope>('environment')
@@ -97,10 +99,21 @@ export function EnvironmentMenu() {
   useEffect(() => {
     engine.config(version.value).then((cfg) => {
       const out: Record<string, string> = {}
-      for (const [profile, p] of Object.entries(cfg.auth ?? {}))
+      const server = new Set<string>()
+      for (const [profile, p] of Object.entries(cfg.auth ?? {})) {
         for (const m of JSON.stringify(p.apply).matchAll(/secrets\.([\w$-]+)/g))
           out[m[1] as string] = p.title ?? profile
+        const oauth = (p as { oauth?: Record<string, unknown> }).oauth
+        if (oauth && 'clientSecret' in oauth)
+          for (const m of JSON.stringify([oauth.clientId, oauth.clientSecret]).matchAll(
+            /secrets\.([\w$-]+)/g,
+          )) {
+            out[m[1] as string] = p.title ?? profile
+            server.add(m[1] as string)
+          }
+      }
       setLabels(out)
+      setServerOnly(server)
     })
   }, [])
 
@@ -334,6 +347,11 @@ export function EnvironmentMenu() {
                           {s.source ? SOURCE_LABEL[s.source] : 'missing'}
                         </span>
                       </div>
+                      {serverOnly.has(s.name) && (
+                        <p class="muted small secret-server">
+                          Used by the dev server and the CLI. Never sent to the page.
+                        </p>
+                      )}
                       <div class="envrow">
                         <input
                           type="password"

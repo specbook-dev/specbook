@@ -7,12 +7,21 @@ import { freePort, openOperation, startPreview, startSite, storedFor } from './h
 import {
   CLIENT_ID,
   createRealm,
+  IMPLICIT_CLIENT_ID,
   type Keycloak,
   NO_CORS_CLIENT_ID,
   reachable,
   USER,
 } from './provision'
-import { keycloakSpecs, OAUTH_KEY, OAUTH_SECRET, OIDC_KEY, OIDC_SECRET } from './specs'
+import {
+  IMPLICIT_KEY,
+  IMPLICIT_SECRET,
+  keycloakSpecs,
+  OAUTH_KEY,
+  OAUTH_SECRET,
+  OIDC_KEY,
+  OIDC_SECRET,
+} from './specs'
 
 /**
  * Sign-in against a real Keycloak, through the real UI in a real browser: the popup, the redirect back, the
@@ -31,7 +40,10 @@ const kcOrigin = new URL(kc.url).origin
 let browser: Browser
 let dir: string
 let site: Awaited<ReturnType<typeof startSite>>
-const previews: Record<'oauth' | 'oidc', Awaited<ReturnType<typeof startPreview>>> = {} as never
+const previews: Record<
+  'oauth' | 'oidc' | 'implicit',
+  Awaited<ReturnType<typeof startPreview>>
+> = {} as never
 
 beforeAll(async () => {
   if (!(await reachable(kc.url)))
@@ -39,27 +51,43 @@ beforeAll(async () => {
       `No Keycloak at ${kc.url}. Start one with packages/ui/test/oauth/keycloak.sh up ` +
         '(or set KEYCLOAK_URL), then run this again.',
     )
-  const [sitePort, oauthPort, oidcPort] = await Promise.all([freePort(), freePort(), freePort()])
-  const origins = [sitePort, oauthPort, oidcPort].map((p) => `http://localhost:${p}`)
+  const [sitePort, oauthPort, oidcPort, implicitPort] = await Promise.all([
+    freePort(),
+    freePort(),
+    freePort(),
+    freePort(),
+  ])
+  const origins = [sitePort, oauthPort, oidcPort, implicitPort].map((p) => `http://localhost:${p}`)
   await createRealm(kc, origins)
 
   const specs = keycloakSpecs(kc)
   dir = await mkdtemp(join(tmpdir(), 'sb-oauth-specs-'))
-  const files = { oauth: join(dir, 'oauth.json'), oidc: join(dir, 'oidc.json') }
+  const files = {
+    oauth: join(dir, 'oauth.json'),
+    oidc: join(dir, 'oidc.json'),
+    implicit: join(dir, 'implicit.json'),
+  }
   await writeFile(files.oauth, JSON.stringify(specs.oauth))
   await writeFile(files.oidc, JSON.stringify(specs.oidc))
+  await writeFile(files.implicit, JSON.stringify(specs.implicit))
 
   site = await startSite(sitePort, specs)
-  ;[previews.oauth, previews.oidc] = await Promise.all([
+  ;[previews.oauth, previews.oidc, previews.implicit] = await Promise.all([
     startPreview(files.oauth, oauthPort),
     startPreview(files.oidc, oidcPort),
+    startPreview(files.implicit, implicitPort),
   ])
   browser = await chromium.launch()
 })
 
 afterAll(async () => {
   await browser?.close()
-  await Promise.all([previews.oauth?.close(), previews.oidc?.close(), site?.close()])
+  await Promise.all([
+    previews.oauth?.close(),
+    previews.oidc?.close(),
+    previews.implicit?.close(),
+    site?.close(),
+  ])
   if (dir) await rm(dir, { recursive: true, force: true })
 })
 
@@ -153,7 +181,7 @@ async function callApi(page: Page) {
 }
 
 for (const pass of ['dev', 'static'] as const) {
-  const urlFor = (kind: 'oauth' | 'oidc') =>
+  const urlFor = (kind: 'oauth' | 'oidc' | 'implicit') =>
     pass === 'dev' ? previews[kind].url : site.viewerUrl(kind)
 
   describe(`${pass === 'dev' ? 'the dev server (token exchange through its proxy)' : 'the static viewer (token exchange straight from the page)'}`, () => {
@@ -183,6 +211,26 @@ for (const pass of ['dev', 'static'] as const) {
       await login(await startSignIn(page, CLIENT_ID))
       await expectSignedIn(page, OIDC_SECRET, visited)
       await callApi(page)
+    })
+
+    it('signs in with the implicit flow: the token arrives in the address fragment and never reaches a server', async () => {
+      const ctx = await fresh()
+      const requested: string[] = []
+      ctx.on('request', (r) => requested.push(r.url()))
+      const { page, visited } = await openOperation(ctx, urlFor('implicit'), IMPLICIT_KEY)
+      const popup = await startSignIn(page, IMPLICIT_CLIENT_ID)
+      await popup.waitForURL(/\/protocol\/openid-connect\/auth/, { timeout: 60_000 })
+      const q = new URL(popup.url()).searchParams
+      expect(q.get('response_type')).toBe('token')
+      // no code to protect, so no challenge
+      expect(q.has('code_challenge')).toBe(false)
+      expect(q.has('client_secret')).toBe(false)
+      await login(popup)
+      await expectSignedIn(page, IMPLICIT_SECRET, visited)
+      await callApi(page)
+      const { token } = await storedFor(page, kcOrigin, IMPLICIT_SECRET)
+      // the token travelled in a fragment: no request URL (the dev server's included) carries it
+      expect(requested.filter((u) => u.includes(token as string))).toEqual([])
     })
 
     it('shows Keycloak’s own error for an unknown client, and Cancel leaves the prompt usable', async () => {

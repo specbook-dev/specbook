@@ -329,6 +329,149 @@ describe('a sign-in’s token exchange', () => {
   })
 })
 
+describe('a client credentials profile in the viewer', () => {
+  const ccReg = (mode: 'dev' | 'static') => ({
+    ...reg,
+    mode,
+    loadConfig: async () => ({
+      default: {
+        project: 'p',
+        vars: { idp: 'https://idp.example.com' },
+        services: {
+          pets: { spec: 'x', baseUrl: { live: 'https://api.example.com/v1' }, auth: ['cc'] },
+        },
+        auth: {
+          cc: {
+            apply: { headers: { authorization: 'Bearer {{session.accessToken}}' } },
+            oauth: {
+              tokenUrl: '{{idp}}/oauth/token',
+              clientId: '{{secrets.CC_ID}}',
+              clientSecret: '{{secrets.CC_SECRET}}',
+            },
+          },
+        },
+      },
+    }),
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('asks the dev server for the token, which fills the secrets, and keeps them from the page', async () => {
+    const f = vi.fn(async (url: string) =>
+      String(url).includes('/auth:cc/')
+        ? new Response(JSON.stringify({ access_token: 'tok_abc_123', expires_in: 60 }))
+        : new Response(JSON.stringify({ id: '7', name: 'Rex' })),
+    )
+    vi.stubGlobal('fetch', f)
+    const e = createEngine(ccReg('dev'))
+    const def = await e.operationRequest('pets/GetPet', 0, { path: { petId: '7' } })
+    const r = await e.run(def, { env: 'live', version: 0 })
+    expect(r.status).toBe('pass')
+    const sent = f.mock.calls as unknown as [string, RequestInit][]
+    const [tokenUrl, tokenInit] = sent.find(([u]) => String(u).includes('/auth:cc/')) as [
+      string,
+      RequestInit,
+    ]
+    expect(tokenUrl).toBe('/__specbook/proxy/live/auth:cc/oauth/token')
+    const form = new URLSearchParams(tokenInit.body as string)
+    expect(form.get('grant_type')).toBe('client_credentials')
+    // the page does not hold these: the dev server substitutes them
+    expect(form.get('client_id')).toBe('{{secrets.CC_ID}}')
+    expect(form.get('client_secret')).toBe('{{secrets.CC_SECRET}}')
+    const [petUrl, petInit] = sent.find(([u]) => String(u).includes('/pets/')) as [
+      string,
+      RequestInit,
+    ]
+    expect(petUrl).toContain('/__specbook/proxy/live/pets/pet/7')
+    expect((petInit.headers as Record<string, string>).authorization).toBe('Bearer tok_abc_123')
+  })
+
+  it('on a static page, which has no server to hold the secret, stops and names it', async () => {
+    const f = vi.fn()
+    vi.stubGlobal('fetch', f)
+    const e = createEngine(ccReg('static'))
+    const def = await e.operationRequest('pets/GetPet', 0, { path: { petId: '7' } })
+    const r = await e.run(def, { env: 'live', version: 0 })
+    expect(r.status).toBe('error')
+    expect(JSON.stringify(r)).toContain('CC_SECRET')
+    expect(
+      f.mock.calls.map((c) => String(c[0])).filter((u) => !u.includes('/__specbook/environment')),
+    ).toEqual([])
+  })
+
+  it('needs nothing in the mock environment', async () => {
+    const f = vi.fn()
+    vi.stubGlobal('fetch', f)
+    const e = createEngine(ccReg('static'))
+    const def = await e.operationRequest('pets/GetPet', 0, { path: { petId: '7' } })
+    expect((await e.run(def, { env: 'mock', version: 0 })).status).toBe('pass')
+    expect(f).not.toHaveBeenCalled()
+  })
+})
+
+describe('which profile a run uses when a service lists several', () => {
+  const GetSecured = defineOperation<{
+    params: {}
+    body: never
+    responses: { 200: {} }
+  }>({
+    service: 'pets',
+    id: 'GetSecured',
+    method: 'GET',
+    path: '/secured',
+    security: [{ api_key: [] }, { oauth: [] }],
+  })
+  const OnlyOauth = defineOperation<{ params: {}; body: never; responses: { 200: {} } }>({
+    service: 'pets',
+    id: 'OnlyOauth',
+    method: 'GET',
+    path: '/only-oauth',
+    security: [{ oauth: [] }],
+  })
+  const regMany = {
+    ...reg,
+    mode: 'static',
+    operations: {
+      'pets/GetSecured': async () => ({ GetSecured }),
+      'pets/OnlyOauth': async () => ({ OnlyOauth }),
+    },
+    loadConfig: async () => ({
+      default: {
+        project: 'p',
+        services: {
+          pets: { spec: 'x', baseUrl: { live: 'https://api.example.com' }, auth: ['key', 'tok'] },
+        },
+        auth: {
+          key: { scheme: 'api_key', apply: { headers: { 'x-key': 'K' } } },
+          tok: { scheme: 'oauth', apply: { headers: { authorization: 'Bearer T' } } },
+        },
+      },
+    }),
+  }
+  afterEach(() => vi.unstubAllGlobals())
+
+  const sent = async (choice: string | undefined, op: string) => {
+    const f = vi.fn(async () => new Response('{}'))
+    vi.stubGlobal('fetch', f)
+    const e = createEngine(regMany as never, { authChoice: () => choice })
+    const def = await e.operationRequest(`pets/${op}`, 0, {})
+    await e.run(def, { env: 'live', version: 0 })
+    return new Headers((f.mock.calls[0] as unknown as [string, RequestInit])[1].headers)
+  }
+
+  it('uses the first listed profile by default, and the one the person picked when the operation accepts it', async () => {
+    expect((await sent(undefined, 'GetSecured')).get('x-key')).toBe('K')
+    const picked = await sent('tok', 'GetSecured')
+    expect(picked.get('authorization')).toBe('Bearer T')
+    expect(picked.get('x-key')).toBeNull()
+  })
+
+  it('uses the profile an operation accepts even when the person picked another', async () => {
+    const h = await sent('key', 'OnlyOauth')
+    expect(h.get('authorization')).toBe('Bearer T')
+    expect(h.get('x-key')).toBeNull()
+  })
+})
+
 describe('what the extension is needed for', () => {
   const cfg = (extra: object = {}) => ({
     ...reg,

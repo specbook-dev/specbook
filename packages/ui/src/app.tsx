@@ -1,6 +1,7 @@
 import { signal } from '@preact/signals'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import markUrl from './assets/mark.svg'
+import { lockTitle } from './auth-describe'
 import { applyBranding, brand } from './branding'
 import { CatalogList, Overview, type ServiceInfo } from './components/Catalog'
 import { EnvBadge } from './components/EnvBadge'
@@ -185,6 +186,7 @@ export function App() {
           method: o.method,
           path: o.path,
           secured: o.secured,
+          ...(o.secured ? { lockTitle: lockTitle(o.security, m.securitySchemes) } : {}),
           hay: `${o.id} ${o.method} ${o.path} ${o.tags.join(' ')} ${saved}`,
         })
       }

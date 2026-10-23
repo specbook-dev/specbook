@@ -1,10 +1,14 @@
+import { type AuthProfile, acceptedProfiles } from '@specbook/core'
 import { useEffect, useState } from 'preact/hooks'
+import { describeSecurity } from '../auth-describe'
+import { authOptions } from '../auth-options'
 import type { Variant } from '../engine'
 import { markdownToHtml } from '../markdown'
-import { registry } from '../runtime'
+import { engine, registry } from '../runtime'
 import type { Defs, JsonSchema } from '../schema'
 import { unwrap } from '../schema'
 import { statusClass, statusName } from '../status'
+import { version } from '../store'
 import { FieldTable } from './FieldTable'
 import { useOperationNotes } from './fieldnotes'
 
@@ -16,6 +20,10 @@ export interface DocOp {
   tags: string[]
   statuses: number[]
   mockVariants?: Record<string, { name: string; title?: string }[]>
+  /** the spec requires credentials */
+  secured?: boolean
+  /** any one of these is enough; every scheme in one entry applies together, with the scopes it needs */
+  security?: Record<string, string[]>[]
 }
 
 interface LongDocs {
@@ -94,6 +102,27 @@ export function OperationDocs({
     }
   }, [key, service, fileKey])
 
+  // the profiles of this project that work for the operation, in the order the service lists them
+  const [works, setWorks] = useState<string[]>()
+  useEffect(() => {
+    let live = true
+    engine.config(version.value).then((cfg) => {
+      if (!live) return
+      const options = authOptions(cfg, service)
+      const names = acceptedProfiles(
+        options.map((o) => o.name),
+        cfg.auth as Record<string, AuthProfile | undefined>,
+        op.security ?? (op.secured ? true : undefined),
+      )
+      setWorks(names.map((n) => options.find((o) => o.name === n)?.title ?? n))
+    })
+    return () => {
+      live = false
+    }
+  }, [service, op.security, op.secured, version.value])
+  const schemes = registry.manifests[service]?.securitySchemes
+  const alternatives = describeSecurity(op.security, schemes)
+
   const page = useOperationNotes(key)
   // the header is there at once; everything below it appears together once it has all arrived
   const ready = !!loaded && page.loaded
@@ -126,6 +155,40 @@ export function OperationDocs({
               class={`doc-custom ${page.replace ? '' : 'doc-project'}`}
               dangerouslySetInnerHTML={{ __html: page.intro }}
             />
+          )}
+
+          {(alternatives.length > 0 || (schemes && !op.secured)) && (
+            <section class="doc-auth">
+              <h2>Authorization</h2>
+              {alternatives.length === 0 ? (
+                <p>No credentials needed.</p>
+              ) : (
+                <>
+                  <p>{alternatives.length > 1 ? 'Send one of:' : 'Send:'}</p>
+                  <ul class="auth-list">
+                    {alternatives.map((parts) => (
+                      <li>
+                        {parts.map((p, i) => (
+                          <>
+                            {i > 0 && ' and '}
+                            <code>{p.scheme}</code> <span class="muted">{p.how}</span>
+                            {p.scopes.length > 0 && (
+                              <>
+                                {' '}
+                                with scopes <code>{p.scopes.join(', ')}</code>
+                              </>
+                            )}
+                          </>
+                        ))}
+                      </li>
+                    ))}
+                  </ul>
+                  {works && works.length > 0 && (
+                    <p class="muted">In this project: {works.join(', ')}.</p>
+                  )}
+                </>
+              )}
+            </section>
           )}
 
           {variants.map((v) => (

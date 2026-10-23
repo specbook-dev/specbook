@@ -6,6 +6,7 @@ import {
   rootName,
 } from '@specbook/core'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
+import type { Security } from '../auth-options'
 import { EnvBadge } from '../components/EnvBadge'
 import type { Variant } from '../engine'
 import { fieldDoc, withNote } from '../fielddoc'
@@ -191,7 +192,10 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
   }, [key, service])
 
   const encoding = meta?.encoding ?? 'json'
-  const secured = registry.manifests[service]?.operations.find((o) => o.id === op.id)?.secured
+  const manifestOp = registry.manifests[service]?.operations.find((o) => o.id === op.id)
+  const secured = manifestOp?.secured
+  // what the spec says the operation accepts: the schemes when the manifest has them, else only that it is secured
+  const security: Security = manifestOp?.security ?? (secured ? true : undefined)
 
   useEffect(() => {
     if (!meta) return
@@ -470,7 +474,7 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
           </fieldset>
         )}
 
-        {secured && <SecretsBar services={[service]} />}
+        {secured && <SecretsBar services={[service]} securities={{ [service]: [security] }} />}
 
         <div class="rq-meta">
           <div class="rq-example">
@@ -720,6 +724,7 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
                 encoding={encoding}
                 vars={vars}
                 secured={secured}
+                security={security}
                 sent={
                   step?.request ? (
                     <RequestView

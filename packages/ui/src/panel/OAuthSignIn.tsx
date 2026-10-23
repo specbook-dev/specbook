@@ -1,4 +1,4 @@
-import { isDiscovery, type OAuthSettings } from '@specbook/core'
+import { isDiscovery, type OAuthClientCredentials, type OAuthSettings } from '@specbook/core'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { noteExpiry, recallClientId, redirectUri, rememberClientId, signIn } from '../oauth'
 import { engine } from '../runtime'
@@ -10,10 +10,11 @@ type Status = { kind: 'idle' } | { kind: 'busy' } | { kind: 'error'; message: st
 interface Endpoints {
   authorizationUrl: string
   scopes: Record<string, string>
+  flow?: 'authorizationCode' | 'implicit'
 }
 
 /**
- * "Sign in" for a scheme with an authorization code flow, or an OpenID Connect provider. The token lands
+ * "Sign in" for a scheme with an authorization code flow (or the legacy implicit one), or an OpenID Connect provider. The token lands
  * in the same tab-scoped store, bound to the API's origin, that a pasted value would, so everything
  * downstream is unchanged. A failure or a cancel only reports itself: the paste field next to this stays
  * usable.
@@ -24,6 +25,7 @@ export function OAuthSignIn({
   origin,
   secret,
   oauth,
+  requiredScopes,
   onSignedIn,
 }: {
   service: string
@@ -31,7 +33,9 @@ export function OAuthSignIn({
   origin: string
   /** the secret the profile's `apply` reads; the token is stored under it */
   secret: string
-  oauth: OAuthSettings
+  oauth: Exclude<OAuthSettings, OAuthClientCredentials>
+  /** the scopes the operation about to run needs: ticked first, instead of every scope the scheme lists */
+  requiredScopes?: string[]
   onSignedIn(): void
 }) {
   // one provider, one remembered client id: keyed by the address that identifies the provider
@@ -63,7 +67,15 @@ export function OAuthSignIn({
         setEndpoints(found)
         // OpenID Connect asks for `openid` alone until more is ticked; a plain OAuth scheme lists what
         // its operations need, so those are all ticked
-        setPicked(isDiscovery(oauth) ? ['openid'] : Object.keys(found.scopes))
+        const listed = Object.keys(found.scopes)
+        const needed = (requiredScopes ?? []).filter((x) => listed.includes(x))
+        setPicked(
+          isDiscovery(oauth)
+            ? ['openid', ...needed.filter((x) => x !== 'openid')]
+            : needed.length
+              ? needed
+              : listed,
+        )
       })
       .catch((e: unknown) => {
         if (on) setStatus({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
@@ -71,7 +83,7 @@ export function OAuthSignIn({
     return () => {
       on = false
     }
-  }, [profile, env.value, version.value, attempt, envVarsVersion.value])
+  }, [profile, env.value, version.value, attempt, envVarsVersion.value, requiredScopes?.join(' ')])
 
   const scopeNames = Object.keys(endpoints?.scopes ?? {})
 
@@ -90,8 +102,20 @@ export function OAuthSignIn({
       clientId: id,
       scopes: picked,
       signal: ctl.signal,
-      exchange: (fields, signal) =>
-        engine.oauthExchange({ env: env.value, version: version.value, profile, fields, signal }),
+      flow: endpoints.flow,
+      // the implicit flow has no token endpoint: the token comes back in the address
+      ...(endpoints.flow === 'implicit'
+        ? {}
+        : {
+            exchange: (fields: Record<string, string>, signal?: AbortSignal) =>
+              engine.oauthExchange({
+                env: env.value,
+                version: version.value,
+                profile,
+                fields,
+                signal,
+              }),
+          }),
     })
       .then((token) => {
         secretStore.set(origin, secret, token.accessToken)
@@ -160,7 +184,7 @@ export function OAuthSignIn({
             ? status.message
             : !endpoints
               ? 'Looking up the provider…'
-              : `Register this redirect URI with the provider: ${redirectUri()}`}
+              : `Register this redirect URI with the provider${endpoints.flow === 'implicit' ? ' (implicit flow: no client secret, the token is short-lived)' : ''}: ${redirectUri()}`}
       </span>
     </span>
   )

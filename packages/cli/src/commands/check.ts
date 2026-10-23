@@ -4,14 +4,17 @@ import { join, resolve } from 'node:path'
 import { generate } from '@specbook/codegen'
 import {
   AddressError,
+  acceptedProfiles,
   baseUrlFor,
   collectPlaceholders,
   environmentNames,
   environmentScope,
   isAbsoluteHttp,
+  isClientCredentials,
   type OAuthSettings,
   oauthFor,
   rootName,
+  serviceProfiles,
 } from '@specbook/core'
 import { listEnvironmentFiles, readEnvironment } from '@specbook/vite'
 import fg from 'fast-glob'
@@ -35,6 +38,7 @@ export async function checkCommand(project: Project, loader: Loader): Promise<nu
   const untracked = Object.keys(cfg.services).filter((n) => !isTracked(project, n))
   if (untracked.length) await ensureGenerated(project, loader, untracked)
 
+  const manifests = new Map<string, any>()
   for (const [name, svc] of Object.entries(cfg.services)) {
     const spec = resolve(project.root, svc.spec)
     if (!existsSync(spec)) {
@@ -43,6 +47,8 @@ export async function checkCommand(project: Project, loader: Loader): Promise<nu
     }
     try {
       const { files } = await generate({ spec, service: name })
+      const manifest = files.find((f) => f.path === 'manifest.json')
+      if (manifest) manifests.set(name, JSON.parse(manifest.content))
       if (untracked.includes(name)) continue
       let drift = 0
       for (const f of files) {
@@ -68,6 +74,47 @@ export async function checkCommand(project: Project, loader: Loader): Promise<nu
         errors.push(
           `[${used.where.get(`${service}/${id}`)?.[0] ?? service}] ${id} is not an operation of "${service}"`,
         )
+  }
+
+  // auth: the profiles a service lists exist, say which scheme they satisfy truthfully, and cover what the spec accepts
+  for (const [name, svc] of Object.entries(cfg.services)) {
+    const listed = serviceProfiles(svc)
+    for (const p of listed)
+      if (!cfg.auth?.[p])
+        errors.push(`[${name}] auth lists "${p}", which is not a profile in config.auth`)
+    const manifest = manifests.get(name)
+    const defined = Object.keys(manifest?.securitySchemes ?? {})
+    if (!manifest || !defined.length) continue
+    const present = listed.filter((p) => cfg.auth?.[p])
+    for (const p of present) {
+      const scheme = cfg.auth?.[p]?.scheme
+      for (const sch of scheme === undefined ? [] : Array.isArray(scheme) ? scheme : [scheme])
+        if (!defined.includes(sch))
+          warnings.push(`[auth ${p}] scheme "${sch}" is not a security scheme of "${name}"`)
+    }
+    const missed = (manifest.operations as { security?: Record<string, string[]>[] }[]).filter(
+      (o) =>
+        o.security?.length &&
+        present.length &&
+        !acceptedProfiles(present, cfg.auth, o.security).length,
+    )
+    if (missed.length) {
+      const wants = [
+        ...new Set(missed.flatMap((o) => (o.security ?? []).flatMap((r) => Object.keys(r)))),
+      ]
+      warnings.push(
+        `[${name}] ${missed.length} operation${missed.length === 1 ? '' : 's'} accept${missed.length === 1 ? 's' : ''} none of its auth profiles (the spec wants ${wants.join(', ')}); add a profile for ${wants.length === 1 ? 'it' : 'one'}, or run "specbook add" again for a new service`,
+      )
+    }
+  }
+  for (const [name, profile] of Object.entries(cfg.auth ?? {})) {
+    const oauth = profile.oauth
+    if (!oauth || !isClientCredentials(oauth)) continue
+    if (!/^\{\{\s*secrets\.[\w$-]+\s*\}\}$/.test(oauth.clientSecret))
+      errors.push(
+        `[auth ${name}] oauth.clientSecret must be a {{secrets.NAME}} placeholder, not a value`,
+      )
+    if (!oauth.tokenUrl) errors.push(`[auth ${name}] oauth.tokenUrl is missing`)
   }
 
   // environment files: a declared secret in a committed `<env>.env` is a leak waiting to happen

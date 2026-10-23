@@ -24,9 +24,16 @@ export interface ServiceConfig<E extends string = string> {
    * environment; or one address per environment.
    */
   baseUrl: string | Partial<Record<E | 'live', string>>
-  /** Default auth profile for this service. */
-  auth?: string
+  /**
+   * The auth profiles this service accepts, by name. The first is the default; the others are alternatives an operation
+   * (or a person, in the UI) may use instead. A single name is the same as a list of one.
+   */
+  auth?: string | string[]
 }
+
+/** The profile names a service lists, in order; the first is its default. */
+export const serviceProfiles = (s?: { auth?: string | string[] }): string[] =>
+  !s?.auth ? [] : Array.isArray(s.auth) ? s.auth : [s.auth]
 
 /** How the docs site presents itself. Everything is optional; unset fields fall back to the API's own title. */
 export interface BrandingConfig {

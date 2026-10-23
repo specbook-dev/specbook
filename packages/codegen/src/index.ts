@@ -3,6 +3,7 @@ export type {
   GenerateFlags,
   GenerateOptions,
   ManifestOperation,
+  ManifestSecurityScheme,
   OperationMeta,
 } from './build'
 export { generate, generateFromDoc, withPlainSpec } from './generate'

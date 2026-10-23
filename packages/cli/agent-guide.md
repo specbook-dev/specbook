@@ -32,7 +32,9 @@ Never edit `.generated/`. Never put a secret's value in a file (see Auth and sec
 
 Read the spec's `securitySchemes`, and each operation's `security`, before you write the first request. Credentials go where the spec says: usually a header (`Authorization`, `X-API-Key`, `PLAID-SECRET`), sometimes a query parameter. Never put one in a request's `data`, even when the body has a field that looks right: the API ignores it and answers 401.
 
-`specbook add` reads the spec's security and writes this for you: a secret for each scheme, one profile named after the service that applies them, and `auth` on the service. It picks the way that a pasted value fills most easily (an API key or bearer token before basic auth before OAuth), and its output says what it did not set up. Check what it wrote against `securitySchemes`, and finish what its notes say: OAuth sign-in settings are not written, and a header like `Plaid-Version` is a value that is not secret (put it in the secret's place). For a project that did not use `add`, or to add another way to sign in, write the same by hand. Here is a spec that wants two headers:
+`specbook add` reads the spec's security and writes this for you: a secret for each scheme, an `auth` profile for every way the spec accepts (the cheapest to fill first), and `auth` on the service, a list with the default first. An operation uses the first listed profile that its `security` accepts (a profile says which scheme it satisfies with `scheme`), so a request names `auth:` only to override that. Check what it wrote against `securitySchemes`, and finish what its notes say: a header like `Plaid-Version` is a value that is not secret (put it in the secret's place). For a project that did not use `add`, write the same by hand. Here is a spec that wants two headers:
+
+Here is a spec that wants two headers:
 
 ```ts
 export default defineConfig({
@@ -54,7 +56,8 @@ export default defineConfig({
 
 - `apply.headers` and `apply.query` take templates. A bearer token is `headers: { authorization: 'Bearer {{secrets.API_TOKEN}}' }`; a key in the query is `query: { api_key: '{{secrets.API_KEY}}' }`.
 - A profile applies to every request of the service that names it. One request can pick another with `auth: 'name'`, or none with `auth: false` (a public operation, or the login call itself).
-- A token you get by calling a login operation, and OAuth, are also profiles (`login`, `token`, `retryOn401`, `oauth`): see [Config](https://docs.specbook.dev/reference/config/).
+- A token you get by calling a login operation, and OAuth, are also profiles (`login`, `token`, `retryOn401`, `oauth`): see [Authorization](https://docs.specbook.dev/reference/authorization/).
+- A run cannot sign in, because that needs a person and a browser. An OAuth API that has a client id and secret gets a profile ending in `-client`, which fetches its token with `<NAME>_CLIENT_ID` and `<NAME>_CLIENT_SECRET` from the environment. For a person's token, put one you issued in the profile's secret. Never write a client secret into a file.
 - A secret's value comes from an environment variable of the same name or a gitignored `<env>.secrets.env` ([Environments and secrets](https://docs.specbook.dev/reference/environments-and-secrets/)). The `mock` environment needs no values. A real environment with a missing one exits 2 and names it.
 - The mock answers 401 to an operation the spec marks as secured when the request carries no credential header, so a profile you forgot shows up in `specbook test` too. `npx specbook check` warns about a `{{secrets.NAME}}` that the config does not declare.
 

@@ -15,17 +15,28 @@ function say(text, withLink) {
 
 function main() {
   const q = new URLSearchParams(location.search)
-  const state = q.get('state')
-  if (!state || !(q.has('code') || q.has('error'))) {
+  const h = new URLSearchParams(location.hash.replace(/^#/, ''))
+  // the implicit flow answers in the fragment (which never reaches a server); the code flow in the query
+  const inQuery = q.has('state') && (q.has('code') || q.has('error'))
+  const inFragment = !inQuery && h.has('state') && (h.has('access_token') || h.has('error'))
+  const source = inFragment ? h : q
+  const state = source.get('state')
+  if (!state || !(inQuery || inFragment)) {
     say('Nothing to finish here: a sign-in starts from the Specbook viewer.', true)
     return
   }
   const message = { type: 'callback', state }
-  if (q.get('code')) message.code = q.get('code')
-  if (q.get('error')) message.error = q.get('error')
-  if (q.get('error_description')) message.description = q.get('error_description')
+  if (source.get('code')) message.code = source.get('code')
+  if (source.get('error')) message.error = source.get('error')
+  if (source.get('error_description')) message.description = source.get('error_description')
+  if (source.get('access_token')) {
+    message.token = { accessToken: source.get('access_token') }
+    const expires = Number(source.get('expires_in'))
+    if (source.get('expires_in') && Number.isFinite(expires)) message.token.expiresIn = expires
+    if (source.get('scope')) message.token.scope = source.get('scope')
+  }
 
-  // single-use, and not for history or a copied address
+  // single-use (a code, a token), and not for history or a copied address
   history.replaceState(null, '', location.pathname)
 
   const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(CHANNEL)

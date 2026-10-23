@@ -8,9 +8,11 @@ import type { Keycloak } from './provision'
  */
 export const OAUTH_KEY = 'keycloak-oauth/GetUserinfo'
 export const OIDC_KEY = 'keycloak-sso/GetUserinfo'
+export const IMPLICIT_KEY = 'keycloak-implicit/GetUserinfo'
 /** the secret names the schemes `kc` and `sso` become */
 export const OAUTH_SECRET = 'KC'
 export const OIDC_SECRET = 'SSO'
+export const IMPLICIT_SECRET = 'IMP'
 
 const userinfo = {
   '/protocol/openid-connect/userinfo': {
@@ -43,6 +45,24 @@ export function keycloakSpecs(kc: Keycloak) {
               authorizationCode: {
                 authorizationUrl: `${base}/protocol/openid-connect/auth`,
                 tokenUrl: `${base}/protocol/openid-connect/token`,
+                scopes: { openid: 'OpenID Connect' },
+              },
+            },
+          },
+        },
+      },
+    },
+    implicit: {
+      ...common,
+      info: { title: 'Keycloak Implicit', version: '1' },
+      security: [{ imp: [] }],
+      components: {
+        securitySchemes: {
+          imp: {
+            type: 'oauth2',
+            flows: {
+              implicit: {
+                authorizationUrl: `${base}/protocol/openid-connect/auth`,
                 scopes: { openid: 'OpenID Connect' },
               },
             },

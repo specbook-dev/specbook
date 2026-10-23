@@ -199,3 +199,17 @@ describe('importing servers', () => {
     expect(out.vars).toEqual({})
   })
 })
+
+describe('oauthFor with secrets', () => {
+  it('leaves a client id held as a secret for the server to fill, and renders the address', () => {
+    const out = oauthFor(
+      { tokenUrl: '{{issuer}}/token', clientId: '{{secrets.ID}}', clientSecret: '{{secrets.S}}' },
+      { issuer: 'https://idp.example' },
+    )
+    expect(out).toEqual({
+      tokenUrl: 'https://idp.example/token',
+      clientId: '{{secrets.ID}}',
+      clientSecret: '{{secrets.S}}',
+    })
+  })
+})

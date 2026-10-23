@@ -29,7 +29,7 @@ function fakePopup() {
 }
 
 /** Plays the part of the callback page: the provider sent the person back with `extra`. */
-async function comeBack(popup: FakePopup, extra: Record<string, string>, state?: string) {
+async function comeBack(popup: FakePopup, extra: Record<string, unknown>, state?: string) {
   const sent = await vi.waitFor(() => {
     expect(popup.location.href).not.toBe('')
     return new URL(popup.location.href)
@@ -128,6 +128,159 @@ describe('signIn', () => {
     await expect(
       signIn({ authorizationUrl: AUTHORIZE, clientId: 'cid', scopes: [], exchange: vi.fn() }),
     ).rejects.toThrow(/blocked/)
+  })
+})
+
+describe('signIn with the implicit flow', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('asks for the token directly, with no challenge, and takes it from the return', async () => {
+    const { popup } = fakePopup()
+    const pending = signIn({
+      authorizationUrl: AUTHORIZE,
+      clientId: 'cid',
+      scopes: ['read'],
+      flow: 'implicit',
+    })
+    const back = await comeBack(popup, {
+      token: { accessToken: 'tok-implicit', expiresIn: 600, scope: 'read' },
+    })
+    const q = back.sent.searchParams
+    expect(q.get('response_type')).toBe('token')
+    expect(q.get('client_id')).toBe('cid')
+    expect(q.get('scope')).toBe('read')
+    expect(q.get('code_challenge')).toBeNull()
+    expect(q.get('code_challenge_method')).toBeNull()
+    await expect(pending).resolves.toEqual({
+      accessToken: 'tok-implicit',
+      expiresIn: 600,
+      scope: 'read',
+    })
+    await expect(back.acked).resolves.toBe(true)
+    back.done()
+    expect(popup.close).toHaveBeenCalled()
+  })
+
+  it('reports what the provider refused', async () => {
+    const { popup } = fakePopup()
+    const pending = signIn({
+      authorizationUrl: AUTHORIZE,
+      clientId: 'cid',
+      scopes: [],
+      flow: 'implicit',
+    })
+    const assertion = expect(pending).rejects.toThrow(/access_denied \(nope\)/)
+    const back = await comeBack(popup, { error: 'access_denied', description: 'nope' })
+    await assertion
+    back.done()
+  })
+
+  it('does not take a return that carries no token', async () => {
+    const { popup } = fakePopup()
+    const pending = signIn({
+      authorizationUrl: AUTHORIZE,
+      clientId: 'cid',
+      scopes: [],
+      flow: 'implicit',
+    })
+    const assertion = expect(pending).rejects.toThrow(/no access token/)
+    const back = await comeBack(popup, { code: 'a-code-is-not-a-token' })
+    await assertion
+    back.done()
+  })
+
+  it('ignores a return whose state is not its own', async () => {
+    const { popup } = fakePopup()
+    const ctl = new AbortController()
+    const pending = signIn({
+      authorizationUrl: AUTHORIZE,
+      clientId: 'cid',
+      scopes: [],
+      flow: 'implicit',
+      signal: ctl.signal,
+    })
+    const back = await comeBack(popup, { token: { accessToken: 'forged' } }, 'someone-elses-state')
+    await new Promise((r) => setTimeout(r, 150))
+    ctl.abort()
+    await expect(pending).rejects.toThrow(/cancelled/)
+    back.done()
+  })
+
+  it('needs an exchange for the code flow', async () => {
+    fakePopup()
+    await expect(
+      signIn({ authorizationUrl: AUTHORIZE, clientId: 'cid', scopes: [] }),
+    ).rejects.toThrow(/no token endpoint/)
+  })
+})
+
+describe('the callback page, for the implicit flow', () => {
+  const original = location.pathname + location.search + location.hash
+  afterEach(() => {
+    history.replaceState(null, '', original)
+    vi.restoreAllMocks()
+  })
+
+  it('hands the token in the fragment to the waiting tab and removes it from the address', async () => {
+    history.replaceState(
+      null,
+      '',
+      `${location.pathname}#access_token=tok-frag&token_type=Bearer&expires_in=300&scope=read&state=s-frag`,
+    )
+    const seen: unknown[] = []
+    const waiting = new BroadcastChannel('specbook-oauth')
+    waiting.onmessage = (e) => {
+      if (e.data?.type !== 'callback') return
+      seen.push(e.data)
+      waiting.postMessage({ type: 'ack', state: e.data.state })
+    }
+    const closed = vi.spyOn(window, 'close').mockImplementation(() => {})
+    await expect(handleOAuthCallback()).resolves.toBe(true)
+    expect(seen).toEqual([
+      {
+        type: 'callback',
+        state: 's-frag',
+        token: { accessToken: 'tok-frag', expiresIn: 300, scope: 'read' },
+      },
+    ])
+    // the token is in neither the address nor its history entry
+    expect(location.hash).toBe('')
+    expect(location.href).not.toContain('tok-frag')
+    expect(closed).toHaveBeenCalled()
+    waiting.close()
+  })
+
+  it('removes an unclaimed fragment and carries on as a normal page load', async () => {
+    history.replaceState(null, '', `${location.pathname}#access_token=stray&state=nobody`)
+    await expect(handleOAuthCallback()).resolves.toBe(false)
+    expect(location.hash).toBe('')
+  })
+
+  it('reports an error from the fragment', async () => {
+    history.replaceState(
+      null,
+      '',
+      `${location.pathname}#error=access_denied&error_description=nope&state=s-err`,
+    )
+    const seen: unknown[] = []
+    const waiting = new BroadcastChannel('specbook-oauth')
+    waiting.onmessage = (e) => {
+      if (e.data?.type !== 'callback') return
+      seen.push(e.data)
+      waiting.postMessage({ type: 'ack', state: e.data.state })
+    }
+    vi.spyOn(window, 'close').mockImplementation(() => {})
+    await expect(handleOAuthCallback()).resolves.toBe(true)
+    expect(seen).toEqual([
+      { type: 'callback', state: 's-err', error: 'access_denied', description: 'nope' },
+    ])
+    waiting.close()
+  })
+
+  it('leaves an ordinary hash alone', async () => {
+    history.replaceState(null, '', `${location.pathname}#/operations/GetPet`)
+    await expect(handleOAuthCallback()).resolves.toBe(false)
+    expect(location.hash).toBe('#/operations/GetPet')
   })
 })
 
@@ -242,6 +395,43 @@ describe('Sign in beside the credentials prompt', () => {
     expect(JSON.stringify({ ...localStorage })).not.toContain('tok-secret-123')
     // the client id, which is public, is remembered for next time
     expect(JSON.stringify({ ...localStorage })).toContain('my-client')
+  })
+
+  it('asks for the scopes the operation needs, not every scope the scheme lists', async () => {
+    const scoped = {
+      ...config,
+      auth: {
+        shopAuth: { ...(config.auth as Record<string, object>).shopAuth, scheme: 'orders_auth' },
+      },
+    } as unknown as SpecbookConfig
+    vi.spyOn(engine, 'config').mockResolvedValue(scoped)
+    vi.spyOn(engine, 'oauthEndpoints').mockResolvedValue({
+      authorizationUrl: AUTHORIZE,
+      tokenUrl: TOKEN,
+      scopes: { 'read:orders': '', 'write:orders': '', 'delete:orders': '' },
+    })
+    vi.spyOn(engine, 'oauthExchange').mockResolvedValue({ access_token: 'tok-scoped' })
+    const { popup } = fakePopup()
+    render(
+      <SecretsBar
+        services={['shop']}
+        securities={{ shop: [[{ orders_auth: ['write:orders'] }]] }}
+        supplied={{}}
+      />,
+      host,
+    )
+    await vi.waitFor(() => expect(host.textContent).toContain('Scopes (1 of 3)'))
+    const id = host.querySelector<HTMLInputElement>(
+      'input[aria-label^="Client id"]',
+    ) as HTMLInputElement
+    id.value = 'my-client'
+    id.dispatchEvent(new Event('input', { bubbles: true }))
+    await new Promise((r) => setTimeout(r, 0))
+    button('Sign in')?.click()
+    const back = await comeBack(popup, { code: 'c-2' })
+    expect(back.sent.searchParams.get('scope')).toBe('write:orders')
+    await vi.waitFor(() => expect(secretStore.get(API, 'SHOPAUTH')).toBe('tok-scoped'))
+    back.done()
   })
 
   it('reports a failed exchange and leaves the paste field usable', async () => {

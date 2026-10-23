@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
 import { App } from '../../src/app'
 import { catalogService, go } from '../../src/nav'
+import { engine } from '../../src/runtime'
 import { env, envSettingsOpen, newEnvironmentOpen } from '../../src/store'
 import 'prism-code-editor/layout.css'
 import '../../src/styles/tokens.css'
@@ -119,6 +120,41 @@ describe('environments in the app', () => {
         body: { env: 'live', name: 'petstoreUrl', value: 'http://localhost:9000/v3' },
       }),
     )
+  })
+
+  it('says a secret only a server holds is never sent to the page, and says nothing of the others', async () => {
+    const original = engine.config.bind(engine)
+    vi.spyOn(engine, 'config').mockImplementation(async (v: number) => {
+      const c = await original(v)
+      return {
+        ...c,
+        auth: {
+          ...c.auth,
+          'client-credentials': {
+            title: 'OAuth client credentials',
+            apply: { headers: { authorization: 'Bearer {{session.accessToken}}' } },
+            oauth: {
+              tokenUrl: 'https://idp.example.test/token',
+              clientId: '{{secrets.PETSTORE_AUTH}}',
+              clientSecret: '{{secrets.PETSTORE_AUTH}}',
+            },
+          },
+        },
+      } as never
+    })
+    await mount()
+    ;($('.envmenu-btn') as HTMLButtonElement).click()
+    await waitFor(() => expect($('.envmenu-pop .secretrow')).not.toBeNull())
+    const rows = () => [...root.querySelectorAll('.envmenu-pop .secretrow')]
+    const row = (name: string) =>
+      rows().find((r) => r.querySelector('code')?.textContent?.includes(name))
+    await waitFor(() =>
+      expect(row('PETSTORE_AUTH')?.querySelector('.secret-server')?.textContent).toContain(
+        'Never sent to the page',
+      ),
+    )
+    expect(row('PETSTORE_API_KEY')?.querySelector('.secret-server')).toBeNull()
+    vi.restoreAllMocks()
   })
 
   it('fits a phone: the settings and the dialog stay inside the screen, with room for an address', async () => {

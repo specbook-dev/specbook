@@ -3,7 +3,7 @@ import petstore from '../../../apps/example/openapi/petstore.json'
 import petstore2 from '../../codegen/test/fixtures/petstore2.json'
 import { authFromSpec } from '../src'
 
-// what the viewer and `specbook preview` build from a document: this must not change when the mapping is shared
+// what the viewer and `specbook preview` build from a document: one profile per way, the cheapest to fill first
 
 // Stripe's security section as its spec declares it (the document itself is 8 MB)
 const stripe = {
@@ -16,7 +16,7 @@ const stripe = {
   },
 }
 
-describe('authFromSpec output is unchanged', () => {
+describe('authFromSpec output', () => {
   it('petstore 3', () => {
     expect(authFromSpec(petstore)).toMatchInlineSnapshot(`
       {
@@ -27,6 +27,7 @@ describe('authFromSpec output is unchanged', () => {
                 "api_key": "{{secrets.API_KEY}}",
               },
             },
+            "scheme": "api_key",
             "title": "api_key (API key, header "api_key")",
           },
           "petstore_auth": {
@@ -35,11 +36,24 @@ describe('authFromSpec output is unchanged', () => {
                 "authorization": "Bearer {{secrets.PETSTORE_AUTH}}",
               },
             },
-            "title": "petstore_auth (OAuth, paste an access token)",
+            "oauth": {
+              "authorizationUrl": "https://petstore3.swagger.io/oauth/authorize",
+              "flow": "implicit",
+              "scopes": {
+                "read:pets": "read your pets",
+                "write:pets": "modify pets in your account",
+              },
+            },
+            "scheme": "petstore_auth",
+            "title": "petstore_auth (OAuth, sign in or paste an access token)",
           },
         },
-        "defaultProfile": "petstore_auth",
+        "defaultProfile": "api_key",
         "environmentVars": {},
+        "profiles": [
+          "api_key",
+          "petstore_auth",
+        ],
         "secrets": {
           "API_KEY": {},
           "PETSTORE_AUTH": {},
@@ -59,6 +73,7 @@ describe('authFromSpec output is unchanged', () => {
                 "api_key": "{{secrets.API_KEY}}",
               },
             },
+            "scheme": "api_key",
             "title": "api_key (API key, header "api_key")",
           },
           "petstore_auth": {
@@ -67,11 +82,24 @@ describe('authFromSpec output is unchanged', () => {
                 "authorization": "Bearer {{secrets.PETSTORE_AUTH}}",
               },
             },
-            "title": "petstore_auth (OAuth, paste an access token)",
+            "oauth": {
+              "authorizationUrl": "https://petstore.swagger.io/oauth/authorize",
+              "flow": "implicit",
+              "scopes": {
+                "read:pets": "read your pets",
+                "write:pets": "modify pets in your account",
+              },
+            },
+            "scheme": "petstore_auth",
+            "title": "petstore_auth (OAuth, sign in or paste an access token)",
           },
         },
         "defaultProfile": "api_key",
         "environmentVars": {},
+        "profiles": [
+          "api_key",
+          "petstore_auth",
+        ],
         "secrets": {
           "API_KEY": {},
           "PETSTORE_AUTH": {},
@@ -91,6 +119,7 @@ describe('authFromSpec output is unchanged', () => {
                 "authorization": "Basic {{secrets.BASICAUTH}}",
               },
             },
+            "scheme": "basicAuth",
             "title": "basicAuth (basic auth, paste base64 of user:password)",
           },
           "bearerAuth": {
@@ -99,11 +128,16 @@ describe('authFromSpec output is unchanged', () => {
                 "authorization": "Bearer {{secrets.BEARERAUTH}}",
               },
             },
+            "scheme": "bearerAuth",
             "title": "bearerAuth (bearer token)",
           },
         },
-        "defaultProfile": "basicAuth",
+        "defaultProfile": "bearerAuth",
         "environmentVars": {},
+        "profiles": [
+          "bearerAuth",
+          "basicAuth",
+        ],
         "secrets": {
           "BASICAUTH": {},
           "BEARERAUTH": {},
@@ -155,6 +189,7 @@ describe('authFromSpec output is unchanged', () => {
                 "X-Api-Key": "{{secrets.API_KEY}}",
               },
             },
+            "scheme": "api_key",
             "title": "api_key (API key, header "X-Api-Key")",
           },
           "basic": {
@@ -163,6 +198,7 @@ describe('authFromSpec output is unchanged', () => {
                 "authorization": "Basic {{secrets.BASIC}}",
               },
             },
+            "scheme": "basic",
             "title": "basic (basic auth, paste base64 of user:password)",
           },
           "bearer": {
@@ -171,6 +207,7 @@ describe('authFromSpec output is unchanged', () => {
                 "authorization": "Bearer {{secrets.BEARER}}",
               },
             },
+            "scheme": "bearer",
             "title": "bearer (bearer token)",
           },
           "jar": {
@@ -179,6 +216,7 @@ describe('authFromSpec output is unchanged', () => {
                 "cookie": "sid={{secrets.JAR}}",
               },
             },
+            "scheme": "jar",
             "title": "jar (API key, cookie "sid")",
           },
           "oidc": {
@@ -190,6 +228,7 @@ describe('authFromSpec output is unchanged', () => {
             "oauth": {
               "openIdConnectUrl": "https://id.example.test/.well-known/openid-configuration",
             },
+            "scheme": "oidc",
             "title": "oidc (OAuth, sign in or paste an access token)",
           },
           "q": {
@@ -198,6 +237,7 @@ describe('authFromSpec output is unchanged', () => {
                 "token": "{{secrets.Q}}",
               },
             },
+            "scheme": "q",
             "title": "q (API key, query "token")",
           },
           "sso": {
@@ -213,6 +253,7 @@ describe('authFromSpec output is unchanged', () => {
               },
               "tokenUrl": "{{ssoTokenUrl}}",
             },
+            "scheme": "sso",
             "title": "sso (OAuth, sign in or paste an access token)",
           },
         },
@@ -223,6 +264,15 @@ describe('authFromSpec output is unchanged', () => {
             "ssoTokenUrl": "https://sandbox.example.test/v1/token",
           },
         },
+        "profiles": [
+          "bearer",
+          "api_key",
+          "q",
+          "jar",
+          "basic",
+          "sso",
+          "oidc",
+        ],
         "secrets": {
           "API_KEY": {},
           "BASIC": {},
@@ -240,7 +290,7 @@ describe('authFromSpec output is unchanged', () => {
     `)
   })
 
-  it('a Plaid-shaped document: schemes that must all apply stay separate profiles today', () => {
+  it('a Plaid-shaped document: schemes that must all apply share one profile', () => {
     const header = (name: string) => ({ type: 'apiKey', in: 'header', name })
     const api = {
       security: [{ clientId: [], secret: [], plaidVersion: [] }],
@@ -255,33 +305,27 @@ describe('authFromSpec output is unchanged', () => {
     expect(authFromSpec(api)).toMatchInlineSnapshot(`
       {
         "auth": {
-          "clientId": {
+          "clientId-secret-plaidVersion": {
             "apply": {
               "headers": {
                 "PLAID-CLIENT-ID": "{{secrets.CLIENTID}}",
-              },
-            },
-            "title": "clientId (API key, header "PLAID-CLIENT-ID")",
-          },
-          "plaidVersion": {
-            "apply": {
-              "headers": {
+                "PLAID-SECRET": "{{secrets.SECRET}}",
                 "Plaid-Version": "{{secrets.PLAIDVERSION}}",
               },
             },
-            "title": "plaidVersion (API key, header "Plaid-Version")",
-          },
-          "secret": {
-            "apply": {
-              "headers": {
-                "PLAID-SECRET": "{{secrets.SECRET}}",
-              },
-            },
-            "title": "secret (API key, header "PLAID-SECRET")",
+            "scheme": [
+              "clientId",
+              "secret",
+              "plaidVersion",
+            ],
+            "title": "clientId + secret + plaidVersion (API keys)",
           },
         },
-        "defaultProfile": "clientId",
+        "defaultProfile": "clientId-secret-plaidVersion",
         "environmentVars": {},
+        "profiles": [
+          "clientId-secret-plaidVersion",
+        ],
         "secrets": {
           "CLIENTID": {},
           "PLAIDVERSION": {},

@@ -156,10 +156,15 @@ try {
     ],
     'specbook add',
   )
-  // add reads the spec's security: Petstore has an API key, so the config gets a secret, a profile, and the service uses it
+  // add reads the spec's security: Petstore accepts an API key or an OAuth sign-in, so the config gets a secret and a
+  // profile for each, and the service lists both
   const config = readFileSync(join(proj, '.specbook/specbook.config.ts'), 'utf8')
-  if (!config.includes('PETSTORE_API_KEY: {}') || !config.includes("auth: 'petstore'"))
-    fail('specbook add wrote no credentials for a spec that declares an API key')
+  if (
+    !config.includes('PETSTORE_API_KEY: {}') ||
+    !config.includes('PETSTORE_AUTH: {}') ||
+    !config.includes("auth: ['petstore', 'petstore-auth']")
+  )
+    fail('specbook add wrote no credentials for a spec that declares an API key and OAuth')
   else ok('add wrote the credentials from the spec')
   sb(['generate'], 'specbook generate')
 
@@ -245,8 +250,10 @@ export default FindPetsByStatus.request({
     join(proj, '.specbook/environments/local.env'),
     `petstoreUrl=http://127.0.0.1:${apiPort}\n`,
   )
-  // `add` made the spec's API key a secret, and a real environment will not run without it: set it as a user would
+  // `add` made each of the spec's credentials a secret, and a real environment will not run without the ones a request
+  // uses (finding pets takes only the OAuth scheme): set them as a user would
   process.env.PETSTORE_API_KEY = 'smoke-test-key'
+  process.env.PETSTORE_AUTH = 'smoke-test-token'
   try {
     sb(['test', '--env', 'local'], 'specbook test --env local')
     const bundleFile = join(work, 'out', 'specbook-tests.mjs')

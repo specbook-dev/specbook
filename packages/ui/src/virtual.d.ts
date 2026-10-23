@@ -29,7 +29,21 @@ declare module 'virtual:specbook/registry' {
         mockVariants?: Record<string, { name: string; title?: string; tag?: string }[]>
         /** the spec requires credentials */
         secured?: boolean
+        /** any one of these is enough; every scheme in one entry applies together, with the scopes it needs */
+        security?: Record<string, string[]>[]
       }[]
+      /** the document's security schemes, compact: how each is sent and which flows and scopes it offers */
+      securitySchemes?: Record<
+        string,
+        {
+          type: string
+          in?: string
+          name?: string
+          scheme?: string
+          openIdConnectUrl?: string
+          flows?: Record<string, { scopes: string[] }>
+        }
+      >
     }
   >
   /** Fetches the manifests of the named services (all when none are named) into `manifests`. A build starts with it empty. */

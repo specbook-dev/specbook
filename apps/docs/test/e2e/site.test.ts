@@ -11,7 +11,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
  */
 
 const dist = resolve(import.meta.dirname, '../../dist')
-const PAGES = ['/', '/develop/', '/document/', '/test/', '/monitor/', '/ai/', '/reference/embed/']
+const PAGES = [
+  '/',
+  '/develop/',
+  '/document/',
+  '/test/',
+  '/monitor/',
+  '/ai/',
+  '/reference/embed/',
+  '/reference/authorization/',
+]
 const types: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript',

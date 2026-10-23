@@ -280,16 +280,18 @@ petstoreUrl=https://staging.petstore.example/api/v3
 ```
 
 `specbook add` writes this from a spec's `servers`, and the credentials from its security schemes: a secret for each,
-one `auth` profile named after the service that applies them, and `auth` on the service (an API key or bearer token
-is preferred to basic auth, and basic to OAuth; its output says what it did not set up, and OAuth sign-in settings
-are not written). In the UI, **Environment settings** shows an environment's
+an `auth` profile for every way the spec accepts (an API key or bearer token first, then basic auth, then OAuth), and
+`auth` on the service, a list with the default first. An operation uses the first listed profile it accepts, and the
+credentials bar offers the others as a choice. See [Authorization](https://docs.specbook.dev/reference/authorization/).
+In the UI, **Environment settings** shows an environment's
 variables and where its calls go, and **New environment…** copies one (kept in the browser when there are no
 project files). `npx specbook secrets --env <name>` shows where each secret comes from, never the values.
 
 ### Sign in to OAuth APIs
 
-A scheme with an OAuth 2.0 authorization code flow, or an OpenID Connect one, gets a **Sign in** button beside
-the credentials prompt. It uses PKCE, so there is no client secret, and the token stays in the tab. Register a
+A scheme with an OAuth 2.0 authorization code flow, an implicit flow or an OpenID Connect provider gets a **Sign in**
+button beside the credentials prompt. The code flow uses PKCE, so there is no client secret, and the token stays in
+the tab. Register a
 public client with the provider and allow this redirect URI:
 
 | Where you run it | Register this redirect URI |
@@ -305,6 +307,11 @@ provider will not allow it, paste a token as before.
 
 An auth profile's `oauth` addresses (`authorizationUrl`, `tokenUrl`, `openIdConnectUrl`, `clientId`) can be
 variables like a service's address, so an environment can sign in at its own provider.
+
+An API that gives a service a client id and secret gets a profile that fetches its token itself (OAuth client
+credentials). The secret is filled in by a server only: the CLI and a bundle read it from the environment, and
+`specbook dev` fills it in on the dev server without sending it to the page. A published portal has no server, so it
+offers the profile that takes a pasted token instead.
 
 ### Documentation beside the code
 

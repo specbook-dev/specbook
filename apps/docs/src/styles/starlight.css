@@ -22,3 +22,13 @@
   --sl-color-accent-low: #ede9fe;
   --sl-color-accent-high: #4c1d95;
 }
+
+/* A section heading sits a little closer to what comes before it than Starlight's default, so a short intro and its
+   first heading do not read as two pages. */
+.sl-markdown-content .sl-heading-wrapper.level-h2 {
+  margin-top: 2rem;
+}
+/* ...and a page that opens with a heading has nothing above it to be separated from. */
+.sl-markdown-content > .sl-heading-wrapper.level-h2:first-child {
+  margin-top: 0;
+}

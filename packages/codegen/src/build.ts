@@ -89,7 +89,53 @@ export interface ManifestOperation {
   examples: ManifestExample[]
   /** the spec requires credentials for this operation */
   secured?: boolean
+  /** any one of these is enough; every scheme in one entry must apply together, with the scopes it needs */
+  security?: Record<string, string[]>[]
   file: string
+}
+
+/** What a security scheme is, without addresses or descriptions: enough to say how an operation is secured. */
+export interface ManifestSecurityScheme {
+  type: string
+  in?: string
+  name?: string
+  scheme?: string
+  openIdConnectUrl?: string
+  /** flow name -> its scope names */
+  flows?: Record<string, { scopes: string[] }>
+}
+
+/** The document's security schemes in the manifest's compact form. */
+export function securitySchemesOf(doc: any): Record<string, ManifestSecurityScheme> {
+  const out: Record<string, ManifestSecurityScheme> = {}
+  for (const [name, s] of Object.entries<any>(doc.components?.securitySchemes ?? {})) {
+    if (!s || typeof s.type !== 'string') continue
+    const flows = Object.fromEntries(
+      Object.entries<any>(s.flows ?? {}).map(([f, v]) => [
+        f,
+        { scopes: Object.keys(v?.scopes ?? {}) },
+      ]),
+    )
+    out[name] = {
+      type: s.type,
+      ...(typeof s.in === 'string' ? { in: s.in } : {}),
+      ...(typeof s.name === 'string' ? { name: s.name } : {}),
+      ...(typeof s.scheme === 'string' ? { scheme: s.scheme } : {}),
+      ...(typeof s.openIdConnectUrl === 'string' ? { openIdConnectUrl: s.openIdConnectUrl } : {}),
+      ...(Object.keys(flows).length ? { flows } : {}),
+    }
+  }
+  return out
+}
+
+/** An operation's requirements as a plain list of `{ scheme: scopes }`. */
+function requirementsFrom(effective: unknown): Record<string, string[]>[] {
+  if (!Array.isArray(effective)) return []
+  return effective.map((r: any) =>
+    Object.fromEntries(
+      Object.entries(r ?? {}).map(([k, v]) => [k, Array.isArray(v) ? v.map(String) : []]),
+    ),
+  )
 }
 
 /** `info.x-logo` (a Redoc convention): only absolute http(s) or data-image URLs are trusted. */
@@ -245,7 +291,8 @@ export interface OperationMeta {
   mediaType?: string
   files?: string[]
   formArrays?: Record<string, string>
-  security?: boolean
+  /** `false` = none required; otherwise any one of the requirements (see `ManifestOperation.security`) */
+  security?: false | Record<string, string[]>[]
 }
 
 /** The generator proper, from an OpenAPI 3 document that is already parsed and bundled. */
@@ -643,9 +690,10 @@ function generateAll(
 
       const effective = op.security ?? doc.security
       const secured = hasSchemes && Array.isArray(effective) && effective.length > 0
+      const requirements = requirementsFrom(effective)
       const securityLine = !hasSchemes
         ? ''
-        : `, security: ${Array.isArray(effective) && effective.length > 0 ? 'true' : 'false'}`
+        : `, security: ${requirements.length > 0 ? JSON.stringify(requirements) : 'false'}`
       // a binary body's declared type (`application/octet-stream`) is what the server expects as Content-Type
       const mediaType =
         body &&
@@ -673,7 +721,9 @@ function generateAll(
         ...(mediaType ? { mediaType } : {}),
         ...(fileFieldPaths.length ? { files: fileFieldPaths } : {}),
         ...(Object.keys(arrayStyles).length ? { formArrays: arrayStyles } : {}),
-        ...(hasSchemes ? { security: Array.isArray(effective) && effective.length > 0 } : {}),
+        ...(hasSchemes
+          ? { security: requirements.length > 0 ? requirements : (false as const) }
+          : {}),
       }
       if (ts)
         files.push({
@@ -708,7 +758,7 @@ ${jsdoc({ description: [...new Set([op.summary, op.description].filter(Boolean))
         statuses,
         ...(Object.keys(mockVariants).length ? { mockVariants } : {}),
         examples: docs.map((d) => ({ name: d.name, title: d.title, source: d.source })),
-        ...(secured ? { secured: true } : {}),
+        ...(secured ? { secured: true, security: requirements } : {}),
         file: `operations/${id}.ts`,
       })
     }
@@ -742,6 +792,7 @@ ${jsdoc({ description: [...new Set([op.summary, op.description].filter(Boolean))
         version: doc.info?.version,
         ...(logoOf(doc.info) ? { logo: logoOf(doc.info) } : {}),
         servers: (doc.servers ?? []).map((s: any) => s.url),
+        ...(hasSchemes ? { securitySchemes: securitySchemesOf(doc) } : {}),
         tags: [...byTag.keys()],
         operations,
       },

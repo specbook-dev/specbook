@@ -4,6 +4,7 @@ import {
   newState,
   OAuthError,
   parseCallback,
+  parseImplicitCallback,
   parseTokenResponse,
   tokenRequestFields,
 } from '@specbook/core'
@@ -41,8 +42,10 @@ export interface SignInInput {
   authorizationUrl: string
   clientId: string
   scopes: string[]
-  /** posts the form to the token endpoint and returns the parsed response body */
-  exchange(fields: Record<string, string>, signal?: AbortSignal): Promise<unknown>
+  /** `implicit` gets the token in the address and has no exchange; the default is the code with PKCE */
+  flow?: 'authorizationCode' | 'implicit'
+  /** posts the form to the token endpoint and returns the parsed response body (not used by the implicit flow) */
+  exchange?(fields: Record<string, string>, signal?: AbortSignal): Promise<unknown>
   signal?: AbortSignal
   /** how long to wait for the person to finish (default five minutes) */
   timeoutMs?: number
@@ -63,10 +66,16 @@ export async function signIn(
       'The browser blocked the sign-in window. Allow pop-ups for this page and try again.',
     )
 
+  const implicit = i.flow === 'implicit'
+  if (!implicit && !i.exchange) {
+    popup.close()
+    throw new OAuthError('Sign-in has no token endpoint to exchange the code at.')
+  }
   const channel = new BroadcastChannel(OAUTH_CHANNEL)
   let onWindowMessage: ((e: MessageEvent<OAuthMessage>) => void) | undefined
   try {
-    const { verifier, challenge } = await createPkce()
+    // the implicit flow has no code to protect, so no verifier
+    const pkce = implicit ? undefined : await createPkce()
     const state = newState()
     const redirect = redirectUri()
 
@@ -104,10 +113,24 @@ export async function signIn(
       redirectUri: redirect,
       scopes: i.scopes,
       state,
-      challenge,
+      ...(pkce ? { challenge: pkce.challenge } : { responseType: 'token' as const }),
     })
 
     const back = await returned
+    if (implicit)
+      return parseImplicitCallback(
+        {
+          state: back.state,
+          ...(back.token ? { access_token: back.token.accessToken } : {}),
+          ...(back.token?.expiresIn !== undefined
+            ? { expires_in: String(back.token.expiresIn) }
+            : {}),
+          ...(back.token?.scope ? { scope: back.token.scope } : {}),
+          ...(back.error ? { error: back.error } : {}),
+          ...(back.description ? { error_description: back.description } : {}),
+        },
+        state,
+      )
     const { code } = parseCallback(
       {
         state: back.state,
@@ -117,8 +140,13 @@ export async function signIn(
       },
       state,
     )
-    const body = await i.exchange(
-      tokenRequestFields({ code, verifier, clientId: i.clientId, redirectUri: redirect }),
+    const body = await (i.exchange as NonNullable<SignInInput['exchange']>)(
+      tokenRequestFields({
+        code,
+        verifier: (pkce as NonNullable<typeof pkce>).verifier,
+        clientId: i.clientId,
+        redirectUri: redirect,
+      }),
       i.signal,
     )
     return parseTokenResponse(body)

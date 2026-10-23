@@ -633,3 +633,277 @@ describe('the implicit status check', () => {
     expect(r.status).toBe('fail')
   })
 })
+
+describe('profile resolution', () => {
+  const opWith = (security: any) =>
+    defineOperation<{ params: {}; body: unknown; responses: { 200: {} } }>({
+      service: 'shop',
+      id: 'Op',
+      method: 'GET',
+      path: '/x',
+      security,
+    })
+  const auth: Record<string, AuthProfile> = {
+    key: { scheme: 'api_key', apply: { headers: { 'x-key': '{{secrets.KEY}}' } } },
+    oauth: {
+      scheme: 'shop_auth',
+      apply: { headers: { authorization: 'Bearer {{secrets.TOKEN}}' } },
+    },
+  }
+  const run = async (security: unknown, input: Record<string, unknown> = {}) => {
+    const { transport, calls } = fakeTransport(() => ({ body: {} }))
+    const events: any[] = []
+    await runRequest(opWith(security).request(input as any), {
+      env: 'live',
+      transport,
+      auth,
+      serviceAuth: { shop: ['key', 'oauth'] },
+      secrets: { KEY: 'k', TOKEN: 't' },
+      onEvent: (e) => events.push(e),
+    })
+    return { calls, events }
+  }
+
+  it('uses the first listed profile the operation accepts', async () => {
+    const { calls, events } = await run([{ shop_auth: ['read'] }])
+    expect(calls[0]?.headers.authorization).toBe('Bearer t')
+    expect(calls[0]?.headers['x-key']).toBeUndefined()
+    expect(events.find((e) => e.type === 'auth:profile')).toMatchObject({
+      profile: 'oauth',
+      reason: 'accepted',
+    })
+  })
+
+  it('keeps the default when it is accepted', async () => {
+    const { calls, events } = await run([{ api_key: [] }, { shop_auth: [] }])
+    expect(calls[0]?.headers['x-key']).toBe('k')
+    expect(events.find((e) => e.type === 'auth:profile')?.reason).toBe('default')
+  })
+
+  it('falls back to the default when nothing is accepted, and to none when the spec needs none', async () => {
+    expect((await run([{ somethingElse: [] }])).calls[0]?.headers['x-key']).toBe('k')
+    expect((await run(false)).calls[0]?.headers['x-key']).toBeUndefined()
+    expect((await run([])).calls[0]?.headers['x-key']).toBeUndefined()
+  })
+
+  it('treats an operation with no scheme data as accepting every listed profile', async () => {
+    expect((await run(true)).calls[0]?.headers['x-key']).toBe('k')
+  })
+
+  it('lets a request name its profile, or none', async () => {
+    const named = await run([{ api_key: [] }], { auth: 'oauth' })
+    expect(named.calls[0]?.headers.authorization).toBe('Bearer t')
+    expect(named.events.find((e) => e.type === 'auth:profile')?.reason).toBe('explicit')
+    expect(
+      (await run([{ api_key: [] }], { auth: false })).calls[0]?.headers['x-key'],
+    ).toBeUndefined()
+  })
+
+  it('scans only the secrets of the profile an operation resolves to', async () => {
+    const names = await collectSecretNames(
+      opWith([{ shop_auth: [] }]).request({} as any),
+      auth,
+      undefined,
+      { shop: ['key', 'oauth'] },
+    )
+    expect([...names]).toEqual(['TOKEN'])
+  })
+})
+
+describe('OAuth client credentials', () => {
+  const Get = defineOperation<{ params: {}; body: unknown; responses: { 200: {} } }>({
+    service: 'shop',
+    id: 'Get',
+    method: 'GET',
+    path: '/things',
+  })
+  const profile = (extra: Record<string, unknown> = {}): AuthProfile => ({
+    apply: { headers: { authorization: 'Bearer {{session.accessToken}}' } },
+    oauth: {
+      tokenUrl: '{{idp}}/realms/r/token?tenant=1',
+      clientId: '{{secrets.CLIENT_ID}}',
+      clientSecret: '{{secrets.CLIENT_SECRET}}',
+      ...extra,
+    },
+  })
+  const base = (over: Record<string, unknown> = {}) => ({
+    env: 'live',
+    vars: { idp: 'https://idp.test' },
+    secrets: { CLIENT_ID: 'my-client', CLIENT_SECRET: 'sssshhh-secret' },
+    auth: { cc: profile() },
+    serviceAuth: { shop: 'cc' },
+    ...over,
+  })
+  const server = (opts: { expiresIn?: number } = {}) => {
+    let tokens = 0
+    const { transport, calls } = fakeTransport((req) => {
+      if (req.service === 'auth:cc')
+        return {
+          body: { access_token: `tok_${++tokens}_value`, expires_in: opts.expiresIn ?? 3600 },
+        }
+      return req.headers.authorization === `Bearer tok_${tokens}_value`
+        ? { body: {} }
+        : { status: 401, body: {} }
+    })
+    return { transport, calls, tokens: () => tokens }
+  }
+
+  it('fetches one token for several requests and applies it as a bearer', async () => {
+    const { transport, calls } = server()
+    const s = sequence({ id: 's', title: 'S' }).step('a', Get.request()).step('b', Get.request())
+    const r = await runSequence(s, { ...base(), transport })
+    const tokenCalls = calls.filter((c) => c.service === 'auth:cc')
+    expect(tokenCalls).toHaveLength(1)
+    expect(tokenCalls[0]).toMatchObject({
+      method: 'POST',
+      url: '/realms/r/token',
+      query: { tenant: '1' },
+      encoding: 'form',
+      body: {
+        grant_type: 'client_credentials',
+        client_id: 'my-client',
+        client_secret: 'sssshhh-secret',
+      },
+    })
+    expect(
+      calls
+        .filter((c) => c.url === '/things')
+        .every((c) => c.headers.authorization === 'Bearer tok_1_value'),
+    ).toBe(true)
+    expect(r.status).toBe('pass')
+    expect(r.steps.map((x) => x.kind)).toEqual(['auth', 'request', 'request'])
+    expect(r.steps[0]?.name).toBe('Token (cc)')
+  })
+
+  it('never lets the secret, the basic header or the token into a result', async () => {
+    const { transport } = server()
+    const events: unknown[] = []
+    const r = await runRequest(Get.request(), {
+      ...base({ auth: { cc: profile({ clientAuth: 'basic' }) } }),
+      transport,
+      onEvent: (e) => events.push(e),
+    })
+    const all = JSON.stringify([r, events])
+    for (const secret of ['sssshhh-secret', 'tok_1_value', btoa('my-client:sssshhh-secret')])
+      expect(all).not.toContain(secret)
+  })
+
+  it('sends the credentials as a basic header when asked and held, and in the body otherwise', async () => {
+    const held = server()
+    await runRequest(Get.request(), {
+      ...base({ auth: { cc: profile({ clientAuth: 'basic' }) } }),
+      transport: held.transport,
+    })
+    const tokenReq = held.calls.find((c) => c.service === 'auth:cc')
+    expect(tokenReq?.headers.authorization).toBe(`Basic ${btoa('my-client:sssshhh-secret')}`)
+    expect(tokenReq?.body).toEqual({ grant_type: 'client_credentials' })
+
+    // a server fills the secrets later (the dev proxy): the placeholders go out as they are, in the body
+    const deferred = server()
+    await runRequest(Get.request(), {
+      ...base({
+        auth: { cc: profile({ clientAuth: 'basic' }) },
+        secrets: undefined,
+        deferSecrets: true,
+      }),
+      transport: deferred.transport,
+    })
+    expect(deferred.calls.find((c) => c.service === 'auth:cc')?.body).toEqual({
+      grant_type: 'client_credentials',
+      client_id: '{{secrets.CLIENT_ID}}',
+      client_secret: '{{secrets.CLIENT_SECRET}}',
+    })
+  })
+
+  const tokenBody = (calls: { service: string; body?: unknown }[]) =>
+    (calls.find((c) => c.service === 'auth:cc') as { body: { scope?: string } }).body
+
+  it('asks for the scopes the profile names, and none otherwise', async () => {
+    const some = server()
+    await runRequest(Get.request(), {
+      ...base({ auth: { cc: profile({ scopes: { read: 'Read', write: 'Write' } }) } }),
+      transport: some.transport,
+    })
+    expect(tokenBody(some.calls).scope).toBe('read write')
+    const none = server()
+    await runRequest(Get.request(), { ...base(), transport: none.transport })
+    expect(tokenBody(none.calls).scope).toBeUndefined()
+  })
+
+  it('fetches a new token when the old one has expired', async () => {
+    let clock = 1_000_000
+    let tokens = 0
+    const { transport, calls } = fakeTransport((req) => {
+      if (req.service === 'auth:cc')
+        return { body: { access_token: `tok_${++tokens}_value`, expires_in: 60 } }
+      clock += 61_000
+      return { body: {} }
+    })
+    const s = sequence({ id: 's', title: 'S' }).step('a', Get.request()).step('b', Get.request())
+    await runSequence(s, { ...base(), transport, now: () => clock })
+    expect(calls.filter((c) => c.service === 'auth:cc')).toHaveLength(2)
+    expect(calls.filter((c) => c.url === '/things').map((c) => c.headers.authorization)).toEqual([
+      'Bearer tok_1_value',
+      'Bearer tok_2_value',
+    ])
+  })
+
+  it('fetches once more after a 401 and replays the request, unless retryOn401 is off', async () => {
+    const stale = fakeTransport((req) =>
+      req.service === 'auth:cc'
+        ? { body: { access_token: `t${Math.random()}_xxxx`, expires_in: 3600 } }
+        : { status: 401, body: {} },
+    )
+    await runRequest(Get.request(), { ...base(), transport: stale.transport })
+    expect(stale.calls.filter((c) => c.service === 'auth:cc')).toHaveLength(2)
+    expect(stale.calls.filter((c) => c.url === '/things')).toHaveLength(2)
+
+    const off = fakeTransport((req) =>
+      req.service === 'auth:cc'
+        ? { body: { access_token: 'tok_xxxx', expires_in: 3600 } }
+        : { status: 401, body: {} },
+    )
+    await runRequest(Get.request(), {
+      ...base({ auth: { cc: { ...profile(), retryOn401: false } } }),
+      transport: off.transport,
+    })
+    expect(off.calls.filter((c) => c.service === 'auth:cc')).toHaveLength(1)
+  })
+
+  it('names the profile and the answer when the token endpoint refuses', async () => {
+    const { transport } = fakeTransport(() => ({ status: 401, body: { error: 'invalid_client' } }))
+    const r = await runRequest(Get.request(), { ...base(), transport })
+    expect(r.status).toBe('error')
+    expect(r.steps[0]?.error).toBe(
+      'Token request for profile "cc" failed (the token endpoint answered 401: invalid_client)',
+    )
+  })
+
+  it('needs no network and no secret in the mock environment', async () => {
+    const { transport, calls } = fakeTransport(() => ({ body: {} }))
+    await runRequest(Get.request(), { ...base({ env: 'mock', secrets: undefined }), transport })
+    expect(calls.some((c) => c.service === 'auth:cc')).toBe(false)
+    expect(calls[0]?.headers.authorization).toBe('Bearer mock-token')
+  })
+
+  it('still fetches the token in a --safe run', async () => {
+    const { transport, calls } = server()
+    const r = await runRequest(Get.request(), { ...base({ readOnly: true }), transport })
+    expect(calls.some((c) => c.service === 'auth:cc')).toBe(true)
+    expect(r.status).toBe('pass')
+  })
+
+  it('wants the client id and secret of the profile a request resolves to', async () => {
+    const names = await collectSecretNames(Get.request(), { cc: profile() }, undefined, {
+      shop: ['cc'],
+    })
+    expect([...names].sort()).toEqual(['CLIENT_ID', 'CLIENT_SECRET'])
+  })
+
+  it('says what is wrong when the token address cannot be worked out', async () => {
+    const { transport } = server()
+    const r = await runRequest(Get.request(), { ...base({ vars: {} }), transport })
+    expect(r.status).toBe('error')
+    expect(r.steps[0]?.error).toContain('has no usable token address')
+  })
+})

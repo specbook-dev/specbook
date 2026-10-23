@@ -117,7 +117,7 @@ async function open(id: number, source: Source, signal: AbortSignal): Promise<Op
   const {
     auth,
     secrets,
-    defaultProfile,
+    profiles,
     vars: authVars,
     environmentVars: authEnvironmentVars,
   } = authFromSpec(doc, sourceUrl, servers)
@@ -130,7 +130,7 @@ async function open(id: number, source: Source, signal: AbortSignal): Promise<Op
     exampleNames,
     auth,
     secrets,
-    defaultProfile,
+    profiles,
     authVars,
     authEnvironmentVars,
     baseUrl,

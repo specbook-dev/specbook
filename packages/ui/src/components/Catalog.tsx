@@ -40,7 +40,7 @@ function OpRow({ e }: { e: Entry }) {
       <span class="op-title">
         {e.title}
         {e.secured && (
-          <span class="op-lock" title="Needs credentials">
+          <span class="op-lock" title={e.lockTitle ?? 'Needs credentials'}>
             <Lock />
           </span>
         )}

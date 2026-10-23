@@ -296,6 +296,28 @@ describe('addresses per environment', () => {
     })
   })
 
+  it('resolves the token endpoint of a client credentials profile, whose id and secret are secrets', async () => {
+    const { addressesFor } = await import('../src/addresses')
+    const out = await addressesFor(
+      {
+        ...cfg,
+        auth: {
+          cc: {
+            oauth: {
+              tokenUrl: '{{issuer}}/token',
+              clientId: '{{secrets.CC_ID}}',
+              clientSecret: '{{secrets.CC_SECRET}}',
+            },
+          },
+        },
+      },
+      'live',
+      files(),
+      token,
+    )
+    expect(out.tokenOrigins).toEqual({ cc: 'https://id.test' })
+  })
+
   it('gives nothing for an environment the project does not have, or for mock', async () => {
     const { addressesFor } = await import('../src/addresses')
     expect((await addressesFor(cfg, 'prod', files(), token)).services).toEqual({})
