@@ -36,6 +36,7 @@ import {
   usesFaker,
   withMock,
 } from '@specbook/core'
+import { ordered } from './auth-options'
 import type { EnvironmentStore } from './custom-environments'
 import {
   type ExtensionBridge,
@@ -141,6 +142,8 @@ export interface EngineOptions {
   secrets?: SecretStore
   /** Environments made in this browser (a static page has no files to write them to). */
   environmentStore?: EnvironmentStore
+  /** The auth profile the person picked for a service, tried before the others the operation accepts. */
+  authChoice?: (service: string) => string | undefined
 }
 
 const ENV_NAME = /^[A-Za-z0-9_-]+$/
@@ -621,6 +624,9 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     return wireGrant(bridge, origins, what)
   }
 
+  /** Whether a server (the dev server, or a hosted proxy) stands behind this page and can hold secrets for it. */
+  const hasServer = () => reg.mode !== 'static'
+
   /** Only the dev server knows its environment files; a hosted proxy would report its own (`managedSecrets`). */
   async function managedSecrets(env: string): Promise<Record<string, string>> {
     if (reg.mode !== 'dev' || env === 'mock') return {}
@@ -783,7 +789,7 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     const serviceAuth = Object.fromEntries(
       Object.entries(c.services ?? {})
         .filter(([, s]) => serviceProfiles(s).length)
-        .map(([n, s]) => [n, serviceProfiles(s)]),
+        .map(([n, s]) => [n, ordered(serviceProfiles(s), opts.authChoice?.(n))]),
     )
     const vars = await scopeOf(i.env, i.version)
     // a client credentials profile fetches its token as the reserved service `auth:<profile>`, at its token endpoint
@@ -966,6 +972,7 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     oauthOf,
     addressesIn,
     managedSecrets,
+    hasServer,
     extensionState,
     requestExtensionGrant,
     oauthEndpoints,

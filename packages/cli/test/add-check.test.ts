@@ -217,7 +217,7 @@ export default defineConfig({
 
   it('warns on a scheme the spec does not define, and on operations no listed profile accepts', async () => {
     const r = await checkWith(
-      "other: { scheme: 'nope', apply: { headers: { a: '{{secrets.KEY}}' } } }, " + key,
+      `other: { scheme: 'nope', apply: { headers: { a: '{{secrets.KEY}}' } } }, ${key}`,
       "auth: ['other', 'key']",
     )
     expect(r.said).toContain('[auth other] scheme "nope" is not a security scheme of "petstore"')

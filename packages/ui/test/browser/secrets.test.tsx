@@ -89,7 +89,7 @@ describe('the credentials prompt on a static page', () => {
       expect(r.left - panel.left).toBeGreaterThanOrEqual(0)
       expect(r.right - panel.left).toBeLessThanOrEqual(390)
       expect(bar.scrollWidth).toBeLessThanOrEqual(bar.clientWidth)
-      const input = bar.querySelector('input') as HTMLInputElement
+      const input = bar.querySelector('input[type="password"]') as HTMLInputElement
       expect(parseFloat(getComputedStyle(input).fontSize)).toBeGreaterThanOrEqual(16)
       expect(input.getBoundingClientRect().height).toBeGreaterThanOrEqual(36)
     } finally {

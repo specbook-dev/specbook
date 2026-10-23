@@ -408,6 +408,70 @@ describe('a client credentials profile in the viewer', () => {
   })
 })
 
+describe('which profile a run uses when a service lists several', () => {
+  const GetSecured = defineOperation<{
+    params: {}
+    body: never
+    responses: { 200: {} }
+  }>({
+    service: 'pets',
+    id: 'GetSecured',
+    method: 'GET',
+    path: '/secured',
+    security: [{ api_key: [] }, { oauth: [] }],
+  })
+  const OnlyOauth = defineOperation<{ params: {}; body: never; responses: { 200: {} } }>({
+    service: 'pets',
+    id: 'OnlyOauth',
+    method: 'GET',
+    path: '/only-oauth',
+    security: [{ oauth: [] }],
+  })
+  const regMany = {
+    ...reg,
+    mode: 'static',
+    operations: {
+      'pets/GetSecured': async () => ({ GetSecured }),
+      'pets/OnlyOauth': async () => ({ OnlyOauth }),
+    },
+    loadConfig: async () => ({
+      default: {
+        project: 'p',
+        services: {
+          pets: { spec: 'x', baseUrl: { live: 'https://api.example.com' }, auth: ['key', 'tok'] },
+        },
+        auth: {
+          key: { scheme: 'api_key', apply: { headers: { 'x-key': 'K' } } },
+          tok: { scheme: 'oauth', apply: { headers: { authorization: 'Bearer T' } } },
+        },
+      },
+    }),
+  }
+  afterEach(() => vi.unstubAllGlobals())
+
+  const sent = async (choice: string | undefined, op: string) => {
+    const f = vi.fn(async () => new Response('{}'))
+    vi.stubGlobal('fetch', f)
+    const e = createEngine(regMany as never, { authChoice: () => choice })
+    const def = await e.operationRequest(`pets/${op}`, 0, {})
+    await e.run(def, { env: 'live', version: 0 })
+    return new Headers((f.mock.calls[0] as unknown as [string, RequestInit])[1].headers)
+  }
+
+  it('uses the first listed profile by default, and the one the person picked when the operation accepts it', async () => {
+    expect((await sent(undefined, 'GetSecured')).get('x-key')).toBe('K')
+    const picked = await sent('tok', 'GetSecured')
+    expect(picked.get('authorization')).toBe('Bearer T')
+    expect(picked.get('x-key')).toBeNull()
+  })
+
+  it('uses the profile an operation accepts even when the person picked another', async () => {
+    const h = await sent('key', 'OnlyOauth')
+    expect(h.get('authorization')).toBe('Bearer T')
+    expect(h.get('x-key')).toBeNull()
+  })
+})
+
 describe('what the extension is needed for', () => {
   const cfg = (extra: object = {}) => ({
     ...reg,

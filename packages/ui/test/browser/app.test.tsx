@@ -185,6 +185,53 @@ describe('docs and play panel', () => {
     expect($('.code-block')?.textContent).toContain("method: 'POST'")
   })
 
+  it('applies, in the cURL sample, the way of authenticating the operation accepts and the person picked', async () => {
+    env.value = 'live'
+    try {
+      await mount()
+      const requestTab = () =>
+        [...root.querySelectorAll<HTMLButtonElement>('.request-panel .rq-tab')].find((t) =>
+          t.textContent?.startsWith('Request'),
+        )
+      const sample = () => $('.code-block')?.textContent ?? ''
+
+      // AddPet takes only the OAuth scheme: its sample carries a bearer token, not the API key
+      await play('petstore/AddPet')
+      requestTab()?.click()
+      await waitFor(() => expect(sample()).toContain('curl '))
+      expect(sample().toLowerCase()).toContain('authorization')
+      expect(sample()).not.toContain('api_key')
+
+      // GetPetById takes either: the cheapest, the key, until the person picks the sign-in
+      go({ kind: 'home' })
+      await play('petstore/GetPetById')
+      requestTab()?.click()
+      await waitFor(() => expect(sample()).toContain('curl '))
+      expect(sample()).toContain('api_key')
+      const tab = [...root.querySelectorAll<HTMLButtonElement>('.request-panel .rq-tab')].find(
+        (t) => t.textContent?.startsWith('Params'),
+      )
+      tab?.click()
+      // when a value is already supplied the bar is folded to a chip; a tap opens it
+      root.querySelector<HTMLButtonElement>('.secrets-chip')?.click()
+      const radio = await vi.waitFor(() => {
+        const r = [...root.querySelectorAll<HTMLLabelElement>('label.auth-opt')].find((x) =>
+          x.textContent?.includes('OAuth'),
+        )
+        expect(r).toBeTruthy()
+        return r?.querySelector('input') as HTMLInputElement
+      })
+      radio.click()
+      requestTab()?.click()
+      await waitFor(() => expect(sample().toLowerCase()).toContain('authorization'))
+      expect(sample()).not.toContain('api_key')
+    } finally {
+      sessionStorage.removeItem('specbook.auth.v1')
+      const { setChoice } = await import('../../src/auth-choice')
+      setChoice('petstore', undefined)
+    }
+  })
+
   it('shows the markdown that sits beside a saved request, in Try and on the Docs tab', async () => {
     await mount()
     await play('petstore/FindPetsByStatus')

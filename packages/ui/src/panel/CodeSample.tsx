@@ -3,6 +3,7 @@ import {
   type Encoding,
   type RenderedRequest,
   render,
+  resolveProfile,
   type SnippetInput,
   type SnippetLang,
   serviceProfiles,
@@ -11,6 +12,8 @@ import {
 } from '@specbook/core'
 import type { ComponentChildren } from 'preact'
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks'
+import { authChoices } from '../auth-choice'
+import { ordered, type Security } from '../auth-options'
 import { engine } from '../runtime'
 import { kv } from '../storage'
 import { env, envVarsVersion, version } from '../store'
@@ -36,6 +39,8 @@ interface Props {
   profile?: string
   /** shown as a hint under the sample */
   secured?: boolean
+  /** what the spec says the operation accepts; with `profile="service"` it picks the profile the sample applies */
+  security?: Security
   /** builds the request; keep it stable (useCallback) so values from faker do not change per render */
   make: (base: string, applied: Applied) => SnippetInput
   /** the request as it actually went out, offered as a third view once there is one */
@@ -43,12 +48,13 @@ interface Props {
 }
 
 /** cURL / Node fetch tabs with a copy button, for a request described by `make`. */
-export function CodeSample({ service, profile, secured, make, sent }: Props) {
+export function CodeSample({ service, profile, secured, security, make, sent }: Props) {
   const [view, setView] = useState<SnippetLang | 'sent'>(savedLang)
   const lang: SnippetLang = view === 'sent' ? 'curl' : view
   const [copied, setCopied] = useState(false)
   const [base, setBase] = useState<string>()
   const [applied, setApplied] = useState<Applied>()
+  const choice = authChoices.value[service]
 
   useEffect(() => {
     let live = true
@@ -64,13 +70,21 @@ export function CodeSample({ service, profile, secured, make, sent }: Props) {
         address = Object.values(svc.baseUrl)[0]
       if (!live) return
       setBase(address)
-      const name = profile === 'service' ? serviceProfiles(svc)[0] : profile
+      // the profile the run would use: the person's choice if the operation accepts it, else the first it does
+      const name =
+        profile === 'service'
+          ? resolveProfile({
+              listed: ordered(serviceProfiles(svc), choice),
+              auth: c.auth as Record<string, AuthProfile | undefined> | undefined,
+              security,
+            }).name
+          : profile
       setApplied(name ? (c.auth?.[name] as AuthProfile | undefined)?.apply : undefined)
     })
     return () => {
       live = false
     }
-  }, [service, profile, env.value, envVarsVersion.value])
+  }, [service, profile, security, choice, env.value, envVarsVersion.value])
 
   const built = useMemo<{ text?: string; error?: string }>(() => {
     try {
@@ -158,6 +172,7 @@ interface DraftProps {
   encoding: Encoding
   vars: Record<string, string>
   secured?: boolean
+  security?: Security
   sent?: ComponentChildren
 }
 
@@ -170,6 +185,7 @@ export function DraftCodeSample({
   encoding,
   vars,
   secured,
+  security,
   sent,
 }: DraftProps) {
   const make = useCallback(
@@ -207,6 +223,7 @@ export function DraftCodeSample({
       service={service}
       profile={secured ? 'service' : undefined}
       secured={secured}
+      security={security}
       make={make}
       sent={sent}
     />

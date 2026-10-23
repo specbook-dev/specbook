@@ -1,4 +1,5 @@
 import * as reg from 'virtual:specbook/registry'
+import { getChoice } from './auth-choice'
 import { createEnvironmentStore } from './custom-environments'
 import { createEngine, pickRunnable } from './engine'
 import { detectExtension, type ExtensionBridge } from './extension'
@@ -38,6 +39,7 @@ const environmentStore =
 
 export const engine = createEngine(reg as never, {
   extension,
+  authChoice: getChoice,
   environmentStore,
 })
 

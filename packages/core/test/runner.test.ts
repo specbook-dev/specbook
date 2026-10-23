@@ -815,16 +815,19 @@ describe('OAuth client credentials', () => {
     })
   })
 
+  const tokenBody = (calls: { service: string; body?: unknown }[]) =>
+    (calls.find((c) => c.service === 'auth:cc') as { body: { scope?: string } }).body
+
   it('asks for the scopes the profile names, and none otherwise', async () => {
     const some = server()
     await runRequest(Get.request(), {
       ...base({ auth: { cc: profile({ scopes: { read: 'Read', write: 'Write' } }) } }),
       transport: some.transport,
     })
-    expect((some.calls.find((c) => c.service === 'auth:cc')?.body as any).scope).toBe('read write')
+    expect(tokenBody(some.calls).scope).toBe('read write')
     const none = server()
     await runRequest(Get.request(), { ...base(), transport: none.transport })
-    expect((none.calls.find((c) => c.service === 'auth:cc')?.body as any).scope).toBeUndefined()
+    expect(tokenBody(none.calls).scope).toBeUndefined()
   })
 
   it('fetches a new token when the old one has expired', async () => {
