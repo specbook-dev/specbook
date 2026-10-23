@@ -1,4 +1,4 @@
-specbook test 0.10.0  env mock  ·  1/5 tests
+specbook test 0.11.0  env mock  ·  1/5 tests
 
   ✓ Link a bank account in the Plaid sandbox › Create a sandbox public token  POST /sandbox/public_token/create  200  1ms
   ✓ Link a bank account in the Plaid sandbox › Exchange the public token  POST /item/public_token/exchange  200  0ms
