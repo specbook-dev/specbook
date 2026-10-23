@@ -28,3 +28,7 @@
 .sl-markdown-content .sl-heading-wrapper.level-h2 {
   margin-top: 2rem;
 }
+/* ...and a page that opens with a heading has nothing above it to be separated from. */
+.sl-markdown-content > .sl-heading-wrapper.level-h2:first-child {
+  margin-top: 0;
+}
