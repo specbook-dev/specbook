@@ -817,6 +817,11 @@
     width: 130px;
     min-width: 0;
   }
+  /* a token is long: its field has room for the placeholder and the start of the value */
+  .needs-var input.token-input {
+    width: 220px;
+    max-width: 100%;
+  }
   /* the pasted value looks like the client id field beside it */
   .needs-var input[type="password"] {
     padding: 5px 8px;

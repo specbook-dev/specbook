@@ -223,10 +223,11 @@ export function SecretsBar({
               )}
               <input
                 type="password"
+                class={o.oauth ? 'token-input' : undefined}
                 autocomplete="off"
                 aria-label={`${name} for ${n.service}`}
                 placeholder={
-                  from ? 'use another value' : o.oauth ? 'or an access token' : 'enter value'
+                  from ? 'use another value' : o.oauth ? 'or enter access token' : 'enter value'
                 }
                 onChange={(e) => {
                   const v = (e.target as HTMLInputElement).value
