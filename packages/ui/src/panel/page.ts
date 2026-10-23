@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import { registry } from '../runtime'
-import { type FieldNotes, splitFieldNotes } from './fieldnotes-split'
+import { type Segment, splitIncludes } from './includes'
 
-export { type FieldNotes, type FieldSection, noteKey, splitFieldNotes } from './fieldnotes-split'
-
-export interface OperationNotes extends FieldNotes {
+export interface OperationPage {
+  /** the page, cut where it places the blocks the viewer generates */
+  segments: Segment[]
   /** the page replaces the spec's description instead of following it */
   replace: boolean
   /** an operation page exists */
@@ -13,10 +13,10 @@ export interface OperationNotes extends FieldNotes {
   loaded: boolean
 }
 
-const NONE = { intro: '', notes: new Map(), replace: false, found: false }
+const NONE = { segments: [], replace: false, found: false }
 
-/** The markdown that sits with an operation (`.../<Operation>/README.md` or `requests/<service>/docs/<Operation>.md`), split into intro and field notes. */
-export function useOperationNotes(key: string): OperationNotes {
+/** The markdown that sits with an operation (`.../<Operation>/README.md` or `requests/<service>/docs/<Operation>.md`). */
+export function useOperationPage(key: string): OperationPage {
   const [html, setHtml] = useState<string>()
   const [loaded, setLoaded] = useState(false)
   const page = registry.docs.find((d) => d.operation === key)
@@ -35,6 +35,6 @@ export function useOperationNotes(key: string): OperationNotes {
   }, [key, page])
   return useMemo(() => {
     if (!page || html === undefined) return { ...NONE, loaded }
-    return { ...splitFieldNotes(html), replace: !!page.replace, found: true, loaded }
+    return { segments: splitIncludes(html), replace: !!page.replace, found: true, loaded }
   }, [html, page, loaded])
 }

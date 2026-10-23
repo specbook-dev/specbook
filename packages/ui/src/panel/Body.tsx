@@ -1,7 +1,7 @@
 import { type Encoding, fromFormRows, toFormRows } from '@specbook/core'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
-import { type FieldDoc as Doc, fieldDoc, keyPath, withNote } from '../fielddoc'
-import { type Defs, type JsonSchema, linePaths, pathString } from '../schema'
+import { type FieldDoc as Doc, fieldDoc, keyPath } from '../fielddoc'
+import { type Defs, type JsonSchema, linePaths } from '../schema'
 import { BodyEditor } from './BodyEditor'
 import { jsonCompletions } from './completions'
 import { type Draft, type FieldRow, gridMode } from './draft'
@@ -18,8 +18,6 @@ interface Props {
   defs?: Defs
   /** dotted body paths that are uploads */
   files?: string[]
-  /** the project's own notes for body fields, by `data.<path>` */
-  notes?: Map<string, string>
   /** shown, not edited */
   readOnly?: boolean
 }
@@ -79,16 +77,7 @@ function GraphqlBody({
 
 const language = (e: Encoding) => (e === 'graphql' ? 'graphql' : e === 'text' ? 'text' : 'json')
 
-export function Body({
-  encoding,
-  draft,
-  onChange,
-  schema,
-  defs,
-  files = [],
-  notes,
-  readOnly,
-}: Props) {
+export function Body({ encoding, draft, onChange, schema, defs, files = [], readOnly }: Props) {
   const [line, setLine] = useState(0)
   const paths = useMemo(() => linePaths(draft.body), [draft.body])
   const documented = encoding === 'json' || encoding === 'form'
@@ -102,10 +91,8 @@ export function Body({
   }, [draft.body])
   const doc: Doc | undefined = useMemo(() => {
     const p = paths[line]
-    return p && documented
-      ? withNote(fieldDoc(schema, defs, p, ['data'], typed), notes, 'data', pathString(p))
-      : undefined
-  }, [paths, line, schema, defs, documented, notes, typed])
+    return p && documented ? fieldDoc(schema, defs, p, ['data'], typed) : undefined
+  }, [paths, line, schema, defs, documented, typed])
   const complete = useMemo(
     () =>
       documented && schema
@@ -168,7 +155,7 @@ export function Body({
           readOnly={readOnly}
           onChange={set}
           documented={[...new Set(fileKeys)].map((name) => ({ name, file: true }))}
-          docFor={(k) => withNote(fieldDoc(schema, defs, keyPath(k), ['data']), notes, 'data', k)}
+          docFor={(k) => fieldDoc(schema, defs, keyPath(k), ['data'])}
         />
       </>
     )

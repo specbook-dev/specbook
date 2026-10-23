@@ -22,13 +22,12 @@ export function FieldDoc({ doc, hint }: { doc?: Doc; hint?: string }) {
           class="field-doc-text"
           dangerouslySetInnerHTML={{ __html: markdownToHtml(doc.description) }}
         />
-      ) : doc.note ? null : (
+      ) : (
         <p class="muted">
           The spec has no description for this field.
           {doc.parent && <> It is part of: {doc.parent}</>}
         </p>
       )}
-      {doc.note && <div class="field-note" dangerouslySetInnerHTML={{ __html: doc.note }} />}
       {doc.enum && (
         <p class="field-doc-enum">
           {doc.enum.slice(0, 12).map((v) => (

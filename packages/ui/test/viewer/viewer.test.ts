@@ -278,6 +278,13 @@ describe('the hosted viewer opens a spec at run time', () => {
     await page.getByRole('tab', { name: 'Docs' }).click()
     await page.waitForSelector('.doc table.fields')
     expect(await page.locator('.doc').innerText()).toContain('status')
+    // the 200 answer is a list of pets: the status tab says so and the table lists a pet's fields
+    const pane = page.locator('.doc [role=tabpanel]')
+    expect(
+      await page.locator('.doc .statuses [role=tab][aria-selected=true]').innerText(),
+    ).toContain('200')
+    expect(await pane.locator('.body-type').innerText()).toContain('Pet[]')
+    expect(await pane.locator('table.fields').innerText()).toContain('photoUrls')
     expect(errors).toEqual([])
     await page.close()
   })
@@ -459,11 +466,49 @@ describe('the hosted viewer opens a spec at run time', () => {
     await page.getByRole('tab', { name: 'Docs' }).click()
     await page.waitForSelector('.doc table.fields tr.variant', { timeout: 10_000 })
     expect(
-      await page.locator('.doc table.fields tr.variant .variant-name').allInnerTexts(),
+      await page
+        .locator('.doc table.fields')
+        .first()
+        .locator('tr.variant .variant-name')
+        .allInnerTexts(),
     ).toEqual(['Book', 'Album', 'Zine'])
     expect(await page.locator('.doc table.fields').first().innerText()).toContain(
       '(Book | Album | Zine)[]',
     )
+    await page.close()
+  })
+
+  it('documents each status of an operation: what it says, what comes back, and what is in it', async () => {
+    const { page } = await open(spec('bookstore.json'))
+    await ready(page)
+    await goOp(page, 'bookstore/ListShelf')
+    await page.getByRole('tab', { name: 'Docs' }).click()
+    await page.waitForSelector('.doc .statuses [role=tab]', { timeout: 10_000 })
+    const tabs = await page.locator('.doc .statuses [role=tab]').allInnerTexts()
+    expect(tabs.map((t) => t.replace(/\s+/g, ' '))).toEqual(['200 OK', '409 Conflict'])
+    // the answer is a shelf whose items are of three kinds, closed until a person opens them
+    const pane = page.locator('.doc [role=tabpanel]')
+    expect(await pane.locator('.body-type').innerText()).toContain('Shelf')
+    expect(await pane.innerText()).toContain('The shelf')
+    expect(await pane.locator('tr.variant .variant-name').allInnerTexts()).toEqual([
+      'Book',
+      'Album',
+      'Zine',
+    ])
+    const before = await pane.locator('table.fields tr').count()
+    await pane.getByRole('button', { name: /what is in items/ }).click()
+    expect(await pane.locator('table.fields tr').count()).toBeGreaterThan(before)
+    expect(await pane.locator('table.fields').innerText()).toContain('related.tracks')
+    // the other status is a different answer: two kinds of error, each with its own fields
+    await page.getByRole('tab', { name: /409/ }).click()
+    expect(await pane.locator('.body-type').innerText()).toContain('OutOfStock | Discontinued')
+    expect(await pane.innerText()).toContain('Not available')
+    expect(await pane.locator('tr.variant .variant-name').allInnerTexts()).toEqual([
+      'OutOfStock',
+      'Discontinued',
+    ])
+    expect(await pane.locator('table.fields').innerText()).toContain('sku')
+    expect(await page.locator('.prism-code-editor').count()).toBe(0)
     await page.close()
   })
 
@@ -474,6 +519,12 @@ describe('the hosted viewer opens a spec at run time', () => {
     await goOp(page, 'bookstore/AddItems')
     await page.getByRole('tab', { name: 'Docs' }).click()
     await page.waitForSelector('.doc table.fields tr.variant', { timeout: 10_000 })
+    // open the list of variants: the fields under it are as far in as any field ever goes
+    await page
+      .getByRole('button', { name: /what is in items/ })
+      .first()
+      .click()
+    await page.waitForSelector('.doc table.fields tr:has-text("title")')
     const fit = await page.evaluate(() =>
       [...document.querySelectorAll('table.fields')].map((t) => t.scrollWidth <= t.clientWidth + 1),
     )

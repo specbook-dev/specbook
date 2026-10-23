@@ -3,7 +3,7 @@ import { generate } from '@specbook/codegen'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { fieldDoc } from '../src/fielddoc'
 import { jsonCompletions } from '../src/panel/completions'
-import { flatten } from '../src/panel/FieldTable'
+import { expansion, topRows, visibleRows } from '../src/panel/FieldTable'
 import { jsonCursor } from '../src/panel/jsonCursor'
 import { typeInfo, validate } from '../src/schema'
 
@@ -186,30 +186,60 @@ describe('how a union is shown', () => {
     })
   })
 
-  it('lists each variant’s fields under a heading that names it and its tag', () => {
-    const rows = flatten(shelf, defs).map((r) =>
-      `${'  '.repeat(r.depth)}${r.variant ? '— ' : ''}${r.name.split('.').pop()} ${r.type}`.trimEnd(),
-    )
-    expect(rows).toEqual([
+  const lines = (rows: { name: string; depth: number; variant?: boolean; type: string }[]) =>
+    rows.map((r) => `${'  '.repeat(r.depth)}${r.variant ? '— ' : ''}${r.name} ${r.type}`.trimEnd())
+
+  it('lists the fields of an object closed, with a union field naming its variants', () => {
+    expect(
+      lines(visibleRows(shelf, defs, new Set()).flatMap((s) => ('row' in s ? [s.row] : []))),
+    ).toEqual([
       'name string',
       'items (Book | Album | Zine)[]',
       '  — Book kind = "book"',
-      '    kind string',
-      '    title string',
-      '    pages integer',
-      '    related Album[]',
-      '      kind string',
-      '      title string',
-      '      tracks integer',
       '  — Album kind = "album"',
-      '    kind string',
-      '    title string',
-      '    tracks integer',
       '  — Zine kind = "Zine"',
-      '    kind string',
-      '    title string',
-      '    issue integer',
     ])
+  })
+
+  it('opens a union field to the fields of each variant, one level of indent whatever the depth', () => {
+    const items = topRows(shelf, defs).find((r) => r.name === 'items')
+    expect(lines(expansion(items?.schema as any, defs))).toEqual([
+      '  — Book kind = "book"',
+      '  kind string',
+      '  title string',
+      '  pages integer',
+      '  related Album[]',
+      '  related.kind string',
+      '  related.title string',
+      '  related.tracks integer',
+      '  — Album kind = "album"',
+      '  kind string',
+      '  title string',
+      '  tracks integer',
+      '  — Zine kind = "Zine"',
+      '  kind string',
+      '  title string',
+      '  issue integer',
+    ])
+  })
+
+  it('lists a response that is a union as its variants, each with its fields', () => {
+    expect(lines(topRows(conflict, defs)).slice(0, 4)).toEqual([
+      '— OutOfStock error = "OUT_OF_STOCK"',
+      'error string',
+      'message string',
+      'sku string',
+    ])
+    expect(
+      topRows(conflict, defs)
+        .filter((r) => r.variant)
+        .map((r) => r.name),
+    ).toEqual(['OutOfStock', 'Discontinued'])
+  })
+
+  it('lists the fields of the items of a list that is the whole response', () => {
+    const list = { type: 'array', items: { $ref: 'specbook://books/defs#/$defs/Album' } }
+    expect(lines(topRows(list, defs))).toEqual(['kind string', 'title string', 'tracks integer'])
   })
 })
 

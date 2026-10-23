@@ -97,15 +97,50 @@
     font-weight: 600;
     color: var(--sb-text);
   }
-  .statuses,
   .examples,
   .steps {
     margin: 0;
     padding-left: var(--sb-space-4);
   }
-  .statuses {
-    list-style: none;
+  /* a response is a tab per status; on a phone they wrap onto more lines instead of scrolling */
+  .status-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sb-space-1);
+    margin-bottom: var(--sb-space-3);
+    border-bottom: 1px solid var(--sb-border);
+  }
+  .status-tabs .rq-tab {
+    padding: 6px 8px;
+  }
+  .body-type {
+    margin: 0 0 var(--sb-space-2);
+    font-size: 12.5px;
+  }
+  /* the chevron that opens a field to what is in it */
+  table.fields .expand {
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    margin: -4px 2px -4px -6px;
     padding: 0;
+    border: 0;
+    background: none;
+    color: var(--sb-text-muted);
+    font-size: 12px;
+    line-height: 22px;
+    text-align: center;
+    vertical-align: middle;
+    cursor: pointer;
+  }
+  table.fields button.expand:hover {
+    color: var(--sb-text);
+  }
+  table.fields .expand.open {
+    transform: rotate(90deg);
+  }
+  table.fields .expand.gap {
+    cursor: default;
   }
   .req {
     color: var(--sb-danger);
@@ -1481,18 +1516,6 @@
   .doc-project {
     margin-top: var(--sb-space-3);
   }
-  .field-note {
-    margin-top: var(--sb-space-2);
-    padding-left: 8px;
-    border-left: 2px solid var(--sb-accent);
-    font-size: 12.5px;
-  }
-  .field-note > :first-child {
-    margin-top: 0;
-  }
-  .field-note > :last-child {
-    margin-bottom: 0;
-  }
   .step-note-row td {
     padding-top: 0;
     border-top: 0;
@@ -2210,7 +2233,6 @@
       padding-left: var(--indent, 8px);
     }
     table.fields td:last-child .doc-inline:not(:empty),
-    table.fields td:last-child .field-note,
     table.fields td:last-child .field-doc-enum {
       display: block;
       margin-top: 3px;

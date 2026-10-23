@@ -248,14 +248,16 @@ describe('docs and play panel', () => {
     expect($('.saved-note-doc')?.textContent).toContain('quickest way to find a')
   })
 
-  it('adds the project page and field notes to the spec tables on the Docs tab', async () => {
+  it('shows the project page on the Docs tab, with the request body where the page places it', async () => {
     await mount()
     go({ kind: 'op', key: 'petstore/AddPet', tab: 'docs' })
     await waitFor(() =>
       expect($('.doc-project')?.textContent).toContain('registers it in the store'),
     )
-    // and a field note sits in the field's row
-    await waitFor(() => expect($('.field-note')?.textContent).toContain('under 40 characters'))
+    // the page says where the body goes: the table follows its text, and no field has a note of its own
+    await waitFor(() => expect($('.doc-project')?.textContent).toContain('under 40 characters'))
+    await waitFor(() => expect($('.doc-project + section table.fields')).toBeTruthy())
+    expect($('.field-note')).toBeNull()
   })
 
   it('is usable at phone width: a settings menu and a full-width panel without sideways scrolling', async () => {

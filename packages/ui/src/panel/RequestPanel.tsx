@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import type { Security } from '../auth-options'
 import { EnvBadge } from '../components/EnvBadge'
 import type { Variant } from '../engine'
-import { fieldDoc, withNote } from '../fielddoc'
+import { fieldDoc } from '../fielddoc'
 import { engine, isStatic, registry, saveFile } from '../runtime'
 import { type Defs, type JsonSchema, propsOf, unwrap } from '../schema'
 import {
@@ -35,7 +35,6 @@ import { announcement, describeRun } from './announce'
 import { Body } from './Body'
 import { DraftCodeSample } from './CodeSample'
 import { type Draft, draftFrom, forStorage, previewUrl, requestParts } from './draft'
-import { useOperationNotes } from './fieldnotes'
 import { PaperPlane, StopSquare } from './icons'
 import { type Documented, ParamGrid } from './ParamGrid'
 import { RequestView } from './RequestView'
@@ -128,7 +127,6 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
     : undefined
 
   const requestNote = useRequestNote(saved?.file)
-  const opNotes = useOperationNotes(key)
   const [meta, setMeta] = useState<{ encoding: Encoding; files: string[] }>()
   const [base, setBase] = useState<Example>()
   const [draft, setDraft] = useState<Draft>()
@@ -247,12 +245,12 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
       if (!sec) continue
       out[s] = propsOf(sec, defs).map((p) => ({
         name: p.name,
-        doc: withNote(fieldDoc(reqSchema, defs, [p.name], [s]), opNotes.notes, s, p.name),
+        doc: fieldDoc(reqSchema, defs, [p.name], [s]),
         repeat: unwrap(p.schema, defs).type === 'array',
       }))
     }
     return out
-  }, [reqSchema, defs, opNotes.notes])
+  }, [reqSchema, defs])
 
   const placeholders = useMemo(() => {
     if (!draft) return []
@@ -689,7 +687,6 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
                     schema={reqSchema}
                     defs={defs}
                     files={meta?.files}
-                    notes={opNotes.notes}
                     readOnly={!!saved}
                   />
                 )}
@@ -727,10 +724,7 @@ export function RequestPanel({ service, op, variants, initial, autoRun }: Props)
                 security={security}
                 sent={
                   step?.request ? (
-                    <RequestView
-                      request={step.request}
-                      docs={{ schema: reqSchema, defs, notes: opNotes.notes }}
-                    />
+                    <RequestView request={step.request} docs={{ schema: reqSchema, defs }} />
                   ) : undefined
                 }
               />
