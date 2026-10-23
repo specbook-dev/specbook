@@ -119,6 +119,39 @@ describe('embed', () => {
     }
   })
 
+  it('keeps the page behind it from scrolling while it is open, and leaves the page as it found it', async () => {
+    // the page's own choices survive: an inline value, and one a rule made important
+    document.documentElement.style.overflowX = 'clip'
+    await host('html { scrollbar-gutter: auto !important }')
+    const html = document.documentElement
+    const was = html.getAttribute('style')
+    await open()
+    expect(getComputedStyle(html).overflowY).toBe('hidden')
+    press('Escape')
+    await vi.waitFor(() => expect(q('.panel')).toBeNull())
+    expect(getComputedStyle(html).overflowY).toBe('visible')
+    expect(html.getAttribute('style')).toBe(was)
+    expect(getComputedStyle(html).scrollbarGutter).toBe('auto')
+    html.style.removeProperty('overflow-x')
+  })
+
+  it('locks the body too when the page made the body its scroller, and unlocks on every way out', async () => {
+    page_('<p data-specbook-try="petstore/GetPetById">Get a pet</p>', 'body { overflow: auto }')
+    await vi.waitFor(() => expect(play()).not.toBeNull())
+    await open()
+    expect(getComputedStyle(document.body).overflowY).toBe('hidden')
+    ;(q('.panel-backdrop') as HTMLButtonElement).click()
+    await vi.waitFor(() => expect(q('.panel')).toBeNull())
+    expect(getComputedStyle(document.body).overflowY).toBe('auto')
+    expect(document.body.getAttribute('style')).toBeNull()
+    // the page taking the element away while it is open is another way out
+    await open()
+    expect(getComputedStyle(document.documentElement).overflowY).toBe('hidden')
+    panel()?.remove()
+    expect(getComputedStyle(document.documentElement).overflowY).toBe('visible')
+    expect(getComputedStyle(document.body).overflowY).toBe('auto')
+  })
+
   it('tells the page: events on the trigger, expanded while open', async () => {
     await host()
     const seen: string[] = []

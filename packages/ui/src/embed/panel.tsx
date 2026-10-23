@@ -16,6 +16,7 @@ import {
   locale,
   version,
 } from '../store'
+import { lockScroll, unlockScroll } from './scrolllock'
 import { panelSheets } from './styles'
 import type { Target } from './target'
 import { followTheme, setMode } from './theme'
@@ -277,6 +278,11 @@ class SpecbookPanel extends HTMLElement {
     if (brandSheet) this.adopt(brandSheet)
   }
 
+  // a page that takes the element out while it is open must not be left unable to scroll
+  disconnectedCallback() {
+    unlockScroll()
+  }
+
   adopt(sheet: CSSStyleSheet) {
     const root = this.shadowRoot
     if (root && !root.adoptedStyleSheets.includes(sheet))
@@ -300,6 +306,7 @@ class SpecbookPanel extends HTMLElement {
         this.followed = true
       }
     }
+    lockScroll()
     if (this.native) {
       if (!this.top.matches(':popover-open')) this.top.showPopover()
     } else this.top.hidden = false
@@ -316,6 +323,7 @@ class SpecbookPanel extends HTMLElement {
     if (this.native) {
       if (this.top.matches(':popover-open')) this.top.hidePopover()
     } else this.top.hidden = true
+    unlockScroll()
     const trigger = this.trigger
     this.trigger = undefined
     if (trigger) {

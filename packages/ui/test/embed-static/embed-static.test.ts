@@ -249,6 +249,115 @@ describe('the embed on the whole example API', () => {
 })
 
 describe('the embed on a page with a strict policy', () => {
+  /**
+   * A page long enough to scroll, scrolled so the trigger is still on screen (a click would otherwise scroll it into
+   * view first), with something centred in it that would show the page shifting sideways.
+   */
+  const tall = (page: Page) =>
+    page.evaluate(() => {
+      const above = document.createElement('div')
+      above.style.height = '600px'
+      const below = document.createElement('div')
+      below.style.height = '4000px'
+      const centred = document.createElement('div')
+      centred.id = 'centred'
+      centred.style.cssText = 'width:200px;height:20px;margin:0 auto'
+      document.body.prepend(above)
+      document.body.append(centred, below)
+      scrollTo(0, 500)
+    })
+
+  it('keeps the page from scrolling behind the open panel, and lets it scroll again once closed', async () => {
+    const { page } = await open()
+    await tall(page)
+    const y = () => page.evaluate(() => Math.round(scrollY))
+    await page.locator('specbook-play').first().locator('button').click()
+    await page.locator('specbook-panel .panel').waitFor()
+    const box = (await page.locator('specbook-panel .panel').boundingBox()) as {
+      x: number
+      y: number
+    }
+    // over the backdrop, and over the header of the panel: neither is a scroller, so both pass a wheel to the page
+    for (const [x, at] of [
+      [5, 300],
+      [box.x + 60, box.y + 20],
+    ]) {
+      await page.mouse.move(x, at)
+      await page.mouse.wheel(0, 150)
+      await page.waitForTimeout(200)
+      expect(await y(), `a wheel at ${x},${at} moved the page`).toBe(500)
+    }
+    await page.keyboard.press('Escape')
+    await page.locator('specbook-panel .panel').waitFor({ state: 'detached' })
+    await page.mouse.move(5, 300)
+    await page.mouse.wheel(0, 150)
+    await expect.poll(y).toBeGreaterThan(500)
+    await page.close()
+  })
+
+  it('keeps a finger from scrolling the page behind the sheet on a phone', async () => {
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+    })
+    try {
+      const page = await context.newPage()
+      await page.goto(`${origin}/`)
+      await tall(page)
+      await page.locator('specbook-play').first().locator('button').tap()
+      await page.locator('specbook-panel .panel').waitFor()
+      const box = (await page.locator('specbook-panel .panel').boundingBox()) as {
+        y: number
+      }
+      // the sheet leaves a strip of the page uncovered above it, and its header and handle are not scrollers
+      expect(box.y, 'a strip of backdrop shows above the sheet').toBeGreaterThan(20)
+      const cdp = await context.newCDPSession(page)
+      const y = () => page.evaluate(() => Math.round(scrollY))
+      for (const [where, at] of [
+        ['the backdrop above the sheet', box.y / 2],
+        ['the handle of the sheet', box.y + 8],
+        ['the header of the sheet', box.y + 40],
+      ] as const) {
+        await cdp.send('Input.synthesizeScrollGesture', {
+          x: 195,
+          y: at,
+          yDistance: -150,
+          gestureSourceType: 'touch',
+          speed: 800,
+        })
+        await page.waitForTimeout(300)
+        expect(await y(), `a finger on ${where} moved the page`).toBe(500)
+      }
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('does not shift a page that has a scrollbar when the panel opens or closes', async () => {
+    // Playwright hides scrollbars by default, and a page with none cannot shift
+    const classic = await chromium.launch({ ignoreDefaultArgs: ['--hide-scrollbars'] })
+    try {
+      const page = await classic.newPage()
+      await page.goto(`${origin}/`)
+      await tall(page)
+      const edge = () =>
+        page.evaluate(() => document.getElementById('centred')?.getBoundingClientRect().left)
+      const bar = await page.evaluate(() => innerWidth - document.documentElement.clientWidth)
+      expect(bar, 'this browser draws a scrollbar').toBeGreaterThan(0)
+      const before = await edge()
+      await page.locator('specbook-play').first().locator('button').click()
+      await page.locator('specbook-panel .panel').waitFor()
+      expect(await edge()).toBe(before)
+      await page.keyboard.press('Escape')
+      await page.locator('specbook-panel .panel').waitFor({ state: 'detached' })
+      expect(await edge()).toBe(before)
+      expect(await page.evaluate(() => document.documentElement.getAttribute('style'))).toBeNull()
+    } finally {
+      await classic.close()
+    }
+  })
+
   it('runs a request against the page’s own origin, with no violation and no error', async () => {
     const { page, problems } = await open()
     apiCalls.length = 0
