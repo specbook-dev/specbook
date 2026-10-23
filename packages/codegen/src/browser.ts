@@ -13,6 +13,7 @@ export type {
   GenerateFlags,
   GenerateOptions,
   ManifestOperation,
+  ManifestSecurityScheme,
   OperationMeta,
 } from './build'
 export { generateFromDoc, logoOf } from './build'

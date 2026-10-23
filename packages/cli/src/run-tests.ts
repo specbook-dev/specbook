@@ -40,6 +40,7 @@ import {
   runSuite,
   type Sequence,
   type SpecbookConfig,
+  serviceProfiles,
   type Transport,
   testExitCode,
   toJUnit,
@@ -199,8 +200,8 @@ const authOf = (config: SpecbookConfig) => (config.auth ?? {}) as Record<string,
 const serviceAuthOf = (config: SpecbookConfig) =>
   Object.fromEntries(
     Object.entries(config.services)
-      .filter(([, s]) => s.auth)
-      .map(([n, s]) => [n, s.auth as string]),
+      .filter(([, s]) => serviceProfiles(s).length)
+      .map(([n, s]) => [n, serviceProfiles(s)]),
   )
 
 /**

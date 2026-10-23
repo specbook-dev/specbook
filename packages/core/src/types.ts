@@ -1,3 +1,6 @@
+/** One way an operation accepts: every scheme named must apply together, with the scopes it needs. */
+export type SecurityRequirement = Record<string, string[]>
+
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS'
 export type Encoding = 'json' | 'form' | 'multipart' | 'graphql' | 'text' | 'binary' | 'none'
 
@@ -17,8 +20,11 @@ export interface OpMeta {
   encoding?: Encoding
   /** The media type the spec declares for a binary body (never a wildcard); sent as its Content-Type. */
   mediaType?: string
-  /** false = spec says no auth required; auth profiles are skipped. */
-  security?: boolean
+  /**
+   * What the spec says about credentials: `false` (or an empty list) = none required, auth profiles are skipped; a list of
+   * requirements = any one of them is enough; `true` = secured, with no scheme information (older generated code).
+   */
+  security?: boolean | SecurityRequirement[]
   /** Dotted body paths whose string values are file paths to upload (spec `format: binary`). */
   files?: string[]
   /** Array style per top-level form field, from the spec's `encoding.<field>.style/explode`. */
@@ -216,6 +222,8 @@ export interface RenderedRequest {
   headers: Record<string, string>
   body?: unknown
   profile?: string
+  /** Why this profile: the request named it, an operation accepted only it, or it is the service's default. */
+  profileReason?: import('./runner/auth').ProfileReason
 }
 
 /** Where a placeholder's value came from, highest precedence first. */

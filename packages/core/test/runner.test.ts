@@ -633,3 +633,79 @@ describe('the implicit status check', () => {
     expect(r.status).toBe('fail')
   })
 })
+
+describe('profile resolution', () => {
+  const opWith = (security: any) =>
+    defineOperation<{ params: {}; body: unknown; responses: { 200: {} } }>({
+      service: 'shop',
+      id: 'Op',
+      method: 'GET',
+      path: '/x',
+      security,
+    })
+  const auth: Record<string, AuthProfile> = {
+    key: { scheme: 'api_key', apply: { headers: { 'x-key': '{{secrets.KEY}}' } } },
+    oauth: {
+      scheme: 'shop_auth',
+      apply: { headers: { authorization: 'Bearer {{secrets.TOKEN}}' } },
+    },
+  }
+  const run = async (security: unknown, input: Record<string, unknown> = {}) => {
+    const { transport, calls } = fakeTransport(() => ({ body: {} }))
+    const events: any[] = []
+    await runRequest(opWith(security).request(input as any), {
+      env: 'live',
+      transport,
+      auth,
+      serviceAuth: { shop: ['key', 'oauth'] },
+      secrets: { KEY: 'k', TOKEN: 't' },
+      onEvent: (e) => events.push(e),
+    })
+    return { calls, events }
+  }
+
+  it('uses the first listed profile the operation accepts', async () => {
+    const { calls, events } = await run([{ shop_auth: ['read'] }])
+    expect(calls[0]?.headers.authorization).toBe('Bearer t')
+    expect(calls[0]?.headers['x-key']).toBeUndefined()
+    expect(events.find((e) => e.type === 'auth:profile')).toMatchObject({
+      profile: 'oauth',
+      reason: 'accepted',
+    })
+  })
+
+  it('keeps the default when it is accepted', async () => {
+    const { calls, events } = await run([{ api_key: [] }, { shop_auth: [] }])
+    expect(calls[0]?.headers['x-key']).toBe('k')
+    expect(events.find((e) => e.type === 'auth:profile')?.reason).toBe('default')
+  })
+
+  it('falls back to the default when nothing is accepted, and to none when the spec needs none', async () => {
+    expect((await run([{ somethingElse: [] }])).calls[0]?.headers['x-key']).toBe('k')
+    expect((await run(false)).calls[0]?.headers['x-key']).toBeUndefined()
+    expect((await run([])).calls[0]?.headers['x-key']).toBeUndefined()
+  })
+
+  it('treats an operation with no scheme data as accepting every listed profile', async () => {
+    expect((await run(true)).calls[0]?.headers['x-key']).toBe('k')
+  })
+
+  it('lets a request name its profile, or none', async () => {
+    const named = await run([{ api_key: [] }], { auth: 'oauth' })
+    expect(named.calls[0]?.headers.authorization).toBe('Bearer t')
+    expect(named.events.find((e) => e.type === 'auth:profile')?.reason).toBe('explicit')
+    expect(
+      (await run([{ api_key: [] }], { auth: false })).calls[0]?.headers['x-key'],
+    ).toBeUndefined()
+  })
+
+  it('scans only the secrets of the profile an operation resolves to', async () => {
+    const names = await collectSecretNames(
+      opWith([{ shop_auth: [] }]).request({} as any),
+      auth,
+      undefined,
+      { shop: ['key', 'oauth'] },
+    )
+    expect([...names]).toEqual(['TOKEN'])
+  })
+})

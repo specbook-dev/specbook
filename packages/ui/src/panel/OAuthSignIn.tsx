@@ -1,4 +1,4 @@
-import { isDiscovery, type OAuthSettings } from '@specbook/core'
+import { isDiscovery, type OAuthClientCredentials, type OAuthSettings } from '@specbook/core'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { noteExpiry, recallClientId, redirectUri, rememberClientId, signIn } from '../oauth'
 import { engine } from '../runtime'
@@ -31,7 +31,7 @@ export function OAuthSignIn({
   origin: string
   /** the secret the profile's `apply` reads; the token is stored under it */
   secret: string
-  oauth: OAuthSettings
+  oauth: Exclude<OAuthSettings, OAuthClientCredentials>
   onSignedIn(): void
 }) {
   // one provider, one remembered client id: keyed by the address that identifies the provider

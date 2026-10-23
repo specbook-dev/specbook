@@ -1,18 +1,22 @@
 // Run orchestration for the UI. Pure TS (no DOM) so it can be unit-tested with a fake registry.
 import {
   AddressError,
+  AUTH_SERVICE_PREFIX,
   type AuthProfile,
   absoluteBase,
   addressUses,
+  authServiceName,
   baseUrlFor,
   createFetchTransport,
   createMockTransport,
+  DISCOVERY_SERVICE_PREFIX,
   type DiscoveredEndpoints,
   deepMerge,
   type Example,
   environmentNames,
   environmentScope,
   installFaker,
+  isClientCredentials,
   isDiscovery,
   type OAuthSettings,
   type OpMeta,
@@ -26,6 +30,7 @@ import {
   runSequence,
   type Sequence,
   type SpecbookConfig,
+  serviceProfiles,
   setFaker,
   type Transport,
   usesFaker,
@@ -44,13 +49,11 @@ import { routingTransport, withPageSecrets } from './routing'
 import { originOf, type SecretStore, secretStore } from './secrets'
 
 /**
- * The reserved service name a sign-in's token exchange is addressed to. The dev server's proxy answers
- * `auth:<profile>` from the profile's own `oauth.tokenUrl` (the same prefix lives in `@specbook/vite`).
+ * A sign-in's token exchange is addressed to the reserved service `auth:<profile>`: the dev server's proxy answers it from
+ * the profile's own `oauth.tokenUrl`. Likewise for an OpenID Connect discovery document, whose host may differ from the
+ * token endpoint's.
  */
-const AUTH_SERVICE_PREFIX = 'auth:'
-const authService = (profile: string) => `${AUTH_SERVICE_PREFIX}${encodeURIComponent(profile)}`
-/** Likewise for an OpenID Connect discovery document, whose host may differ from the token endpoint's. */
-const DISCOVERY_SERVICE_PREFIX = 'discovery:'
+const authService = authServiceName
 const discoveryService = (profile: string) =>
   `${DISCOVERY_SERVICE_PREFIX}${encodeURIComponent(profile)}`
 
@@ -588,10 +591,17 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
       const api = originOf(base ? absoluteBase(base, pageHref) : undefined)
       if (api && api !== pageOrigin) origins.add(api)
       // the sign-in provider is another origin this page calls on the person's behalf
-      const oauth = (svc?.auth ? (cfg.auth?.[svc.auth] as AuthProfile | undefined) : undefined)
-        ?.oauth
+      const oauth = serviceProfiles(svc)
+        .map((p) => (cfg.auth?.[p] as AuthProfile | undefined)?.oauth)
+        .find((o) => o && !isClientCredentials(o))
       const idp = oauth
-        ? originOf(isDiscovery(oauth) ? oauth.openIdConnectUrl : oauth.tokenUrl)
+        ? originOf(
+            isDiscovery(oauth)
+              ? oauth.openIdConnectUrl
+              : isClientCredentials(oauth)
+                ? undefined
+                : (oauth.tokenUrl ?? oauth.authorizationUrl),
+          )
         : undefined
       if (idp && idp !== pageOrigin) origins.add(idp)
     }
@@ -626,7 +636,12 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     }
   }
 
-  type SignInEndpoints = DiscoveredEndpoints & { scopes: Record<string, string> }
+  type SignInEndpoints = Omit<DiscoveredEndpoints, 'tokenUrl'> & {
+    scopes: Record<string, string>
+    /** absent for the implicit flow, whose token comes back in the address */
+    tokenUrl?: string
+    flow?: 'authorizationCode' | 'implicit'
+  }
   const discovered = new Map<string, Promise<DiscoveredEndpoints>>()
 
   /**
@@ -649,11 +664,13 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
       if (e instanceof AddressError) throw new Error(e.message)
       throw e
     }
-    if (!oauth) throw new Error(`"${i.profile}" has no sign-in configured`)
+    if (!oauth || isClientCredentials(oauth))
+      throw new Error(`"${i.profile}" has no sign-in configured`)
     if (!isDiscovery(oauth))
       return {
         authorizationUrl: oauth.authorizationUrl,
-        tokenUrl: oauth.tokenUrl,
+        ...(oauth.tokenUrl ? { tokenUrl: oauth.tokenUrl } : {}),
+        flow: oauth.flow ?? 'authorizationCode',
         scopes: oauth.scopes ?? {},
       }
 
@@ -688,6 +705,7 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     const endpoints = await found
     return {
       ...endpoints,
+      flow: 'authorizationCode',
       scopes: oauth.scopes && Object.keys(oauth.scopes).length ? oauth.scopes : endpoints.scopes,
     }
   }
@@ -707,6 +725,8 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     signal?: AbortSignal
   }): Promise<unknown> {
     const { tokenUrl } = await oauthEndpoints(i)
+    if (!tokenUrl)
+      throw new Error(`"${i.profile}" signs in with the implicit flow: there is no token exchange`)
     const token = new URL(tokenUrl)
     const service = authService(i.profile)
     const send = await transportFor(i.env, i.proxyBase ?? '/__specbook/proxy', i.version, {
@@ -762,8 +782,8 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
     const auth = (c.auth ?? {}) as Record<string, AuthProfile>
     const serviceAuth = Object.fromEntries(
       Object.entries(c.services ?? {})
-        .filter(([, s]) => s.auth)
-        .map(([n, s]) => [n, s.auth as string]),
+        .filter(([, s]) => serviceProfiles(s).length)
+        .map(([n, s]) => [n, serviceProfiles(s)]),
     )
     return {
       env: i.env,

@@ -1,4 +1,10 @@
-import { absoluteBase, type OAuthSettings } from '@specbook/core'
+import {
+  absoluteBase,
+  isClientCredentials,
+  type OAuthClientCredentials,
+  type OAuthSettings,
+  serviceProfiles,
+} from '@specbook/core'
 import { useEffect, useState } from 'preact/hooks'
 import { expiryOf, noteExpiry } from '../oauth'
 import { engine } from '../runtime'
@@ -13,7 +19,7 @@ interface Need {
   names: string[]
   /** the config's name for the profile (the key a sign-in's token exchange is addressed by) */
   profile: string
-  oauth?: OAuthSettings
+  oauth?: Exclude<OAuthSettings, OAuthClientCredentials>
 }
 
 const minutesLeft = (at: number | undefined) =>
@@ -64,12 +70,15 @@ export function SecretsBar({
       const where = await engine.addressesIn(cfg, env.value)
       for (const [service, s] of Object.entries(cfg.services ?? {})) {
         if (services && !services.includes(service)) continue
-        const profile = s.auth ? cfg.auth?.[s.auth] : undefined
+        const profileName = serviceProfiles(s)[0]
+        const profile = profileName ? cfg.auth?.[profileName] : undefined
         // the address this environment's variables give; one that cannot be worked out has no origin
         const base = where.baseUrl(service)
         const origin = originOf(base ? absoluteBase(base, globalThis.location?.href) : undefined)
         if (!profile || !origin) continue
-        const oauth = s.auth ? where.oauth(s.auth) : undefined
+        const found = profileName ? where.oauth(profileName) : undefined
+        // a client credentials profile is signed in by a server, never by this page
+        const oauth = found && !isClientCredentials(found) ? found : undefined
         const names = [
           ...new Set(
             [...JSON.stringify(profile.apply).matchAll(SECRET_PLACEHOLDER)].map(
@@ -81,9 +90,9 @@ export function SecretsBar({
           out.push({
             service,
             origin,
-            title: profile.title ?? s.auth ?? '',
+            title: profile.title ?? profileName ?? '',
             names,
-            profile: s.auth as string,
+            profile: profileName as string,
             oauth,
           })
       }

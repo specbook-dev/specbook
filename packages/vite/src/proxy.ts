@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { handleProxy as proxy } from '@specbook/core'
+import { AUTH_SERVICE_PREFIX, DISCOVERY_SERVICE_PREFIX, handleProxy as proxy } from '@specbook/core'
+
+export { AUTH_SERVICE_PREFIX, DISCOVERY_SERVICE_PREFIX }
 
 /** Where one environment's calls may go, worked out on the server from the project's config and files. */
 export interface EnvironmentAddresses {
@@ -22,11 +24,6 @@ export interface ProxyConfig {
   /** The addresses for `env`; empty for an environment the project does not have. */
   resolve(env: string): Promise<EnvironmentAddresses>
 }
-
-/** The reserved service name a sign-in's token exchange is addressed to. */
-export const AUTH_SERVICE_PREFIX = 'auth:'
-/** The reserved service name a sign-in's discovery document is fetched through. */
-export const DISCOVERY_SERVICE_PREFIX = 'discovery:'
 
 const decode = (s: string) => {
   try {

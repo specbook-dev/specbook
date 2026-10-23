@@ -17,12 +17,14 @@ import type {
   ApiResponse,
   AssertionResult,
   AssertMode,
+  OpMeta,
   RenderedRequest,
   RequestDef,
   RunResult,
   StepResult,
   VarUse,
 } from '../types'
+import { type ProfileReason, resolveProfile } from './auth'
 import { describeFiles, isBlob } from './encode'
 import {
   DEFAULT_TIMEOUT_MS,
@@ -43,12 +45,18 @@ export interface Session {
 
 export interface AuthProfile {
   title?: string
+  /**
+   * The security scheme(s) of the spec this profile satisfies (several = they apply together). With it, an operation uses
+   * the first listed profile that satisfies one of its requirements.
+   */
+  scheme?: string | string[]
   login?: () => Promise<RequestDef<any, any, any>>
   token?: (res: ApiResponse<number, any>) => Session
   apply: { headers?: Record<string, string>; query?: Record<string, string> }
   retryOn401?: boolean
   /**
-   * an interactive sign-in the UI can offer (authorization code with PKCE); the runner ignores it.
+   * An interactive sign-in the UI can offer (authorization code with PKCE, or implicit), which the runner ignores; or a
+   * client credentials grant, which the runner performs itself.
    * `authorizationUrl`, `tokenUrl`, `openIdConnectUrl` and `clientId` may use environment variables
    * (`'{{issuer}}/token'`).
    */
@@ -65,6 +73,13 @@ export type RunEvent =
     }
   | { type: 'step:start'; name: string }
   | { type: 'auth:login'; profile: string }
+  | {
+      type: 'auth:profile'
+      name: string
+      service: string
+      profile: string
+      reason: ProfileReason
+    }
   | { type: 'request'; name: string; request: RenderedRequest }
   | { type: 'response'; name: string; status: number; durationMs: number }
   | { type: 'capture'; name: string; captured: Record<string, unknown> }
@@ -99,7 +114,7 @@ export interface RunOptions {
   deferSecrets?: boolean
   auth?: Record<string, AuthProfile>
   /** service -> default auth profile name. */
-  serviceAuth?: Record<string, string>
+  serviceAuth?: Record<string, string | string[]>
   /** Called at `input()` steps; omit for headless (inputs given > default > first option). */
   onInput?: (req: {
     name: string
@@ -275,12 +290,22 @@ function isReadOnly(def: RequestDef<any, any, any>, prepared: PreparedRequest): 
   return false
 }
 
-function profileFor(rt: Runtime, def: RequestDef<any, any, any>): string | undefined {
-  if (def.op.security === false) return undefined
-  const explicit = def.input.auth !== undefined ? def.input.auth : rt.seqAuth
-  if (explicit === false) return undefined
-  const name = explicit ?? rt.o.serviceAuth?.[def.op.service]
-  return name && rt.o.auth?.[name] ? name : undefined
+/** True when the spec says credentials are required (any non-empty list of requirements, or the old flag). */
+const isSecured = (security: OpMeta['security']): boolean | undefined =>
+  Array.isArray(security) ? security.length > 0 : security
+const listOf = (v: string | string[] | undefined): string[] =>
+  v === undefined ? [] : Array.isArray(v) ? v : [v]
+
+function profileFor(
+  rt: Runtime,
+  def: RequestDef<any, any, any>,
+): { name?: string; reason?: ProfileReason } {
+  return resolveProfile({
+    explicit: def.input.auth !== undefined ? def.input.auth : rt.seqAuth,
+    listed: listOf(rt.o.serviceAuth?.[def.op.service]),
+    auth: rt.o.auth,
+    security: def.op.security,
+  })
 }
 
 function toApiResponse(raw: RawResponse, durationMs: number): ApiResponse<number, any> {
@@ -408,7 +433,8 @@ async function execute(
     if (body !== undefined && rt.o.readFile && (def.op.files?.length || encoding === 'binary'))
       body = await attachFiles(body, def.op.files ?? [], encoding, rt.o.readFile, example?.dir)
 
-    const profile = noAuth ? undefined : profileFor(rt, def)
+    const chosen = noAuth ? {} : profileFor(rt, def)
+    const profile = chosen.name
     const prof = profile ? rt.o.auth?.[profile] : undefined
     const authQuery: Record<string, unknown> = {}
     if (prof && profile) {
@@ -448,7 +474,7 @@ async function execute(
               pathParams,
               rawQuery: query,
               // a profile sent credentials, in whatever header or query value the spec names them
-              secured: profile ? false : def.op.security,
+              secured: profile ? false : isSecured(def.op.security),
             }
           : undefined,
     }
@@ -461,7 +487,16 @@ async function execute(
       headers: prepared.headers,
       body: describeFiles(prepared.body),
       profile,
+      ...(profile && chosen.reason ? { profileReason: chosen.reason } : {}),
     }
+    if (profile && chosen.reason)
+      emit(rt, {
+        type: 'auth:profile',
+        name,
+        service: def.op.service,
+        profile,
+        reason: chosen.reason,
+      })
     emit(rt, { type: 'request', name, request: result.request })
     if (rt.o.readOnly && kind !== 'auth' && !isReadOnly(def, prepared))
       throw new StepError(
@@ -608,15 +643,19 @@ export async function collectSecretNames(
   target: RequestDef<any, any, any> | Sequence<any, any>,
   auth: Record<string, AuthProfile> = {},
   loadExample?: ExampleLoader,
-  serviceAuth?: Record<string, string>,
+  serviceAuth?: Record<string, string | string[]>,
 ): Promise<Set<string>> {
   const names = new Set<string>()
   const profiles = new Set<string>()
   let allProfiles = !serviceAuth
   const addDef = async (d: RequestDef<any, any, any>, seqAuth?: string | false) => {
-    const explicit = d.input.auth !== undefined ? d.input.auth : seqAuth
-    const profile = explicit === undefined ? serviceAuth?.[d.op.service] : explicit
-    if (d.op.security !== false && profile) profiles.add(profile)
+    const { name: profile } = resolveProfile({
+      explicit: d.input.auth !== undefined ? d.input.auth : seqAuth,
+      listed: listOf(serviceAuth?.[d.op.service]),
+      auth,
+      security: d.op.security,
+    })
+    if (profile) profiles.add(profile)
     const data = await resolveSource<unknown>(d.input.data as any).catch(() => undefined)
     const ex = d.input.example
       ? await loadExample?.(d.op, d.input.example).catch(() => undefined)

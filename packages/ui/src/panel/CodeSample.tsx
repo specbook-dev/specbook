@@ -5,6 +5,7 @@ import {
   render,
   type SnippetInput,
   type SnippetLang,
+  serviceProfiles,
   snippetLangs,
   toSnippet,
 } from '@specbook/core'
@@ -63,7 +64,7 @@ export function CodeSample({ service, profile, secured, make, sent }: Props) {
         address = Object.values(svc.baseUrl)[0]
       if (!live) return
       setBase(address)
-      const name = profile === 'service' ? svc?.auth : profile
+      const name = profile === 'service' ? serviceProfiles(svc)[0] : profile
       setApplied(name ? (c.auth?.[name] as AuthProfile | undefined)?.apply : undefined)
     })
     return () => {
