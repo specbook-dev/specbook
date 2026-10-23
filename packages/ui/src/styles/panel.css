@@ -97,15 +97,76 @@
     font-weight: 600;
     color: var(--sb-text);
   }
-  .statuses,
   .examples,
   .steps {
     margin: 0;
     padding-left: var(--sb-space-4);
   }
-  .statuses {
-    list-style: none;
+  /* a response is a tab per status; on a phone they wrap onto more lines instead of scrolling */
+  .status-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sb-space-1);
+    margin-bottom: var(--sb-space-3);
+    border-bottom: 1px solid var(--sb-border);
+  }
+  .status-tabs .rq-tab {
+    padding: 6px 8px;
+  }
+  .body-type {
+    margin: 0 0 var(--sb-space-2);
+    font-size: 12.5px;
+  }
+  /* the [+] box that opens a field to what is in it */
+  /* the box and the name stay on one line, and a name too long for the column breaks inside itself */
+  table.fields .field-name {
+    display: flex;
+    align-items: baseline;
+  }
+  /* a name is the first thing read in a row: larger than the text beside it, and broken only at a dot or underscore (the column is kept wide enough that most never are) */
+  table.fields .field-name code {
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 500;
+    overflow-wrap: break-word;
+  }
+  table.fields th:first-child {
+    width: 30%;
+    min-width: 12rem;
+  }
+  /* [+] opens a field and [−] closes it; the empty box of a plain field keeps the names in line */
+  table.fields .expand {
+    flex: none;
+    display: inline-block;
+    box-sizing: border-box;
+    width: 18px;
+    height: 18px;
+    margin: 0 8px 0 0;
     padding: 0;
+    border: 1px solid var(--sb-border);
+    border-radius: 4px;
+    background: var(--sb-surface);
+    color: var(--sb-text-muted);
+    font: 600 13px / 16px var(--sb-font-mono);
+    text-align: center;
+    cursor: pointer;
+  }
+  /* a row that opens is all one target: the pointer says so, and the row lights up under it */
+  table.fields tr.openable,
+  table.fields tr.openable * {
+    cursor: pointer;
+  }
+  table.fields tr.openable:hover td {
+    background: var(--sb-surface-raised);
+  }
+  table.fields button.expand:hover {
+    color: var(--sb-text);
+    border-color: var(--sb-text-muted);
+  }
+  table.fields .expand.gap {
+    border-color: transparent;
+    background: none;
+    cursor: default;
   }
   .req {
     color: var(--sb-danger);
@@ -1481,18 +1542,6 @@
   .doc-project {
     margin-top: var(--sb-space-3);
   }
-  .field-note {
-    margin-top: var(--sb-space-2);
-    padding-left: 8px;
-    border-left: 2px solid var(--sb-accent);
-    font-size: 12.5px;
-  }
-  .field-note > :first-child {
-    margin-top: 0;
-  }
-  .field-note > :last-child {
-    margin-bottom: 0;
-  }
   .step-note-row td {
     padding-top: 0;
     border-top: 0;
@@ -2210,7 +2259,6 @@
       padding-left: var(--indent, 8px);
     }
     table.fields td:last-child .doc-inline:not(:empty),
-    table.fields td:last-child .field-note,
     table.fields td:last-child .field-doc-enum {
       display: block;
       margin-top: 3px;

@@ -73,6 +73,13 @@ interface ExampleDoc {
   body?: unknown
 }
 
+/** What `docs/<id>.json` says about one response, for the Docs tab. */
+export interface ResponseDoc {
+  description?: string
+  /** the media type the body is written in, as the spec names it */
+  contentType?: string
+}
+
 export interface ManifestOperation {
   id: string
   method: string
@@ -174,6 +181,7 @@ function findJsonLike(content: Record<string, any> | undefined) {
         schema: content[mime].schema as Schema | undefined,
         encoding: enc,
         media: content[mime],
+        mime,
       }
   }
   const json = Object.keys(content).find((m) => /json/.test(m))
@@ -182,6 +190,7 @@ function findJsonLike(content: Record<string, any> | undefined) {
       schema: content[json].schema as Schema | undefined,
       encoding: 'json',
       media: content[json],
+      mime: json,
     }
   const binary = Object.keys(content).find((m) => BINARY_MIME.test(m))
   if (binary)
@@ -189,6 +198,7 @@ function findJsonLike(content: Record<string, any> | undefined) {
       schema: content[binary].schema as Schema | undefined,
       encoding: 'binary',
       media: content[binary],
+      mime: binary,
       mediaType: binary,
     }
   // A wildcard stands for whatever the server sends, and a framework that is not told what it produces
@@ -201,6 +211,7 @@ function findJsonLike(content: Record<string, any> | undefined) {
       schema,
       encoding: file ? 'binary' : 'json',
       media: content[any],
+      mime: any,
       ...(file ? { mediaType: any } : {}),
     }
   }
@@ -544,6 +555,18 @@ function generateAll(
       let defaultSchema: Schema | undefined
       const responseSchemas: Record<string, Schema> = {}
       const mockVariants: NonNullable<ManifestOperation['mockVariants']> = {}
+      const responseDocs: Record<string, ResponseDoc> = {}
+      let defaultDoc: ResponseDoc | undefined
+      const docOf = (res: any, found: { mime?: string } | undefined): ResponseDoc | undefined => {
+        const description =
+          typeof res?.description === 'string' && res.description.trim()
+            ? res.description.trim()
+            : undefined
+        const contentType = found?.mime ?? Object.keys(res?.content ?? {})[0]
+        return description || contentType
+          ? { ...(description ? { description } : {}), ...(contentType ? { contentType } : {}) }
+          : undefined
+      }
       let defaultVariants: ManifestOperation['mockVariants'] extends infer M
         ? M extends Record<string, infer V>
           ? V | undefined
@@ -551,7 +574,9 @@ function generateAll(
         : never
       for (const [code, rawRes] of Object.entries<any>(op.responses ?? {})) {
         if (code === 'default') {
-          const found = findJsonLike(resolveAny<any>(rawRes)?.content)
+          const defaultRes = resolveAny<any>(rawRes)
+          const found = findJsonLike(defaultRes?.content)
+          defaultDoc = docOf(defaultRes, found)
           if (found?.schema) {
             hasDefault = true
             if (ts) defaultType = tsType(found.schema, '  ', 'T.')
@@ -569,6 +594,8 @@ function generateAll(
         const res = resolveAny<any>(rawRes)
         const found = findJsonLike(res?.content)
         statuses.push(Number(code))
+        const responseDoc = docOf(res, found)
+        if (responseDoc) responseDocs[code] = responseDoc
         if (found?.schema) responseSchemas[code] = toJsonSchema(found.schema, `${defsId}#/$defs/`)
         if (ts)
           responseTypes.push(
@@ -587,6 +614,7 @@ function generateAll(
         for (const st of DEFAULT_ERROR_STATUSES) {
           if (statuses.includes(st)) continue
           statuses.push(st)
+          if (defaultDoc) responseDocs[String(st)] = defaultDoc
           if (defaultSchema) responseSchemas[String(st)] = defaultSchema
           if (defaultVariants) mockVariants[String(st)] = defaultVariants
           if (defaultType) responseTypes.push(`${st}: ${defaultType}`)
@@ -746,6 +774,7 @@ ${jsdoc({ description: [...new Set([op.summary, op.description].filter(Boolean))
         content: `${JSON.stringify({
           ...(op.description && op.description !== summary ? { description: op.description } : {}),
           examples: docs.map((d) => ({ name: d.name, title: d.title, source: d.source })),
+          ...(Object.keys(responseDocs).length ? { responses: responseDocs } : {}),
         })}\n`,
       })
       operations.push({

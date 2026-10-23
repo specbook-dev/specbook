@@ -48,7 +48,7 @@ const HOST = `<!doctype html>
 
 /**
  * What opening one request may cost beyond the page, gzipped, counting every file the click brings in until the page
- * is quiet again: about 102 KB for a small project and 142 KB for the example's four services (the choice of how to authenticate added about 4 KB to each). About 23 KB of that is
+ * is quiet again: about 103 KB for a small project and 143 KB for the example's four services (the choice of how to authenticate added about 4 KB to each, and the response tables on the Docs tab about 1 KB). About 23 KB of that is
  * the index of loaders for all 1,874 of the example's operations, which arrives just after the panel appears. A count
  * that stops when the panel appears misses it some of the time, which is why this waits. Before the lists of services
  * were fetched one at a time it was about 40 KB more for the whole API (GitHub's list alone is 29 KB).

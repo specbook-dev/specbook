@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { fieldDoc, keyPath, withNote } from '../src/fielddoc'
+import { fieldDoc, keyPath } from '../src/fielddoc'
 import { draftFrom, previewUrl, requestParts } from '../src/panel/draft'
-import { noteKey, splitFieldNotes } from '../src/panel/fieldnotes-split'
 import { joinGraphql, splitGraphql } from '../src/panel/graphql'
+import { splitIncludes } from '../src/panel/includes'
 import { parsePasted } from '../src/panel/ParamGrid'
 import { splitStepNotes } from '../src/panel/stepnotes-split'
 
@@ -173,31 +173,33 @@ describe('splitStepNotes', () => {
   })
 })
 
-describe('field notes', () => {
-  const html =
-    '<p>Intro.</p><h2>Notes</h2><p>kept</p><h2><code>name</code></h2><p>short names</p>' +
-    '<h3><code>query.status</code></h3><p>pending is sandbox only</p>' +
-    '<h2><code>data.items[0].price</code></h2><p>in cents</p>'
-
-  it('attaches text under a code heading to the field, and keeps the rest as intro', () => {
-    const { intro, notes } = splitFieldNotes(html)
-    expect(intro).toBe('<p>Intro.</p><h2>Notes</h2><p>kept</p>')
-    expect(notes.get('data.name')).toBe('<p>short names</p>')
-    expect(notes.get('query.status')).toBe('<p>pending is sandbox only</p>')
-    // array indexes are ignored: `items[0].price` is `items.price`
-    expect(notes.get('data.items.price')).toBe('<p>in cents</p>')
+describe('includes in an author page', () => {
+  it('cuts the page where a block is placed, on a line of its own', () => {
+    const html =
+      '<p>Intro.</p>\n<!-- specbook: body --><h2>Notes</h2><p>after</p>\n<!--specbook:responses-->\n'
+    expect(splitIncludes(html)).toEqual([
+      { html: '<p>Intro.</p>\n' },
+      { block: 'body' },
+      { html: '<h2>Notes</h2><p>after</p>\n' },
+      { block: 'responses' },
+    ])
   })
 
-  it('looks fields up the same way the editor names them', () => {
-    expect(noteKey('data', 'items[2].price')).toBe('data.items.price')
-    expect(noteKey('query', 'status')).toBe('query.status')
+  it('leaves a comment that is inside a sentence, or names no block, in the text', () => {
+    const html =
+      '<p>See <!-- specbook: body --> here.</p>\n<!-- specbook: nothing -->\n<!-- note to self -->'
+    expect(splitIncludes(html)).toEqual([{ html }])
   })
 
-  it('adds a note to a field doc only when one exists', () => {
-    const notes = new Map([['data.name', '<p>n</p>']])
-    const doc = fieldDoc(request, defs, ['name'], ['data'])
-    expect(withNote(doc, notes, 'data', 'name')?.note).toBe('<p>n</p>')
-    expect(withNote(doc, notes, 'data', 'status')?.note).toBeUndefined()
-    expect(withNote(undefined, notes, 'data', 'name')).toBeUndefined()
+  it('is the whole page when nothing is placed', () => {
+    expect(splitIncludes('<p>a</p>')).toEqual([{ html: '<p>a</p>' }])
+    expect(splitIncludes('')).toEqual([])
+  })
+
+  it('takes params as one block that stands for path, query and headers', () => {
+    expect(splitIncludes('<p>a</p>\n<!-- specbook: params -->')).toEqual([
+      { html: '<p>a</p>\n' },
+      { block: 'params' },
+    ])
   })
 })

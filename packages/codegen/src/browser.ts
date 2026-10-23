@@ -15,6 +15,7 @@ export type {
   ManifestOperation,
   ManifestSecurityScheme,
   OperationMeta,
+  ResponseDoc,
 } from './build'
 export { generateFromDoc, logoOf } from './build'
 

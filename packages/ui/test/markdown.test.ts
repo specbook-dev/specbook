@@ -7,6 +7,27 @@ import {
   plainText,
 } from '../src/markdown'
 
+describe('a description written in HTML', () => {
+  it('is read as the markdown it means, with no tag shown as text', () => {
+    expect(
+      markdownToHtml(
+        '<p>Creates a <code>Link</code>.</p><p>See <a href="https://example.com">docs</a>.</p>',
+      ),
+    ).toBe(
+      '<p>Creates a <code>Link</code>.</p><p>See <a href="https://example.com" target="_blank" rel="noreferrer">docs</a>.</p>',
+    )
+    expect(plainText('<p>One <strong>two</strong></p>')).toBe('One two')
+    expect(inlineSummary('<p>First.</p><p>Second.</p>')).toBe('First.')
+  })
+
+  it('leaves text that only looks like a tag, and fenced code, alone', () => {
+    expect(markdownToHtml('Send <name> as the id.')).toBe('<p>Send &lt;name&gt; as the id.</p>')
+    expect(markdownToHtml('```\n<p>x</p>\n```')).toBe(
+      '<pre><code>&lt;p&gt;x&lt;/p&gt;</code></pre>',
+    )
+  })
+})
+
 describe('markdownToHtml', () => {
   it('renders paragraphs, emphasis, code and links', () => {
     const html = markdownToHtml(

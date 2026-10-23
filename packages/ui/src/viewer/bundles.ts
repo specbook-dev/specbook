@@ -41,9 +41,17 @@ export function sortFiles(files: GeneratedFile[]): Parts {
     else if (parts[0] === 'schemas' && parts[1]?.endsWith('.responses.schema.json'))
       at(parts[1].replace(/\.responses\.schema\.json$/, '')).responses = trim(f.content)
     else if (parts[0] === 'docs' && parts[1]?.endsWith('.json')) {
-      // nothing worth a file or a request: no text, and no examples beyond the generated pair
-      const d = JSON.parse(f.content) as { description?: string; examples?: unknown[] }
-      if (d.description || (d.examples?.length ?? 0) > 2)
+      // nothing worth a file or a request: no text, no response notes, and no examples beyond the generated pair
+      const d = JSON.parse(f.content) as {
+        description?: string
+        examples?: unknown[]
+        responses?: Record<string, unknown>
+      }
+      if (
+        d.description ||
+        (d.examples?.length ?? 0) > 2 ||
+        Object.keys(d.responses ?? {}).length > 0
+      )
         at(parts[1].replace(/\.json$/, '')).docs = trim(f.content)
     } else if (parts[0] === 'examples' && parts.length === 3) {
       const [, id, file] = parts as [string, string, string]

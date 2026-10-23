@@ -49,7 +49,7 @@ import Page from '../layouts/Page.astro'
             <li>A request: <code>&lt;name&gt;.req.md</code> beside <code>&lt;name&gt;.req.ts</code>.</li>
             <li>A flow: <code>&lt;name&gt;.seq.md</code> beside <code>&lt;name&gt;.seq.ts</code>.</li>
             <li>Anywhere else: a markdown file whose front matter names what it documents, like <code>operation: petstore/GetPetById</code>.</li>
-            <li>A field: a heading made of one code span, like <code>## `petId`</code>, attaches its text to that field.</li>
+            <li>Where the tables go: a comment on a line of its own, like <code>&lt;!-- specbook: params --&gt;</code>, puts the parameters, <code>body</code> or <code>responses</code> there. Without one they follow your text.</li>
           </ul>
         </details>
       </div>

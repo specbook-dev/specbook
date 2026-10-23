@@ -324,7 +324,10 @@ Markdown lives next to what it describes:
 | `requests/<service>/<Operation>/README.md` | an operation, above its parameter tables |
 | `requests/<service>/docs/<Operation>.md` | the same, flat: one `docs/` folder per service |
 
-A heading made of one code span (`` ## `name` ``) attaches the text under it to that field.
+Write whatever markdown you like. The Docs tab also shows the parameters, the request body and each response status
+from the spec, below your page; to put one where it belongs in your text, add a comment on a line of its own:
+`<!-- specbook: params -->`, `path`, `query`, `headers`, `body`, `responses`, `auth`, `description` or `examples`.
+What each field means comes from the spec.
 
 ### Try it on any page
 

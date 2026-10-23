@@ -1,4 +1,3 @@
-import { type FieldSection, noteKey } from './panel/fieldnotes-split'
 import {
   type Defs,
   describe,
@@ -19,8 +18,6 @@ export interface FieldDoc {
   required: boolean
   enum?: string[]
   description?: string
-  /** the project's own note for this field (HTML), shown after the spec's description */
-  note?: string
   /** what the enclosing object says about itself, shown when the field has no description */
   parent?: string
   deprecated?: boolean
@@ -79,15 +76,4 @@ export function fieldDoc(
 /** `metadata[order]` / `items[0][price]` -> ['metadata', 'order'] / ['items', 0, 'price'] */
 export function keyPath(key: string): KeyPath {
   return (key.match(/[^[\]]+/g) ?? [key]).map((s) => (/^\d+$/.test(s) ? Number(s) : s))
-}
-
-/** Adds the project's note for `path` in `section` (see `README.md` field sections), when there is one. */
-export function withNote(
-  doc: FieldDoc | undefined,
-  notes: Map<string, string> | undefined,
-  section: FieldSection,
-  path: string,
-): FieldDoc | undefined {
-  const note = doc && notes?.get(noteKey(section, path))
-  return doc && note ? { ...doc, note } : doc
 }

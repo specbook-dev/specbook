@@ -1,7 +1,7 @@
 import type { RenderedRequest } from '@specbook/core'
 import { useMemo, useState } from 'preact/hooks'
-import { fieldDoc, withNote } from '../fielddoc'
-import { type Defs, type JsonSchema, linePaths, pathString } from '../schema'
+import { fieldDoc } from '../fielddoc'
+import { type Defs, type JsonSchema, linePaths } from '../schema'
 import { BodyEditor } from './BodyEditor'
 import { FieldDoc } from './FieldDoc'
 import { show } from './short'
@@ -21,7 +21,6 @@ export function queryString(query: Record<string, string | string[]>) {
 export interface RequestDocs {
   schema?: JsonSchema
   defs?: Defs
-  notes?: Map<string, string>
 }
 
 /** The body as sent, with the documentation of the field the cursor is on below it. */
@@ -32,14 +31,7 @@ function SentBody({ body, docs }: { body: unknown; docs?: RequestDocs }) {
   const paths = useMemo(() => (documented ? linePaths(text) : []), [documented, text])
   const doc = useMemo(() => {
     const p = paths[line]
-    return p && docs
-      ? withNote(
-          fieldDoc(docs.schema, docs.defs, p, ['data'], body),
-          docs.notes,
-          'data',
-          pathString(p),
-        )
-      : undefined
+    return p && docs ? fieldDoc(docs.schema, docs.defs, p, ['data'], body) : undefined
   }, [paths, line, docs, body])
   return (
     <>

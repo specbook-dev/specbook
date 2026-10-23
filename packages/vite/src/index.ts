@@ -544,9 +544,18 @@ export const loadConfig = ${cfg ? imp(cfg) : '() => Promise.resolve({ default: {
         if (p.schema) out.schema = await read(p.schema)
         if (p.responses) out.responses = await read(p.responses)
         if (p.docs) {
-          const docs = (await read(p.docs)) as { description?: string; examples?: unknown[] }
-          // nothing worth a file or a request: no text, and no examples beyond the generated pair
-          if (docs.description || (docs.examples?.length ?? 0) > 2) out.docs = docs
+          const docs = (await read(p.docs)) as {
+            description?: string
+            examples?: unknown[]
+            responses?: Record<string, unknown>
+          }
+          // nothing worth a file or a request: no text, no response notes, and no examples beyond the generated pair
+          if (
+            docs.description ||
+            (docs.examples?.length ?? 0) > 2 ||
+            Object.keys(docs.responses ?? {}).length > 0
+          )
+            out.docs = docs
         }
         const names = Object.keys(p.examples)
         if (names.length) {

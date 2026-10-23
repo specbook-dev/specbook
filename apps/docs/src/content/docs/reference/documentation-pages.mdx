@@ -1,0 +1,59 @@
+---
+title: Documentation pages
+description: Write your own markdown for an operation, a request or a flow, and say where the generated tables go.
+---
+
+import Snippet from '../../../components/Snippet.astro'
+
+The Docs tab of an operation shows what the spec says: the description, the parameters, the request body and each
+response. A markdown page beside your code adds what the spec does not say. Write whatever you like in it.
+
+## Where a page lives
+
+| File | Documents |
+| --- | --- |
+| `requests/<service>/<Operation>/README.md` | an operation |
+| `requests/<service>/docs/<Operation>.md` | the same, flat: one `docs/` folder per service |
+| `requests/<name>.req.md` | the request in `<name>.req.ts` |
+| `sequences/<name>.seq.md` | the flow in `<name>.seq.ts` |
+
+A markdown file anywhere else can name what it documents in its front matter, such as `operation: petstore/GetPetById`.
+If two pages claim one operation, the first by path is used and the other is reported.
+
+By default the page follows the spec's own description. Put `replace: true` in the front matter to have it stand in
+for that description instead.
+
+## Placing the generated tables
+
+Without any markers the page comes first and the tables follow it. To put a table inside your text, write a comment
+on a line of its own:
+
+<Snippet file="demo/requests/petstore/GetPetById/README.md" region="notes" title="requests/petstore/GetPetById/README.md" />
+
+| Comment | What appears there |
+| --- | --- |
+| `<!-- specbook: description -->` | The spec's description of the operation. |
+| `<!-- specbook: auth -->` | How to authorize, and which profiles in this project work. |
+| `<!-- specbook: params -->` | The path, query and header parameters together. |
+| `<!-- specbook: path -->`, `query`, `headers` | One of those on its own. |
+| `<!-- specbook: body -->` | The request body. |
+| `<!-- specbook: responses -->` | Each response status, with what comes back. |
+| `<!-- specbook: examples -->` | The named examples, each opening the Try tab. |
+
+A block you do not place still appears, after your page, in that order. Placing it moves it; it never shows twice.
+A comment inside a sentence, or one that names no block, is left alone and shows nothing.
+
+## What the tables hold
+
+Field descriptions come from the spec, so fix them there. The tables list an object's fields and mark the ones that
+are required. A field that holds an object, or a list of them, has a [+]: click its row to open it and its plain fields appear
+indented one step below it. An object among them is a group of its own at the left, named by its whole path, such as
+`address.county`, with its fields below it when you open that in turn. Nothing is ever indented further than one
+step. A field that can be one of several shapes names them. A response is a tab for each status, with the spec's text for it and
+the type of its body.
+
+## Moving from field notes
+
+Earlier versions turned a heading made of one code span, such as `` ## `petId` ``, into a note on that field. That no
+longer happens: the heading is shown as ordinary text. Move the sentence into the spec's description for the field,
+or into your own text, and put the table where it should sit with a comment.

@@ -236,4 +236,4 @@ do not prove it: a request that needs Node builds cleanly and passes in node, an
 
 ## Notes beside the code (optional)
 
-Markdown next to what it describes is shown in the UI: `requests/<service>/<Operation>/README.md` for an operation, `<name>.req.md` beside a request, `<name>.seq.md` beside a flow. A heading made of one code span (`` ## `petId` ``) attaches its text to that field.
+Markdown next to what it describes is shown in the UI: `requests/<service>/<Operation>/README.md` for an operation, `<name>.req.md` beside a request, `<name>.seq.md` beside a flow. The Docs tab shows the spec's parameters, request body and responses below the page; `<!-- specbook: params -->` (also `path`, `query`, `headers`, `body`, `responses`) on a line of its own puts one where you want it. Field descriptions come from the spec, not from the page.
