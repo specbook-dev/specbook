@@ -64,11 +64,11 @@ function implicitFlow(s: any, address: Address): OAuthSettings | undefined {
 }
 
 /** The client credentials flow (OpenAPI 3 `flows.clientCredentials`, or Swagger 2 `application`). */
-function clientFlow(s: any): { tokenUrl: string; scopes?: Record<string, string> } | undefined {
+function clientFlow(s: any): { tokenUrl: string } | undefined {
   if (s?.type !== 'oauth2') return undefined
   const flow = s.flows?.clientCredentials ?? (s.flow === 'application' ? s : undefined)
   if (typeof flow?.tokenUrl !== 'string' || flow.tokenUrl === '') return undefined
-  return { tokenUrl: flow.tokenUrl, ...scopesOf(flow) }
+  return { tokenUrl: flow.tokenUrl }
 }
 
 /** What a person can sign in to for this scheme, if anything. */
@@ -516,7 +516,6 @@ export function profilesFromSpec(api: any, o: ProfilesOptions): SpecProfiles {
           tokenUrl: abs('tokenUrl', flow.tokenUrl),
           clientId: `{{secrets.${s}_CLIENT_ID}}`,
           clientSecret: `{{secrets.${s}_CLIENT_SECRET}}`,
-          ...(flow.scopes ? { scopes: flow.scopes } : {}),
         },
       })
     }

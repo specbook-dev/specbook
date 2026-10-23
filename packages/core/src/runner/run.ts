@@ -1,7 +1,15 @@
 import { createAsserter } from '../assert'
 import { ControlError, type Controls, describeControls, resolveControls } from '../controls'
+import { oauthFor } from '../environment'
 import type { Example, ExampleLoader, FileReader } from '../example'
-import type { OAuthSettings } from '../oauth'
+import {
+  authServiceName,
+  clientCredentialsFields,
+  isClientCredentials,
+  type OAuthClientCredentials,
+  type OAuthSettings,
+  parseTokenResponse,
+} from '../oauth'
 import { MissingSecretsError, maskDeep } from '../secrets'
 import type { Sequence, StepCtx } from '../sequence'
 import {
@@ -319,6 +327,132 @@ function toApiResponse(raw: RawResponse, durationMs: number): ApiResponse<number
   }
 }
 
+/** Base64 of text that may not be Latin-1. */
+const base64 = (text: string) => btoa(String.fromCharCode(...new TextEncoder().encode(text)))
+
+/** The profile's client credentials grant, when it has one and no login request of its own. */
+function clientCredentialsOf(prof: AuthProfile): OAuthClientCredentials | undefined {
+  return !prof.login && prof.oauth && isClientCredentials(prof.oauth) ? prof.oauth : undefined
+}
+
+/**
+ * The client credentials grant: one form POST to the token endpoint, no person. The id and secret are `{{secrets.*}}`
+ * placeholders; they are filled here when the run holds the values (the CLI, a bundle) and left for a trusted server to fill
+ * when it does not (the dev proxy). The call is made as the reserved service `auth:<profile>`, which a transport resolves to
+ * the token endpoint's origin.
+ */
+async function fetchClientToken(
+  rt: Runtime,
+  profile: string,
+  oauth: OAuthClientCredentials,
+  authResults: StepResult[],
+): Promise<{ session: Session; expiresAt?: number }> {
+  if (rt.o.env === 'mock') return { session: { accessToken: 'mock-token' } }
+  const name = `Token (${profile})`
+  let token: URL
+  let rendered: OAuthClientCredentials
+  try {
+    rendered = oauthFor(oauth, { ...rt.o.vars, ...rt.o.overrides }, profile)
+    token = new URL(rendered.tokenUrl)
+  } catch (e) {
+    throw new StepError(
+      `Profile "${profile}" has no usable token address: ${e instanceof Error ? e.message : e}`,
+    )
+  }
+  const { clientId, clientSecret } = substitute(
+    { clientId: rendered.clientId, clientSecret: rendered.clientSecret },
+    rt,
+  )
+  // the values are in hand only when nothing was deferred; a placeholder cannot be base64-encoded
+  const basic = rendered.clientAuth === 'basic' && !/\{\{/.test(clientId + clientSecret)
+  const authorization = basic ? `Basic ${base64(`${clientId}:${clientSecret}`)}` : undefined
+  if (authorization) rt.mask.add(authorization)
+  const prepared: PreparedRequest = {
+    service: authServiceName(profile),
+    opId: 'oauth-token',
+    method: 'POST',
+    url: token.pathname,
+    query: Object.fromEntries(token.searchParams),
+    headers: { accept: 'application/json', ...(authorization ? { authorization } : {}) },
+    body: clientCredentialsFields({
+      clientId,
+      clientSecret,
+      scopes: Object.keys(rendered.scopes ?? {}),
+      basic,
+    }),
+    encoding: 'form',
+    timeoutMs: rt.o.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+  }
+  const request: RenderedRequest = {
+    opId: prepared.opId,
+    method: prepared.method,
+    service: prepared.service,
+    url: prepared.url,
+    query: prepared.query,
+    headers: prepared.headers,
+    body: prepared.body,
+    profile,
+  }
+  const result: StepResult = {
+    name,
+    kind: 'auth',
+    status: 'pass',
+    request,
+    assertions: [],
+    captured: {},
+    durationMs: 0,
+  }
+  authResults.push(result)
+  emit(rt, { type: 'step:start', name })
+  emit(rt, { type: 'request', name, request })
+  const t0 = rt.o.now?.() ?? now0()
+  const fail = (message: string): never => {
+    result.status = 'error'
+    result.error = message
+    result.durationMs = (rt.o.now?.() ?? now0()) - t0
+    emit(rt, { type: 'step:end', name, status: 'error' })
+    throw new StepError(message)
+  }
+  let raw: RawResponse
+  try {
+    raw = await rt.o.transport(prepared, rt.o.signal)
+  } catch (e) {
+    return fail(
+      `Token request for profile "${profile}" failed: ${e instanceof Error ? e.message : e}`,
+    )
+  }
+  const durationMs = (rt.o.now?.() ?? now0()) - t0
+  result.durationMs = durationMs
+  result.response = { status: raw.status, headers: lower(raw.headers), body: raw.body, durationMs }
+  emit(rt, { type: 'response', name, status: raw.status, durationMs })
+  let parsed: ReturnType<typeof parseTokenResponse>
+  try {
+    if (raw.status < 200 || raw.status >= 300) {
+      const body = raw.body as { error?: unknown; error_description?: unknown } | undefined
+      const why = typeof body?.error === 'string' ? `: ${body.error}` : ''
+      throw new Error(`the token endpoint answered ${raw.status}${why}`)
+    }
+    parsed = parseTokenResponse(raw.body)
+  } catch (e) {
+    return fail(
+      `Token request for profile "${profile}" failed (${e instanceof Error ? e.message : e})`,
+    )
+  }
+  rt.mask.add(parsed.accessToken)
+  emit(rt, { type: 'step:end', name, status: 'pass' })
+  const session: Session = {
+    accessToken: parsed.accessToken,
+    ...(parsed.expiresIn !== undefined ? { expiresIn: parsed.expiresIn } : {}),
+  }
+  return {
+    session,
+    expiresAt:
+      parsed.expiresIn !== undefined
+        ? (rt.o.now?.() ?? now0()) + parsed.expiresIn * 1000
+        : undefined,
+  }
+}
+
 async function ensureSession(
   rt: Runtime,
   profile: string,
@@ -326,8 +460,9 @@ async function ensureSession(
   force = false,
 ): Promise<void> {
   const prof0 = rt.o.auth?.[profile] as AuthProfile
+  const grant = clientCredentialsOf(prof0)
   // Static-token profiles (API keys, PATs) apply secrets directly and need no session.
-  if (!prof0.login || !prof0.token) return
+  if (!grant && (!prof0.login || !prof0.token)) return
   const key = `${rt.o.env}:${profile}`
   const cur = rt.sessions.get(key)
   const valid = cur && (cur.expiresAt === undefined || cur.expiresAt > (rt.o.now?.() ?? now0()))
@@ -335,6 +470,11 @@ async function ensureSession(
   const pending = rt.inflight.get(key)
   if (pending) return pending
   const p = (async () => {
+    if (grant) {
+      emit(rt, { type: 'auth:login', profile })
+      rt.sessions.set(key, await fetchClientToken(rt, profile, grant, authResults))
+      return
+    }
     const prof = prof0 as Required<Pick<AuthProfile, 'login' | 'token'>> & AuthProfile
     emit(rt, { type: 'auth:login', profile })
     const loginDef = await prof.login()
@@ -512,7 +652,12 @@ async function execute(
       return toApiResponse(raw, (rt.o.now?.() ?? now0()) - s0)
     }
     response = await send()
-    if (response.status === 401 && profile && prof?.retryOn401 !== false && prof?.login) {
+    if (
+      response.status === 401 &&
+      profile &&
+      prof?.retryOn401 !== false &&
+      (prof?.login || (prof && clientCredentialsOf(prof)))
+    ) {
       await ensureSession(rt, profile, authResults, true)
       response = await send()
     }
@@ -689,6 +834,10 @@ export async function collectSecretNames(
       for (const n of collectPlaceholders(v)) if (n.startsWith('secrets.')) names.add(n.slice(8))
     }
     if (p.login) await addDef(await p.login())
+    const grant = clientCredentialsOf(p)
+    if (grant)
+      for (const v of [grant.clientId, grant.clientSecret])
+        for (const n of collectPlaceholders(v)) if (n.startsWith('secrets.')) names.add(n.slice(8))
   }
   return names
 }

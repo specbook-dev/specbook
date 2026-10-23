@@ -785,12 +785,29 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
         .filter(([, s]) => serviceProfiles(s).length)
         .map(([n, s]) => [n, serviceProfiles(s)]),
     )
+    const vars = await scopeOf(i.env, i.version)
+    // a client credentials profile fetches its token as the reserved service `auth:<profile>`, at its token endpoint
+    const tokenOrigins: Record<string, string> = {}
+    if (i.env !== 'mock')
+      for (const [name, p] of Object.entries(auth)) {
+        if (!p.oauth || !isClientCredentials(p.oauth)) continue
+        try {
+          tokenOrigins[authService(name)] = new URL(oauthFor(p.oauth, vars, name).tokenUrl).origin
+        } catch {
+          /* the run says the address cannot be worked out */
+        }
+      }
     return {
       env: i.env,
-      vars: await scopeOf(i.env, i.version),
+      vars,
       overrides: i.vars,
       inputs: i.inputs,
-      transport: await transportFor(i.env, i.proxyBase ?? '/__specbook/proxy', i.version),
+      transport: await transportFor(
+        i.env,
+        i.proxyBase ?? '/__specbook/proxy',
+        i.version,
+        tokenOrigins,
+      ),
       // placeholders stay in the request: the dev server's proxy or a static page's transport fills them
       deferSecrets: true,
       auth,

@@ -220,7 +220,6 @@ describe('authFromSpec: OAuth schemes', () => {
       tokenUrl: 'https://a/token',
       clientId: '{{secrets.PETAUTH_CLIENT_ID}}',
       clientSecret: '{{secrets.PETAUTH_CLIENT_SECRET}}',
-      scopes: { read: 'Read' },
     })
   })
 })

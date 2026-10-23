@@ -275,7 +275,6 @@ describe('credentialsFromSpec', () => {
       tokenUrl: 'https://t.test/token',
       clientId: '{{secrets.SVC_APP_CLIENT_ID}}',
       clientSecret: '{{secrets.SVC_APP_CLIENT_SECRET}}',
-      scopes: { x: 'X' },
     })
   })
 
