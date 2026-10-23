@@ -119,6 +119,6 @@ describe('the credentials prompt on a static page', () => {
     render(<SecretsBar services={['petstore']} supplied={{ SOMETHING_ELSE: 'process' }} />, host)
     await vi.waitFor(() => expect(host.querySelector('fieldset.needs-vars')).not.toBeNull())
     const input = host.querySelector('input[type="password"]') as HTMLInputElement
-    expect(input.placeholder).toBe('paste value')
+    expect(input.placeholder).toBe('enter value')
   })
 })

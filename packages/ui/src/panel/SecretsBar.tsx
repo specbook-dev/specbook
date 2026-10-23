@@ -225,7 +225,9 @@ export function SecretsBar({
                 type="password"
                 autocomplete="off"
                 aria-label={`${name} for ${n.service}`}
-                placeholder={from ? 'use another value' : 'paste value'}
+                placeholder={
+                  from ? 'use another value' : o.oauth ? 'or an access token' : 'enter value'
+                }
                 onChange={(e) => {
                   const v = (e.target as HTMLInputElement).value
                   if (v === '') return
