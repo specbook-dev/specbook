@@ -508,7 +508,14 @@ describe('the hosted viewer opens a spec at run time', () => {
     expect(await pane.locator('table.fields tr').count()).toBeGreaterThan(before)
     // an object among them is a group of its own, named by its whole path, opened in its turn
     expect(await pane.locator('table.fields').innerText()).toContain('items.related')
-    // a click anywhere on the row opens it too, not only on the chevron
+    // the pointer says the row opens, and a click anywhere on it does, not only on the box
+    const opens = pane.locator('table.fields tr', { hasText: 'items.related' })
+    expect(
+      await opens
+        .locator('td')
+        .nth(2)
+        .evaluate((e) => getComputedStyle(e).cursor),
+    ).toBe('pointer')
     await pane.locator('table.fields tr', { hasText: 'items.related' }).locator('td').nth(2).click()
     expect(await pane.locator('table.fields').innerText()).toContain('tracks')
     // the other status is a different answer: two kinds of error, each with its own fields
