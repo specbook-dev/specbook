@@ -495,6 +495,14 @@ describe('the hosted viewer opens a spec at run time', () => {
       'Album',
       'Zine',
     ])
+    // the chevron sits on the name's line, not above it
+    const chevron = await pane.locator('table.fields button.expand').first().boundingBox()
+    const name = await pane.locator('table.fields .field-name code').nth(1).boundingBox()
+    expect(
+      Math.abs(
+        (chevron?.y ?? 0) + (chevron?.height ?? 0) / 2 - ((name?.y ?? 0) + (name?.height ?? 0) / 2),
+      ),
+    ).toBeLessThan(10)
     const before = await pane.locator('table.fields tr').count()
     await pane.getByRole('button', { name: 'Show what is in items', exact: true }).click()
     expect(await pane.locator('table.fields tr').count()).toBeGreaterThan(before)

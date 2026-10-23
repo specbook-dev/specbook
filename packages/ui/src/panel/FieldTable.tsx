@@ -157,7 +157,7 @@ function RowView({ r, open, onToggle }: { r: Row; open?: boolean; onToggle?: () 
         {r.variant ? (
           <span class="variant-name">{r.name}</span>
         ) : (
-          <>
+          <span class="field-name">
             {onToggle ? (
               <button
                 type="button"
@@ -172,11 +172,11 @@ function RowView({ r, open, onToggle }: { r: Row; open?: boolean; onToggle?: () 
               <span class="expand gap" />
             )}
             <code>{r.name}</code>
-          </>
-        )}
-        {r.required && (
-          <span class="req" title="required">
-            *
+            {r.required && (
+              <span class="req" title="required">
+                *
+              </span>
+            )}
           </span>
         )}
       </td>

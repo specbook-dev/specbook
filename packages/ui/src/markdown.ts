@@ -22,13 +22,45 @@ function inline(text: string): string {
 }
 
 /**
+ * The HTML some specs write their descriptions in (Stripe's are `<p>…</p>`) as the markdown this file reads: the tags
+ * that mean something become their markdown, and any other known tag is dropped, so none is shown as text. Text that
+ * only looks like a tag (`<name>`) and fenced code are left alone.
+ */
+export function fromHtml(src: string): string {
+  return src
+    .split(/(```[\s\S]*?```)/)
+    .map((part, i) =>
+      i % 2
+        ? part
+        : part
+            .replace(/<\/p>\s*<p[^>]*>/gi, '\n\n')
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, '`$1`')
+            .replace(/<(strong|b)(\s[^>]*)?>([\s\S]*?)<\/\1>/gi, '**$3**')
+            .replace(/<(em|i)(\s[^>]*)?>([\s\S]*?)<\/\1>/gi, '*$3*')
+            .replace(
+              /<a\s[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+              (_m, href: string, text: string) => `[${text}](${href})`,
+            )
+            .replace(/<li[^>]*>/gi, '\n- ')
+            .replace(
+              /<\/?(p|ul|ol|li|div|span|h[1-6]|table|thead|tbody|tr|td|th)(\s[^>]*)?>/gi,
+              '\n',
+            )
+            .replace(/\n{3,}/g, '\n\n'),
+    )
+    .join('')
+    .trim()
+}
+
+/**
  * A small, safe markdown subset for descriptions: paragraphs, headings, bullet and numbered lists, fenced
  * code, and inline code, bold, italics and links. Everything is HTML-escaped first, and only http(s) and
  * mailto links are linked, so descriptions from a spec or a sequence can be rendered without trusting them.
  */
 export function markdownToHtml(src: string | undefined): string {
   if (!src) return ''
-  const lines = src.replace(/\r\n?/g, '\n').split('\n')
+  const lines = fromHtml(src).replace(/\r\n?/g, '\n').split('\n')
   const out: string[] = []
   let para: string[] = []
   let list: { tag: 'ul' | 'ol'; items: string[] } | undefined
@@ -100,7 +132,7 @@ export function markdownToHtml(src: string | undefined): string {
 /** Markdown reduced to readable plain text: links keep their label, markers and fences disappear. */
 export function plainText(src: string | undefined): string {
   if (!src) return ''
-  return src
+  return fromHtml(src)
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/^#{1,6}\s+/gm, '')
@@ -113,7 +145,7 @@ export function plainText(src: string | undefined): string {
 
 export function firstParagraph(src: string | undefined): string {
   if (!src) return ''
-  return (src.trim().split(/\n\s*\n/)[0] ?? '').replace(/\s*\n\s*/g, ' ').trim()
+  return (fromHtml(src).split(/\n\s*\n/)[0] ?? '').replace(/\s*\n\s*/g, ' ').trim()
 }
 
 /** Inline markup only (code, bold, italics, links) in already-safe HTML, for a single line or cell. */

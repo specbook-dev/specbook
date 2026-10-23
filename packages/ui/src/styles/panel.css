@@ -118,11 +118,21 @@
     font-size: 12.5px;
   }
   /* the chevron that opens a field to what is in it */
+  /* the chevron and the name stay on one line, and a name too long for the column breaks inside itself */
+  table.fields .field-name {
+    display: flex;
+    align-items: baseline;
+  }
+  table.fields .field-name code {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
   table.fields .expand {
+    flex: none;
     display: inline-block;
     width: 22px;
     height: 22px;
-    margin: -4px 2px -4px -6px;
+    margin: -4px 0 -4px -6px;
     padding: 0;
     border: 0;
     background: none;
