@@ -151,13 +151,15 @@
     text-align: center;
     cursor: pointer;
   }
-  /* a row that opens is all one target: the pointer says so, and the row lights up under it */
+  /* a row that opens is all one target: the pointer says so, and its box lights up. The row itself does not change, or it
+     would flash as rows pass under a pointer that rests while the panel scrolls */
   table.fields tr.openable,
   table.fields tr.openable * {
     cursor: pointer;
   }
-  table.fields tr.openable:hover td {
-    background: var(--sb-surface-raised);
+  table.fields tr.openable:hover .expand {
+    color: var(--sb-text);
+    border-color: var(--sb-text-muted);
   }
   table.fields button.expand:hover {
     color: var(--sb-text);

@@ -516,6 +516,15 @@ describe('the hosted viewer opens a spec at run time', () => {
         .nth(2)
         .evaluate((e) => getComputedStyle(e).cursor),
     ).toBe('pointer')
+    // and the row itself keeps its colour under the pointer: a row that changed would flash as the panel scrolls
+    const colour = () =>
+      opens
+        .locator('td')
+        .nth(2)
+        .evaluate((e) => getComputedStyle(e).backgroundColor)
+    const resting = await colour()
+    await opens.locator('td').nth(2).hover()
+    expect(await colour()).toBe(resting)
     await pane.locator('table.fields tr', { hasText: 'items.related' }).locator('td').nth(2).click()
     expect(await pane.locator('table.fields').innerText()).toContain('tracks')
     // the other status is a different answer: two kinds of error, each with its own fields
