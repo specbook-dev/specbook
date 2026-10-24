@@ -53,6 +53,18 @@ import { capture } from '../lib/captures'
         </p>
       </div>
       <Snippet file="demo/sequences/new-pet.seq.ts" region="flow" />
+      <div class="prose">
+        <p>
+          Inputs can repeat, too. Declare a traveler as a <code>c.object</code> and a booking's travelers as a{' '}
+          <code>c.array</code> with a minimum and a maximum. QA sets how many there are and gets a row for each,
+          and CI can pass the whole list with <code>--input travelers=[…]</code>.
+        </p>
+        <p>
+          <a href="https://demo.specbook.dev/#/seq/ui-demo" target="_blank" rel="noopener"
+            >Try it on the demo site ↗</a
+          >
+        </p>
+      </div>
 
       <h2 class="title">Give QA a portal</h2>
       <div class="prose">

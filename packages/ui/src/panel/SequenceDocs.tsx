@@ -14,6 +14,53 @@ const KIND: Record<string, string> = {
 
 const showValue = (v: unknown) => (typeof v === 'string' ? v : show(v))
 
+interface ControlRow {
+  name: string
+  kind: string
+  initial: string
+  description?: string
+  depth: number
+}
+
+/**
+ * A control as the rows of the table: a group or a list is its own row, then a row for each of its fields
+ * (`traveler1.name`, `travelers[].name`). A generated default is said to be generated, never made here.
+ */
+function controlRows(name: string, spec: FieldSpec, depth = 0): ControlRow[] {
+  const limits =
+    spec.min !== undefined || spec.max !== undefined ? ` ${spec.min ?? ''}–${spec.max ?? ''}` : ''
+  const self = {
+    name,
+    description: spec.description,
+    depth,
+  }
+  if (spec.kind === 'object')
+    return [
+      { ...self, kind: 'group', initial: '' },
+      ...Object.entries(spec.shape ?? {}).flatMap(([k, s]) =>
+        controlRows(`${name}.${k}`, s, depth + 1),
+      ),
+    ]
+  if (spec.kind === 'array') {
+    const item = spec.item as FieldSpec
+    return [
+      { ...self, kind: `list${limits}`, initial: '' },
+      ...(item.kind === 'object'
+        ? Object.entries(item.shape ?? {}).flatMap(([k, s]) =>
+            controlRows(`${name}[].${k}`, s, depth + 1),
+          )
+        : controlRows(`${name}[]`, item, depth + 1)),
+    ]
+  }
+  return [
+    {
+      ...self,
+      kind: spec.kind + limits,
+      initial: spec.generate ? 'generated' : showValue(defaultFor(spec)),
+    },
+  ]
+}
+
 /**
  * What a sequence does, as documentation: its description (markdown), an optional markdown page from
  * `docs/*.md` with `sequence: <id>` frontmatter, the controls it takes and the operation behind each step.
@@ -24,9 +71,8 @@ export function SequenceDocs({ info }: { info: SequenceInfo }) {
 
   const inputs = useMemo(
     () =>
-      Object.entries((seq.meta.inputs ?? {}) as Record<string, unknown>).map(([name, c]) => {
-        const spec: FieldSpec = specFromControl(c)
-        return { name, spec, initial: defaultFor(spec) }
+      Object.entries((seq.meta.inputs ?? {}) as Record<string, unknown>).flatMap(([name, c]) => {
+        return controlRows(name, specFromControl(c))
       }),
     [seq],
   )
@@ -58,16 +104,14 @@ export function SequenceDocs({ info }: { info: SequenceInfo }) {
             <tbody>
               {inputs.map((p) => (
                 <tr>
-                  <td>
+                  <td style={{ paddingLeft: `${8 + p.depth * 14}px` }}>
                     <code>{p.name}</code>
                   </td>
                   <td>
-                    <span class="chip">{p.spec.kind}</span>
+                    <span class="chip">{p.kind}</span>
                   </td>
-                  <td>
-                    <code>{showValue(p.initial)}</code>
-                  </td>
-                  <td>{p.spec.description}</td>
+                  <td>{p.initial && <code>{p.initial}</code>}</td>
+                  <td>{p.description}</td>
                 </tr>
               ))}
             </tbody>

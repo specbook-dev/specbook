@@ -1760,6 +1760,45 @@
       overflow: auto;
     }
   }
+  .seq-inputs {
+    padding: var(--sb-space-4);
+    overflow: auto;
+  }
+  .seq-form {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  /* one column: the form is under its stop, the right pane has nothing to say before a step is picked, and the Run row
+     stays in reach while a long form scrolls (what a step tap or a focused field scrolls to clears it) */
+  @media (max-width: 900px) {
+    .seq-right.empty {
+      display: none;
+    }
+    /* no padding above the scroller's content: the pinned row sits flush with the top, and nothing scrolls through a gap
+       above it. The space the padding gave is a spacer that scrolls away, so the layout at rest is unchanged. (A margin on
+       the row would not do: a pinned element's margin is part of what is pinned.) */
+    .sequence-panel .seq-left {
+      padding-top: 0;
+      scroll-padding-top: var(--seq-run-h, 0px);
+    }
+    .seq-left::before {
+      content: "";
+      display: block;
+      height: var(--sb-space-4);
+    }
+    .seq-left .seq-run {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      margin-inline: calc(-1 * var(--sb-space-4));
+      margin-block-end: 0;
+      padding: var(--sb-space-2) var(--sb-space-4);
+      background: var(--sb-bg);
+      border-bottom: 1px solid var(--sb-border);
+    }
+  }
   .seq-left {
     min-height: 0;
     overflow: auto;
@@ -1849,6 +1888,133 @@
       min-height: 44px;
     }
   }
+  /* groups and lists: a table whose rows are the groups, cards when the form is not wide enough for the columns */
+  .group-block {
+    margin-bottom: var(--sb-space-3);
+  }
+  .controls-grid > table {
+    margin-bottom: var(--sb-space-3);
+  }
+  .group-head {
+    display: flex;
+    align-items: center;
+    gap: var(--sb-space-3);
+    margin: var(--sb-space-2) 0;
+  }
+  .group-caption {
+    font-weight: 600;
+  }
+  .group-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .group-count .cell {
+    width: 72px;
+    border: 1px solid var(--sb-border);
+    border-radius: var(--sb-radius-control);
+  }
+  .group-table {
+    table-layout: auto;
+  }
+  .group-table th.g-row {
+    width: 9rem;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+  .group-table tbody th.g-row {
+    color: var(--sb-text);
+    border-bottom: 1px solid var(--sb-border);
+  }
+  .group-table tbody tr:last-child th.g-row {
+    border-bottom: 0;
+  }
+  .group-table td.g-val {
+    border-left: 1px solid var(--sb-border);
+  }
+  .group-table .g-label {
+    display: none;
+  }
+  .group-table .g-heading {
+    margin-right: 6px;
+  }
+  .group-table .g-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    float: right;
+  }
+  .group-table .gen {
+    width: 24px;
+    height: 24px;
+    margin-right: 0;
+  }
+  .gen:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  @container (max-width: 720px) {
+    .grid .group-table,
+    .group-table tbody {
+      display: block;
+      border: 0;
+      border-radius: 0;
+    }
+    .group-table thead {
+      display: none;
+    }
+    .group-table tr {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      margin-bottom: var(--sb-space-2);
+      background: var(--sb-surface);
+      border: 1px solid var(--sb-border);
+      border-radius: var(--sb-radius-control);
+      overflow: hidden;
+    }
+    .group-table tbody th.g-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      grid-column: 1 / -1;
+      width: auto;
+    }
+    .group-table .g-actions {
+      float: none;
+    }
+    .group-table td.g-val {
+      display: block;
+      height: auto;
+      min-width: 0;
+      padding: 4px 8px 8px;
+      border: 0;
+    }
+    .group-table .g-label {
+      display: block;
+      padding-bottom: 2px;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--sb-text-muted);
+    }
+    .group-table .cell {
+      height: 34px;
+      border: 1px solid var(--sb-border);
+      border-radius: var(--sb-radius-control);
+    }
+    .group-table .gen {
+      width: 34px;
+      height: 34px;
+    }
+  }
+  @media (pointer: coarse) {
+    .group-table .gen {
+      width: 44px;
+      height: 44px;
+    }
+  }
   .multi-cell {
     display: flex;
     flex-wrap: wrap;
@@ -1880,20 +2046,6 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
-  }
-  .seq-left .controls {
-    padding: var(--sb-space-3) var(--sb-space-4);
-    margin-bottom: var(--sb-space-3);
-    background: var(--sb-surface);
-    border: 1px solid var(--sb-border);
-    border-radius: var(--sb-radius-card);
-  }
-  .seq-left .controls h3 {
-    margin: 0 0 var(--sb-space-2);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--sb-text-muted);
   }
   .seq-run {
     display: flex;

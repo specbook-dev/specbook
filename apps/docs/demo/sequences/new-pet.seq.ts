@@ -17,6 +17,7 @@ export default sequence({
     }),
   },
 })
+  // #endregion flow
   .step('Add the pet', addPet) // keeps the id the store gave it
   .step('Fetch it back', (ctx) =>
     getPet.with({
@@ -27,4 +28,3 @@ export default sequence({
       },
     }),
   )
-// #endregion flow

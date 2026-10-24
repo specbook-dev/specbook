@@ -334,7 +334,7 @@ describe('the embed on a page with a strict policy', () => {
     }
   })
 
-  it('does not shift a page that has a scrollbar when the panel opens or closes', async () => {
+  it('does not shift a page that has a scrollbar when the panel opens or closes', async (ctx) => {
     // Playwright hides scrollbars by default, and a page with none cannot shift
     const classic = await chromium.launch({ ignoreDefaultArgs: ['--hide-scrollbars'] })
     try {
@@ -344,7 +344,8 @@ describe('the embed on a page with a strict policy', () => {
       const edge = () =>
         page.evaluate(() => document.getElementById('centred')?.getBoundingClientRect().left)
       const bar = await page.evaluate(() => innerWidth - document.documentElement.clientWidth)
-      expect(bar, 'this browser draws a scrollbar').toBeGreaterThan(0)
+      // a machine whose scrollbars float over the page (macOS without a mouse) has nothing to shift
+      if (bar === 0) ctx.skip('this browser draws scrollbars that take no room')
       const before = await edge()
       await page.locator('specbook-play').first().locator('button').click()
       await page.locator('specbook-panel .panel').waitFor()

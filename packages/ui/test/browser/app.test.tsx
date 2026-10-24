@@ -80,7 +80,7 @@ describe('docs and play panel', () => {
       $<HTMLButtonElement>(`.flows-title:has(.method.${kind})`) as HTMLButtonElement
     // the list keeps its scrollbar's space whether or not it has one, so folding does not make it jump
     expect(getComputedStyle($('.list-col') as Element).scrollbarGutter).toContain('stable')
-    expect(root.querySelectorAll('.flow-row').length).toBe(5)
+    expect(root.querySelectorAll('.flow-row').length).toBe(6)
     expect(title('flow').getAttribute('aria-expanded')).toBe('true')
     title('flow').click()
     await waitFor(() => expect(root.querySelectorAll('.flow-row').length).toBe(0))
@@ -94,12 +94,12 @@ describe('docs and play panel', () => {
       await waitFor(() => expect(root.querySelectorAll('.req-row').length).toBe(requests))
     }
     title('flow').click()
-    await waitFor(() => expect(root.querySelectorAll('.flow-row').length).toBe(5))
+    await waitFor(() => expect(root.querySelectorAll('.flow-row').length).toBe(6))
   })
 
   it('is a list of APIs and flows, and ⌘K jumps straight into the panel', async () => {
     await mount()
-    expect(root.querySelectorAll('.flow-row').length).toBe(5)
+    expect(root.querySelectorAll('.flow-row').length).toBe(6)
     // flows are one section with a single FLOW badge; ungrouped ones are under Default (no sub-heading)
     expect($('.flows .flows-title .method.flow')?.textContent).toBe('FLOW')
     expect(root.querySelectorAll('.flows .method.flow').length).toBe(1)

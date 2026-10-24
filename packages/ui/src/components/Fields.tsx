@@ -1,4 +1,5 @@
-import type { JSX } from 'preact'
+import { resolveControl } from '@specbook/core'
+import { short } from '../panel/short'
 
 /** Normalised field description, built from either a Control or a described input control. */
 export interface FieldSpec {
@@ -31,9 +32,17 @@ function baseSpec(ctl: any, o: any): FieldSpec {
     case 'multiselect': {
       const value = (x: unknown) => (typeof o.value === 'function' ? o.value(x) : x)
       const label = (x: unknown) => (typeof o.label === 'function' ? o.label(x) : String(value(x)))
+      let initial: unknown
+      try {
+        // what the CLI starts from, so the form and `specbook test` agree on a default that is not the first option
+        initial = resolveControl('', ctl, undefined)
+      } catch {
+        /* no options */
+      }
       return {
         kind: ctl.kind,
         options: (o.options as unknown[]).map((x) => ({ label: label(x), value: value(x) })),
+        ...(initial !== undefined ? { default: initial } : {}),
       }
     }
     case 'object':
@@ -74,15 +83,20 @@ export function defaultFor(spec: FieldSpec): unknown {
   if (spec.generate) return generateFor(spec)
   switch (spec.kind) {
     case 'select':
-      return spec.options?.[0]?.value
+      return spec.default ?? spec.options?.[0]?.value
     case 'multiselect':
-      return []
+      return spec.default ?? []
     case 'object':
       return Object.fromEntries(
         Object.entries(spec.shape ?? {}).map(([k, s]) => [k, defaultFor(s)]),
       )
-    case 'array':
-      return spec.default ?? []
+    case 'array': {
+      const item = spec.item as FieldSpec
+      // a given list is filled item by item; none starts at its minimum, each item from its own defaults
+      const list = typeof spec.default === 'function' ? spec.default() : spec.default
+      if (Array.isArray(list)) return list.map((x) => withDefaults(item, x))
+      return Array.from({ length: spec.min ?? 0 }, () => defaultFor(item))
+    }
     case 'boolean':
       return spec.default ?? false
     case 'number':
@@ -92,146 +106,96 @@ export function defaultFor(spec: FieldSpec): unknown {
   }
 }
 
-interface FieldProps {
-  name: string
-  spec: FieldSpec
-  value: unknown
-  onChange: (v: unknown) => void
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v)
+
+/** A value made whole: what is missing comes from the defaults (a preset of one field of a group leaves the others). */
+export function withDefaults(spec: FieldSpec, given: unknown): unknown {
+  if (given === undefined) return defaultFor(spec)
+  if (spec.kind === 'object') {
+    if (!isObject(given)) return defaultFor(spec)
+    return {
+      ...given,
+      ...Object.fromEntries(
+        Object.entries(spec.shape ?? {}).map(([k, s]) => [k, withDefaults(s, given[k])]),
+      ),
+    }
+  }
+  if (spec.kind === 'array') {
+    if (!Array.isArray(given)) return defaultFor(spec)
+    const item = spec.item as FieldSpec
+    const list = given.map((x) => withDefaults(item, x))
+    while (spec.min !== undefined && list.length < spec.min) list.push(defaultFor(item))
+    return list
+  }
+  return given
 }
 
-const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b)
-
-export function Field({ name, spec, value, onChange }: FieldProps): JSX.Element {
-  const wrap = (body: JSX.Element) => (
-    <div class="field">
-      <span class="label">{name}</span>
-      {body}
-    </div>
-  )
-  switch (spec.kind) {
-    case 'number':
-      return wrap(
-        <input
-          type="number"
-          value={Number(value ?? 0)}
-          min={spec.min}
-          max={spec.max}
-          onInput={(e) => onChange(Number((e.target as HTMLInputElement).value))}
-        />,
-      )
-    case 'boolean':
-      return wrap(
-        <input
-          type="checkbox"
-          checked={Boolean(value)}
-          onChange={(e) => onChange((e.target as HTMLInputElement).checked)}
-        />,
-      )
-    case 'date':
-      return wrap(
-        <input
-          type="date"
-          value={String(value ?? '')}
-          onInput={(e) => onChange((e.target as HTMLInputElement).value)}
-        />,
-      )
-    case 'select': {
-      const idx = Math.max(
-        0,
-        (spec.options ?? []).findIndex((o) => same(o.value, value)),
-      )
-      return wrap(
-        <select
-          value={idx}
-          onChange={(e) =>
-            onChange(spec.options?.[Number((e.target as HTMLSelectElement).value)]?.value)
-          }
-        >
-          {(spec.options ?? []).map((o, i) => (
-            <option value={i}>{o.label}</option>
-          ))}
-        </select>,
-      )
-    }
-    case 'multiselect': {
-      const current = (value as unknown[]) ?? []
-      return wrap(
-        <div>
-          {(spec.options ?? []).map((o) => (
-            <label class="row">
-              <input
-                type="checkbox"
-                checked={current.some((c) => same(c, o.value))}
-                onChange={(e) =>
-                  onChange(
-                    (e.target as HTMLInputElement).checked
-                      ? [...current, o.value]
-                      : current.filter((c) => !same(c, o.value)),
-                  )
-                }
-              />
-              {o.label}
-            </label>
-          ))}
-        </div>,
-      )
-    }
-    case 'object': {
-      const obj = (value ?? {}) as Record<string, unknown>
-      return wrap(
-        <div class="nested">
-          {Object.entries(spec.shape ?? {}).map(([k, s]) => (
-            <Field
-              name={k}
-              spec={s}
-              value={obj[k]}
-              onChange={(v) => onChange({ ...obj, [k]: v })}
-            />
-          ))}
-        </div>,
-      )
-    }
-    case 'array': {
-      const list = (value as unknown[]) ?? []
-      const item = spec.item as FieldSpec
-      return wrap(
-        <div class="nested">
-          {list.map((v, i) => (
-            <div class="row">
-              <Field
-                name={`#${i + 1}`}
-                spec={item}
-                value={v}
-                onChange={(nv) => onChange(list.map((x, j) => (j === i ? nv : x)))}
-              />
-              <button
-                type="button"
-                class="btn"
-                disabled={spec.min !== undefined && list.length <= spec.min}
-                onClick={() => onChange(list.filter((_, j) => j !== i))}
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            class="btn"
-            disabled={spec.max !== undefined && list.length >= spec.max}
-            onClick={() => onChange([...list, defaultFor(item)])}
-          >
-            Add
-          </button>
-        </div>,
-      )
-    }
-    default:
-      return wrap(
-        <input
-          type="text"
-          value={String(value ?? '')}
-          onInput={(e) => onChange((e.target as HTMLInputElement).value)}
-        />,
-      )
+/** Every input at its start: the preset where it gave one, the default elsewhere; a key of the preset no input has is kept. */
+export function startValues(
+  specs: Record<string, FieldSpec>,
+  preset: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    ...preset,
+    ...Object.fromEntries(Object.entries(specs).map(([k, s]) => [k, withDefaults(s, preset[k])])),
   }
+}
+
+/** Whether a field, or anything inside it, makes its own starting value. */
+export function anyGenerated(spec: FieldSpec): boolean {
+  return Boolean(
+    spec.generate ||
+      (spec.shape && Object.values(spec.shape).some(anyGenerated)) ||
+      (spec.item && anyGenerated(spec.item)),
+  )
+}
+
+/** How many generated values a field holds right now. */
+export function generatedCount(spec: FieldSpec, value: unknown): number {
+  if (spec.generate) return 1
+  if (spec.kind === 'object' && isObject(value))
+    return Object.entries(spec.shape ?? {}).reduce(
+      (n, [k, s]) => n + generatedCount(s, value[k]),
+      0,
+    )
+  if (spec.kind === 'array' && Array.isArray(value) && spec.item) {
+    const item = spec.item
+    return value.reduce((n: number, x) => n + generatedCount(item, x), 0)
+  }
+  return 0
+}
+
+/** Another value for every generated field inside this one; what was typed into the others stays. */
+export function regenerate(spec: FieldSpec, value: unknown): unknown {
+  if (spec.generate) return generateFor(spec)
+  if (spec.kind === 'object' && isObject(value))
+    return {
+      ...value,
+      ...Object.fromEntries(
+        Object.entries(spec.shape ?? {}).map(([k, s]) => [k, regenerate(s, value[k])]),
+      ),
+    }
+  if (spec.kind === 'array' && Array.isArray(value) && spec.item) {
+    const item = spec.item
+    return value.map((x) => regenerate(item, x))
+  }
+  return value
+}
+
+/** The inputs in a line: `currency usd · travelers 3 · amount 2000 +1`. */
+export function summarize(
+  specs: Record<string, FieldSpec>,
+  values: Record<string, unknown>,
+  shown = 3,
+): string {
+  const bits = Object.entries(specs).map(([name, spec]) => {
+    const label = spec.label ?? name
+    const v = values[name]
+    if (spec.kind === 'array') return `${label} ${Array.isArray(v) ? v.length : 0}`
+    if (spec.kind === 'object') return label
+    return `${label} ${short(v)}`
+  })
+  const more = bits.length - shown
+  return bits.slice(0, shown).join(' · ') + (more > 0 ? ` +${more}` : '')
 }

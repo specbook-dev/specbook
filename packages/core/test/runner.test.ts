@@ -315,6 +315,7 @@ describe('runSequence', () => {
           { label: 'X1', value: 'a' },
           { label: 'X2', value: 'b' },
         ],
+        default: 'a',
       },
     })
     expect(calls.at(-1)?.url).toBe('/book/b')
@@ -905,5 +906,17 @@ describe('OAuth client credentials', () => {
     const r = await runRequest(Get.request(), { ...base({ vars: {} }), transport })
     expect(r.status).toBe('error')
     expect(r.steps[0]?.error).toContain('has no usable token address')
+  })
+})
+
+describe('a flow whose list input has a minimum', () => {
+  it('runs on its defaults: the list starts at its minimum', async () => {
+    const seq = sequence({
+      id: 'lists',
+      title: 'Lists',
+      inputs: { people: c.array(c.object({ name: c.text({ default: 'Ada' }) }), { min: 2 }) },
+    })
+    const r = await runSequence(seq, {} as never)
+    expect(r.status).not.toBe('error')
   })
 })

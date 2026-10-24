@@ -2,8 +2,16 @@ import type { RunResult, StepResult } from '@specbook/core'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import type { Security } from '../auth-options'
 import { EnvBadge } from '../components/EnvBadge'
-import { defaultFor, type FieldSpec, specFromControl } from '../components/Fields'
+import {
+  anyGenerated,
+  defaultFor,
+  type FieldSpec,
+  specFromControl,
+  startValues,
+  summarize,
+} from '../components/Fields'
 import type { SequenceInfo } from '../engine'
+import { NARROW, useMedia } from '../media'
 import { engine } from '../runtime'
 import { env, fakerInUse, locale, seed, version } from '../store'
 import { announcement, describeRun } from './announce'
@@ -28,6 +36,12 @@ const ICON = {
   paused: '⏸',
   pending: '',
 }
+
+/**
+ * What was typed into each flow, kept while the panel is away (the Docs tab) or on another flow. Memory only. Generated
+ * values depend on the seed and the locale, so a form kept under other ones is not the form to come back to.
+ */
+const kept = new Map<string, Record<string, unknown>>()
 
 /** |timeline|request|: the journey on the left, the selected step's exchange on the right. */
 export function SequencePanel({
@@ -84,8 +98,12 @@ export function SequencePanel({
   // a phone shows the selected step's request and response as a sheet over the timeline
   const [sheet, setSheet] = useState(false)
   const [error, setError] = useState<string>()
+  // the Inputs stop of the timeline: on a wide screen it is the view of the right pane, on a narrow one the form unfolds under it
+  const keptKey = `${info.file}|${seed.value}|${locale.value}`
+  const [inputsOpen, setInputsOpen] = useState(true)
+  const narrow = useMedia(NARROW)
 
-  const hasGenerated = Object.values(specs).some((s) => s.generate)
+  const hasGenerated = Object.values(specs).some(anyGenerated)
   // a flow with inputs can run on their defaults alone, as `specbook test` does
   const hasInputs = Object.keys(specs).length > 0 || seq.nodes.some((n) => n.kind === 'input')
 
@@ -100,27 +118,29 @@ export function SequencePanel({
   const freshInputs = async () => {
     if (hasGenerated)
       await engine.fakerReady(version.value, locale.value, seed.value).catch(() => {})
-    return Object.fromEntries(Object.entries(specs).map(([k, v]) => [k, defaultFor(v)]))
+    return startValues(specs, preset)
   }
 
   useEffect(() => {
     let current = true
-    const start = (v: Record<string, unknown>) => ({ ...v, ...(preset ?? {}) })
-    setInputs(start(Object.fromEntries(Object.entries(specs).map(([k, v]) => [k, defaultFor(v)]))))
-    // generated values need faker: fill them in as soon as it is ready
-    if (hasGenerated)
-      void freshInputs().then((v) => {
-        if (!current) return
-        setInputs(start(v))
-        if (autoRun) void run({ inputs: start(v), headless: true })
-      })
-    else if (autoRun)
-      void run({
-        inputs: start(
-          Object.fromEntries(Object.entries(specs).map(([k, v]) => [k, defaultFor(v)])),
-        ),
-        headless: true,
-      })
+    const saved = kept.get(keptKey)
+    if (saved) {
+      // back on a flow that was being filled in: what was typed is still there, and nothing runs by itself
+      setInputs(startValues(specs, saved))
+      if (hasGenerated)
+        void engine.fakerReady(version.value, locale.value, seed.value).catch(() => {})
+    } else {
+      setInputs(startValues(specs, preset))
+      // generated values need faker: fill them in as soon as it is ready
+      if (hasGenerated)
+        void freshInputs().then((v) => {
+          if (!current) return
+          setInputs(v)
+          if (autoRun) void run({ inputs: v, headless: true })
+        })
+      else if (autoRun) void run({ inputs: startValues(specs, preset), headless: true })
+    }
+    setInputsOpen(true)
     setResult(undefined)
     setLive({})
     setPause(undefined)
@@ -129,10 +149,22 @@ export function SequencePanel({
     }
   }, [info.file])
 
+  useEffect(() => {
+    if (Object.keys(inputs).length > 0) kept.set(keptKey, inputs)
+  }, [inputs])
+
   const planned = seq.nodes.map((n) => n.name)
-  const rows: { name: string; step?: StepResult }[] = result
-    ? result.steps.filter((s) => s.kind !== 'auth').map((s) => ({ name: s.name, step: s }))
-    : planned.map((n) => ({ name: n }))
+  // inputs that could not be made into values end the run before any step: the timeline stays as planned
+  const bad0 = result?.steps[0]
+  const inputsFailed =
+    result?.steps.length === 1 &&
+    bad0?.kind === 'input' &&
+    bad0.name === 'inputs' &&
+    bad0.status === 'error'
+  const rows: { name: string; step?: StepResult }[] =
+    result && !inputsFailed
+      ? result.steps.filter((s) => s.kind !== 'auth').map((s) => ({ name: s.name, step: s }))
+      : planned.map((n) => ({ name: n }))
   const current = rows[picked]?.step
 
   /** ends the run that is going: what is out is stopped, and nothing after it starts */
@@ -155,6 +187,8 @@ export function SequencePanel({
     setLive({})
     setPicked(0)
     setSheet(false)
+    // a narrow screen shows the run: the form folds away
+    if (narrow) setInputsOpen(false)
     try {
       const r = await engine.run(seq, {
         env: env.value,
@@ -171,7 +205,7 @@ export function SequencePanel({
           ? undefined
           : ({ name, controls }) =>
               new Promise((resolve) => {
-                const c = controls as Record<string, FieldSpec>
+                const c = controls as unknown as Record<string, FieldSpec>
                 setLive((l) => ({ ...l, [name]: 'paused' }))
                 setChoice(Object.fromEntries(Object.entries(c).map(([k, v]) => [k, defaultFor(v)])))
                 setPause({
@@ -186,11 +220,22 @@ export function SequencePanel({
       })
       setResult(r)
       announcement.value = describeRun(r)
-      // a run that did not pass shows its first failing step, not its first step
-      const bad = r.steps
-        .filter((s) => s.kind !== 'auth')
-        .findIndex((s) => s.status === 'fail' || s.status === 'error')
-      if (bad >= 0) setPicked(bad)
+      const first = r.steps[0]
+      if (
+        r.steps.length === 1 &&
+        first?.kind === 'input' &&
+        first.name === 'inputs' &&
+        first.status === 'error'
+      )
+        setInputsOpen(true)
+      else {
+        // a run that did not pass shows its first failing step, not its first step
+        const bad = r.steps
+          .filter((s) => s.kind !== 'auth')
+          .findIndex((s) => s.status === 'fail' || s.status === 'error')
+        setInputsOpen(false)
+        if (bad >= 0) setPicked(bad)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -200,14 +245,36 @@ export function SequencePanel({
     }
   }
 
+  // the Run row sticks to the top of a narrow screen: what scrolls to the top of the screen must clear it
+  const left = useRef<HTMLDivElement>(null)
+  const runRow = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const row = runRow.current
+    const box = left.current
+    if (!row || !box || typeof ResizeObserver === 'undefined') return
+    const measure = () => box.style.setProperty('--seq-run-h', `${row.offsetHeight}px`)
+    measure()
+    const watch = new ResizeObserver(measure)
+    watch.observe(row)
+    return () => watch.disconnect()
+  }, [])
+
   const overall = result?.status
+  const hasForm = Object.keys(specs).length > 0
+  // the form is drawn in one place: under its stop on a narrow screen, in the right pane on a wide one
+  const form = (
+    <fieldset class="seq-form" disabled={running}>
+      <ControlsGrid title="Inputs" specs={specs} values={inputs} onChange={setInputs} />
+    </fieldset>
+  )
+  const formInRight = !narrow && hasForm && (inputsOpen || !current)
+  const inputsError = inputsFailed ? bad0?.error : undefined
 
   return (
     <div class={`sequence-panel ${sheet && current ? 'sheet-open' : ''}`} data-seq={seq.meta.id}>
-      <div class="seq-left">
+      <div class="seq-left" ref={left}>
         <SecretsBar services={serviceNames} securities={securities} />
-        <ControlsGrid title="Inputs" specs={specs} values={inputs} onChange={setInputs} />
-        <div class="seq-run">
+        <div class="seq-run" ref={runRow}>
           <button type="button" class="btn primary" disabled={running} onClick={() => run()}>
             {running ? 'Running…' : '▶ Run'}
           </button>
@@ -248,12 +315,36 @@ export function SequencePanel({
         </div>
         {error && <p class="error-text">{error}</p>}
         <ol class="journey" part="timeline" aria-label="Timeline">
+          {hasForm && (
+            <li class={`jin ${inputsOpen ? 'open' : ''} ${inputsError ? 'bad' : ''}`}>
+              <button
+                type="button"
+                class="jin-head"
+                aria-expanded={narrow ? inputsOpen : undefined}
+                aria-current={!narrow && inputsOpen ? 'step' : undefined}
+                onClick={() => {
+                  setInputsOpen(narrow ? !inputsOpen : true)
+                  setSheet(false)
+                }}
+              >
+                <span class="jname">Inputs</span>
+                <span class={`count ${inputsError ? 'bad' : ''}`}>
+                  {inputsError ? '!' : Object.keys(specs).length}
+                </span>
+                <span class="jin-sum muted">{summarize(specs, inputs)}</span>
+              </button>
+              {inputsError && <div class="error-text">{inputsError}</div>}
+              {narrow && inputsOpen && <div class="jin-form">{form}</div>}
+            </li>
+          )}
           {rows.map((row, i) => {
             const step = row.step
             const status = step?.status ?? live[row.name] ?? 'pending'
             const failed = step?.assertions.filter((a) => !a.pass) ?? []
             return (
-              <li class={`jstep ${status} ${picked === i ? 'picked' : ''}`}>
+              <li
+                class={`jstep ${status} ${picked === i && !(inputsOpen && !narrow) ? 'picked' : ''}`}
+              >
                 <div class="jmark">{ICON[status as keyof typeof ICON] || i + 1}</div>
                 <div class="jbody">
                   <button
@@ -263,6 +354,7 @@ export function SequencePanel({
                     onClick={(e) => {
                       const row = e.currentTarget
                       setPicked(i)
+                      setInputsOpen(false)
                       setSheet(true)
                       // keep the tapped step visible above the sheet that is about to cover the bottom
                       requestAnimationFrame(() =>
@@ -331,8 +423,11 @@ export function SequencePanel({
         </ol>
       </div>
 
-      <div class={`seq-right ${sheet && current ? 'sheet-open' : ''}`}>
-        {current && (
+      <div
+        class={`seq-right ${sheet && current ? 'sheet-open' : ''} ${!current && !formInRight ? 'empty' : ''}`}
+      >
+        {formInRight && <div class="seq-inputs">{form}</div>}
+        {!formInRight && current && (
           <button
             type="button"
             class="sheet-close"
@@ -342,13 +437,13 @@ export function SequencePanel({
             <span aria-hidden="true">⌄</span> {current.name}
           </button>
         )}
-        {!current && (
+        {!formInRight && !current && (
           <div class="rs-empty">
             <strong>Nothing run yet</strong>
             <span class="muted">Press Run, then pick a step to see its request and response.</span>
           </div>
         )}
-        {current && (
+        {!formInRight && current && (
           <StepExchange
             step={current}
             note={notes.notes.get(baseName(current.name))}
