@@ -208,20 +208,15 @@ async function render(closeWhenDone = false) {
       // reading and changing can be allowed in one answer; reading alone is the default
       const andChanges = document.createElement('input')
       andChanges.type = 'checkbox'
+      // a private or local address is refused unless the person allows it, so it is offered in the same answer: otherwise
+      // the first call fails and the switch has to be found among the allowed APIs afterwards
+      const andPrivate = document.createElement('input')
+      andPrivate.type = 'checkbox'
       nodes.push(
         h(
           'div',
-          { class: 'row asking' },
+          { class: 'row api asking' },
           h('span', { class: 'grow' }, hostOf(origin)),
-          h(
-            'label',
-            {
-              title:
-                'Lets this site send POST, PUT, PATCH and DELETE. Without this it can only send GET, HEAD and OPTIONS.',
-            },
-            andChanges,
-            'Modify data',
-          ),
           h(
             'button',
             {
@@ -229,10 +224,34 @@ async function render(closeWhenDone = false) {
               onclick: () =>
                 void allow(site, origin).then(async (ok) => {
                   if (ok && andChanges.checked) await state.setFlag(site, origin, 'writes', true)
+                  if (ok && andPrivate.checked) await state.setFlag(site, origin, 'private', true)
                   await render(ok)
                 }),
             },
             'Allow',
+          ),
+          h(
+            'div',
+            { class: 'flags' },
+            h(
+              'label',
+              {
+                title:
+                  'Lets this site send POST, PUT, PATCH and DELETE. Without this it can only send GET, HEAD and OPTIONS.',
+              },
+              andChanges,
+              'Modify data',
+            ),
+            isPrivate(origin) &&
+              h(
+                'label',
+                {
+                  title:
+                    'This is a private or local address, such as localhost. Without this the site cannot reach it.',
+                },
+                andPrivate,
+                'Allow private',
+              ),
           ),
         ),
       )
@@ -242,27 +261,32 @@ async function render(closeWhenDone = false) {
         h(
           'div',
           // asked about again, for changes this time
-          { class: `row${stillReadOnly.includes(origin) ? ' asking' : ''}` },
+          { class: `row api${stillReadOnly.includes(origin) ? ' asking' : ''}` },
           h('span', { class: 'grow' }, hostOf(origin)),
-          // one way: once allowed, changes stay allowed until the API is revoked, which takes everything away
-          toggle(
-            'Modify data',
-            p.writes
-              ? 'Stays allowed until you revoke this API.'
-              : 'Lets this site send POST, PUT, PATCH and DELETE. Without this it can only send GET, HEAD and OPTIONS.',
-            p.writes,
-            // redrawn once saved, so the switch locks the moment it is ticked
-            (on) => void state.setFlag(site, origin, 'writes', on).then(() => render(true)),
-            p.writes,
-          ),
-          isPrivate(origin) &&
-            toggle(
-              'Allow private',
-              'A private or local address, such as localhost.',
-              p.private,
-              (on) => void state.setFlag(site, origin, 'private', on),
-            ),
           h('button', { onclick: () => revoke(site, origin).then(() => render()) }, 'Revoke'),
+          // the switches are a line of their own: with both of them and a long address, Revoke would be pushed to a line alone
+          h(
+            'div',
+            { class: 'flags' },
+            // one way: once allowed, changes stay allowed until the API is revoked, which takes everything away
+            toggle(
+              'Modify data',
+              p.writes
+                ? 'Stays allowed until you revoke this API.'
+                : 'Lets this site send POST, PUT, PATCH and DELETE. Without this it can only send GET, HEAD and OPTIONS.',
+              p.writes,
+              // redrawn once saved, so the switch locks the moment it is ticked
+              (on) => void state.setFlag(site, origin, 'writes', on).then(() => render(true)),
+              p.writes,
+            ),
+            isPrivate(origin) &&
+              toggle(
+                'Allow private',
+                'A private or local address, such as localhost.',
+                p.private,
+                (on) => void state.setFlag(site, origin, 'private', on),
+              ),
+          ),
         ),
       )
     }

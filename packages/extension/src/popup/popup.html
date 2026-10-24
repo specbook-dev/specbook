@@ -65,6 +65,18 @@
         min-width: 0;
         overflow-wrap: anywhere;
       }
+      /* an allowed API: the name and Revoke on one line, the switches together on the next */
+      .row.api {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 4px 8px;
+      }
+      .row.api .flags {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 14px;
+      }
       /* what the page is asking about, in the list of APIs */
       .row.asking {
         background: var(--warn);

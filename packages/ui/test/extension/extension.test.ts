@@ -176,6 +176,16 @@ async function allowInPopup(trigger: () => Promise<void>) {
   await closed
 }
 
+/** the part of the extension's `chrome` object the popup test reaches for */
+interface ChromeStorage {
+  storage: {
+    local: {
+      get(key: string): Promise<Record<string, unknown>>
+      set(items: Record<string, unknown>): Promise<void>
+    }
+  }
+}
+
 describe('a page whose API sends no CORS headers', () => {
   let page: Page
 
@@ -430,5 +440,108 @@ describe('a page whose API sends no CORS headers', () => {
     }
     expect(codes).toContain('rate-limited')
     expect(codes[0]).toBe('ok')
+  })
+
+  it('asking about a private address offers Allow private in the same answer, and a public one does not', async () => {
+    // the fixture server also answers on its loopback address, which is a private one
+    const priv = `http://127.0.0.1:${new URL(A).port}`
+    const publicOnly = 'http://c.fixture.test:9'
+    expect(await wire(page, get(priv, 'pv0'))).toMatchObject({ type: 'error' })
+
+    const popup = await ctx.newPage()
+    await popup.goto(
+      `chrome-extension://${extensionId}/popup.html?site=${encodeURIComponent(SITE())}&need=${encodeURIComponent(`${priv},${publicOnly}`)}`,
+    )
+    const privRow = popup.locator('.row.asking', { hasText: '127.0.0.1' })
+    const pubRow = popup.locator('.row.asking', { hasText: 'c.fixture.test' })
+    await privRow.getByRole('button', { name: 'Allow' }).waitFor({ timeout: 10_000 })
+    expect(await privRow.getByRole('checkbox', { name: /Modify data/ }).count()).toBe(1)
+    expect(await privRow.getByRole('checkbox', { name: /Allow private/ }).count()).toBe(1)
+    expect(await pubRow.getByRole('checkbox', { name: /Modify data/ }).count()).toBe(1)
+    expect(await pubRow.getByRole('checkbox', { name: /Allow private/ }).count()).toBe(0)
+    // like Modify data, it is offered and off: a person opts in to reaching a private address
+    expect(await privRow.getByRole('checkbox', { name: /Allow private/ }).isChecked()).toBe(false)
+
+    // one answer: read the API and reach a private address
+    await privRow.getByRole('checkbox', { name: /Allow private/ }).check()
+    await privRow.getByRole('button', { name: 'Allow' }).click()
+    await popup
+      .locator('.row.api:not(.asking)', { hasText: '127.0.0.1' })
+      .waitFor({ timeout: 10_000 })
+    expect(await wire(page, get(priv, 'pv1'))).toMatchObject({
+      type: 'response',
+      res: { status: 200 },
+    })
+    // the grant shows both of its switches, Allow private already on
+    const granted = popup.locator('.row.api:not(.asking)', { hasText: '127.0.0.1' })
+    expect(await granted.getByRole('checkbox', { name: /Allow private/ }).isChecked()).toBe(true)
+
+    await granted.getByRole('button', { name: 'Revoke' }).click()
+    await granted.waitFor({ state: 'detached', timeout: 10_000 })
+    await popup.close()
+  })
+
+  it('a row of the popup with every control keeps Revoke beside the name, and the window does not grow sideways', async () => {
+    const popup = await ctx.newPage()
+    const url = `chrome-extension://${extensionId}/popup.html?site=${encodeURIComponent(SITE())}`
+    await popup.goto(url)
+    // a private address has both switches (Modify data and Allow private), which is the widest row there is
+    const api = 'http://192.168.100.200:12345'
+    await popup.evaluate(
+      async ([site, origin]) => {
+        const chrome = (globalThis as unknown as { chrome: ChromeStorage }).chrome
+        const got = (await chrome.storage.local.get('grants')) as {
+          grants?: Record<string, object>
+        }
+        await chrome.storage.local.set({
+          grants: {
+            ...got.grants,
+            [site as string]: {
+              ...(got.grants?.[site as string] ?? {}),
+              [origin as string]: { writes: true, private: true, at: Date.now() },
+            },
+          },
+        })
+      },
+      [SITE(), api],
+    )
+    try {
+      await popup.goto(url)
+      const row = popup.locator('.row', { hasText: '192.168.100.200:12345' })
+      await row.getByRole('button', { name: 'Revoke' }).waitFor({ timeout: 10_000 })
+      const lay = await popup.evaluate(() => {
+        const row = [...document.querySelectorAll('.row')].find((r) =>
+          r.textContent?.includes('192.168.100.200'),
+        ) as Element
+        const box = (el: Element | null) => (el as Element).getBoundingClientRect()
+        const revoke = [...row.querySelectorAll('button')].find((b) => b.textContent === 'Revoke')
+        return {
+          name: box(row.querySelector('.grow')),
+          revoke: box(revoke ?? null),
+          switches: [...row.querySelectorAll('label')].map((l) => box(l)),
+          sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        }
+      })
+      // Revoke is on the line of the name, and the switches are together on a line of their own below
+      expect(lay.revoke.top).toBeLessThan(lay.name.bottom)
+      expect(lay.switches).toHaveLength(2)
+      for (const sw of lay.switches) expect(sw.top).toBeGreaterThanOrEqual(lay.name.bottom - 1)
+      expect(Math.abs((lay.switches[0]?.top ?? 0) - (lay.switches[1]?.top ?? 1))).toBeLessThan(2)
+      expect(lay.sideways).toBeLessThanOrEqual(0)
+    } finally {
+      await popup.evaluate(
+        async ([site, origin]) => {
+          const chrome = (globalThis as unknown as { chrome: ChromeStorage }).chrome
+          const got = (await chrome.storage.local.get('grants')) as {
+            grants?: Record<string, Record<string, object>>
+          }
+          const mine = { ...(got.grants?.[site as string] ?? {}) }
+          delete mine[origin as string]
+          await chrome.storage.local.set({ grants: { ...got.grants, [site as string]: mine } })
+        },
+        [SITE(), api],
+      )
+      await popup.close()
+    }
   })
 })
