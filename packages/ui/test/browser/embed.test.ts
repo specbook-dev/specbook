@@ -380,4 +380,26 @@ describe('embed', () => {
       await page.viewport(w, h)
     }
   })
+
+  it('shows a flow its inputs in the right pane of the dialog on a desktop, within the dialog', async () => {
+    const [w, h] = [window.innerWidth, window.innerHeight]
+    await page.viewport(1280, 800)
+    try {
+      await openFlow(
+        '<p data-specbook-flow="stripe-checkout" data-specbook-inputs=\'{"amount":3000}\'>Checkout</p>',
+      )
+      await settled()
+      await vi.waitFor(() => expect(q('.seq-right .seq-inputs .controls-grid')).not.toBeNull())
+      expect(q('.seq-left .controls-grid')).toBeNull()
+      const pane = (q('.seq-right') as HTMLElement).getBoundingClientRect()
+      const panel = (q('.panel') as HTMLElement).getBoundingClientRect()
+      expect(pane.right).toBeLessThanOrEqual(panel.right)
+      const grid = q('.seq-inputs') as HTMLElement
+      expect(grid.scrollWidth).toBeLessThanOrEqual(grid.clientWidth)
+      // the description column has room here, which the rail never had
+      expect(getComputedStyle(q('.controls-grid .g-doc') as HTMLElement).display).not.toBe('none')
+    } finally {
+      await page.viewport(w, h)
+    }
+  })
 })

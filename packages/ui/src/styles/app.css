@@ -543,6 +543,50 @@
   .jhead:disabled {
     cursor: default;
   }
+  /* the first stop of the timeline: what the run starts from, as a row that opens the form */
+  .jin {
+    padding-bottom: var(--sb-space-3);
+  }
+  .jin-head {
+    display: flex;
+    align-items: center;
+    gap: var(--sb-space-2);
+    width: 100%;
+    min-width: 0;
+    padding: 6px 10px;
+    border: 1px solid var(--sb-border);
+    border-radius: var(--sb-radius-control);
+    background: var(--sb-surface);
+    color: var(--sb-text);
+    text-align: left;
+    cursor: pointer;
+  }
+  .jin.open .jin-head {
+    border-color: var(--sb-accent);
+  }
+  .jin-head .count {
+    flex: none;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--sb-surface-raised);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .jin-head .count.bad {
+    background: var(--sb-danger-subtle);
+    color: var(--sb-danger);
+  }
+  .jin-sum {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  .jin-form {
+    margin-top: var(--sb-space-3);
+  }
   .jname {
     font-weight: 600;
   }
@@ -610,19 +654,6 @@
     border: 1px solid var(--sb-border);
     border-radius: var(--sb-radius-control);
     background: var(--sb-surface);
-  }
-  .field {
-    display: grid;
-    gap: 4px;
-    margin-bottom: var(--sb-space-3);
-  }
-  .field > .label {
-    font-weight: 600;
-    font-size: 12px;
-  }
-  .nested {
-    border-left: 2px solid var(--sb-border);
-    padding-left: var(--sb-space-3);
   }
   .method {
     font: 700 11px var(--sb-font-mono);

@@ -82,8 +82,11 @@ export function Panel({
       // a dropdown field needs its list visible too, and picking from it needs no keyboard: it is moved
       // only when it is down where the keyboard would be, and not as far
       const dropdown = field.getAttribute('role') === 'combobox'
-      const want = top + height * (dropdown ? 0.3 : 0.2)
-      if (at > top + height * (dropdown ? 0.55 : 0.4) || at < top) box.scrollTop += at - want
+      // a bar kept at the top of the scroller (the flow's Run row) is not where a field can go
+      const bar = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0
+      const floor = Math.max(top, box.getBoundingClientRect().top + bar + 8)
+      const want = Math.max(top + height * (dropdown ? 0.3 : 0.2), floor)
+      if (at > top + height * (dropdown ? 0.55 : 0.4) || at < floor) box.scrollTop += at - want
     }
     const focusin = (e: Event) => {
       const field = e.target as HTMLElement

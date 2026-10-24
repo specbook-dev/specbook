@@ -58,6 +58,56 @@ describe('controls', () => {
     const d = describeControls({
       f: c.select([{ id: 1, n: 'A' }], { label: (o) => o.n, value: (o) => o.id }),
     })
-    expect(d.f).toEqual({ kind: 'select', options: [{ label: 'A', value: 1 }] })
+    expect(d.f).toEqual({ kind: 'select', options: [{ label: 'A', value: 1 }], default: 1 })
+  })
+  it('a list with no value given starts at its minimum, each item from its own defaults', () => {
+    let n = 0
+    const t = c.array(c.object({ name: c.text({ default: () => `P${++n}` }) }), { min: 2, max: 3 })
+    expect(resolveControls({ t })).toEqual({ t: [{ name: 'P1' }, { name: 'P2' }] })
+    expect(resolveControls({ t: c.array(c.text(), {}) })).toEqual({ t: [] })
+  })
+  it('names the path of a value that is wrong', () => {
+    const t = c.array(c.object({ gender: c.select(['F', 'M'] as const) }), { min: 1 })
+    expect(() => resolveControls({ t }, { t: [{ gender: 'F' }, { gender: 'Z' }] })).toThrow(
+      /t\[1\]\.gender/,
+    )
+    expect(() =>
+      resolveControls({ g: c.object({ x: c.select(['a'] as const) }) }, { g: { x: 'b' } }),
+    ).toThrow(/g\.x/)
+  })
+  it('describes groups and lists with their shape, labels and limits', () => {
+    const d = describeControls({
+      who: c.object({ name: c.text({ label: 'Name', default: 'x' }) }, { label: 'Traveler 1' }),
+      all: c.array(c.object({ n: c.number({ min: 1 }) }), { min: 1, max: 4, label: 'Travelers' }),
+    })
+    expect(d.who).toMatchObject({
+      kind: 'object',
+      label: 'Traveler 1',
+      shape: { name: { kind: 'text', label: 'Name', default: 'x' } },
+    })
+    expect(d.all).toMatchObject({
+      kind: 'array',
+      min: 1,
+      max: 4,
+      label: 'Travelers',
+      item: { kind: 'object', shape: { n: { kind: 'number', min: 1 } } },
+    })
+  })
+  it('a list can start from a function that names only some fields of each item', () => {
+    let n = 0
+    const t = c.array(
+      c.object({
+        name: c.text({ default: () => `P${++n}` }),
+        role: c.text({ default: 'companion' }),
+      }),
+      { min: 1, default: () => [{ role: 'primary' }, {}] },
+    )
+    expect(resolveControls({ t })).toEqual({
+      t: [
+        { name: 'P1', role: 'primary' },
+        { name: 'P2', role: 'companion' },
+      ],
+    })
+    expect(describeControls({ t }).t).toMatchObject({ default: [{ role: 'primary' }, {}] })
   })
 })

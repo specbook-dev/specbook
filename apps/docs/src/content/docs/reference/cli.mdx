@@ -29,7 +29,7 @@ description: Every command and what it does.
 | `--timeout ms`, `--global-timeout ms` | Limit each request (default: the config's `timeoutMs`, else 30000; `0` waits), and the whole run. |
 | `--safe` | Refuses requests that may change data. Use it against production. |
 | `--reporter list\|json\|junit\|github\|ndjson[:path]` | Chooses reporters. Repeat the flag to use several. |
-| `--input k=v`, `--var k=v` | Sets a flow input, or a variable. Repeat either. A variable can override an address. |
+| `--input k=v`, `--var k=v` | Sets a flow input, or a variable. Repeat either. A variable can override an address. The value is read as JSON when it is, so a list is `--input 'travelers=[{"name":"Ada"}]'`. |
 | `--secrets-file <path>` | Reads secrets from a dotenv file. |
 | `--trace on-failure\|always\|off` | When to keep a step's request and response. The default is `on-failure`. |
 | `--quiet` | Prints only failures and the summary. |
