@@ -92,12 +92,25 @@ async function loadSequence(id: string) {
     const names = new Set<string>()
     let all = false
     for (const n of found.seq.nodes) {
-      if (n.kind === 'step' && typeof n.def !== 'function') names.add(n.def.op.service)
-      else if (n.kind === 'step' || n.kind === 'each') all = true
+      if (n.kind === 'step' && typeof n.def !== 'function') {
+        // a script calls no operation: it adds no service, and it does not make every manifest load
+        if (n.def.kind === 'request') names.add(n.def.op.service)
+      } else if (n.kind === 'step' || n.kind === 'each') all = true
     }
     await registry.loadManifests(all ? undefined : [...names])
   }
   return found
+}
+
+/** A script is opened as a flow of one step; its header is read from the file text like a flow's. */
+async function loadScript(id: string) {
+  const file = registry.scriptMeta[id]?.file
+  const wanted = (f: string) => (file ? f === file : registry.unresolvedScripts.includes(f))
+  const list = await engine.loadSequences(
+    registry.scripts.filter((e) => wanted(e.file)),
+    version.value,
+  )
+  return list.find((s) => s.seq.meta.id === id)
 }
 
 function findOperation(t: Target, data: Loaded & { service?: string; operation?: string }) {
@@ -152,6 +165,7 @@ function Embedded({ target, onClose }: { target: Target; onClose: () => void }) 
     setNavigator((r) => {
       if (r.kind === 'op') show({ service: r.key.split('/')[0], operation: r.key.split('/')[1] })
       else if (r.kind === 'seq') show({ sequence: r.id })
+      else if (r.kind === 'script') show({ script: r.id })
     })
     return () => setNavigator(undefined)
   }, [])
@@ -159,8 +173,10 @@ function Embedded({ target, onClose }: { target: Target; onClose: () => void }) 
   useEffect(() => {
     loadShared().then(async () => {
       setNote(chooseEnvironment(target))
-      if (target.sequence) {
-        const s = await loadSequence(target.sequence)
+      if (target.sequence || target.script) {
+        const s = target.sequence
+          ? await loadSequence(target.sequence)
+          : await loadScript(target.script as string)
         if (s) setSeq(s)
         else setSeqMissing(true)
         setData({ variants: {} })
@@ -174,12 +190,16 @@ function Embedded({ target, onClose }: { target: Target; onClose: () => void }) 
     .filter(Boolean)
     .join(' ')
 
-  if (target.sequence) {
+  if (target.sequence || target.script) {
     if (seqMissing)
       return (
         <Problem
-          title="Flow not found"
-          text={`This build has no flow "${target.sequence}".`}
+          title={target.sequence ? 'Flow not found' : 'Script not found'}
+          text={
+            target.sequence
+              ? `This build has no flow "${target.sequence}".`
+              : `This build has no script "${target.script}".`
+          }
           onClose={onClose}
         />
       )

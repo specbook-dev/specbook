@@ -163,15 +163,11 @@ export async function wireGrant(
 let counter = 0
 
 /**
- * A `Transport` that sends each request to the extension. Built on the ordinary fetch transport with a
- * `fetch` that carries the request over the bridge, so bodies, query strings and response parsing are
- * the same as for a direct call.
+ * A `fetch` that sends each call to the extension, which makes it from its own worker with the person's grant. A call the
+ * extension refuses throws a `WireError`, which says what the person can do about it.
  */
-export function extensionTransport(
-  bridge: ExtensionBridge,
-  baseOf: (service: string) => string,
-): Transport {
-  const carry: typeof fetch = async (input, init) => {
+export function extensionFetch(bridge: ExtensionBridge): typeof fetch {
+  return async (input, init) => {
     const req = new Request(input as RequestInfo, init)
     const id = `c${Date.now().toString(36)}${counter++}`
     const reply = await bridge.send(
@@ -196,5 +192,16 @@ export function extensionTransport(
     res.headers.set(VIA_HEADER, 'extension')
     return res
   }
-  return createFetchTransport({ baseUrl: baseOf, fetch: carry })
+}
+
+/**
+ * A `Transport` that sends each request to the extension. Built on the ordinary fetch transport with a
+ * `fetch` that carries the request over the bridge, so bodies, query strings and response parsing are
+ * the same as for a direct call.
+ */
+export function extensionTransport(
+  bridge: ExtensionBridge,
+  baseOf: (service: string) => string,
+): Transport {
+  return createFetchTransport({ baseUrl: baseOf, fetch: extensionFetch(bridge) })
 }

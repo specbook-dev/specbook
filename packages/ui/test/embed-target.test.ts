@@ -32,6 +32,14 @@ describe('parseTarget', () => {
     expect(bare?.service).toBeUndefined()
   })
 
+  it('reads a script by its id; a flow wins over it and it wins over a request', () => {
+    expect(parseTarget(el({ 'data-specbook-script': 'turnstile' }))?.script).toBe('turnstile')
+    const both = parseTarget(el({ 'data-specbook-script': 's', 'data-specbook-flow': 'f' }))
+    expect([both?.sequence, both?.script]).toEqual(['f', undefined])
+    const withTry = parseTarget(el({ 'data-specbook-script': 's', 'data-specbook-try': 'a/B' }))
+    expect([withTry?.script, withTry?.operation]).toEqual(['s', undefined])
+  })
+
   it('reads a saved request by its file, and a flow by its id', () => {
     const saved = parseTarget(el({ 'data-specbook-try': 'requests/petstore/find-pets.req.ts' }))
     expect(saved?.request).toBe('requests/petstore/find-pets.req.ts')

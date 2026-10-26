@@ -28,8 +28,10 @@ import {
   type RunResult,
   runRequest,
   runSequence,
+  type ScriptHost,
   type Sequence,
   type SpecbookConfig,
+  scriptFlow,
   serviceProfiles,
   setFaker,
   type Transport,
@@ -37,6 +39,7 @@ import {
   withMock,
 } from '@specbook/core'
 import { ordered } from './auth-options'
+import { corsHint, READS, willPreflight } from './cors'
 import type { EnvironmentStore } from './custom-environments'
 import {
   type ExtensionBridge,
@@ -47,6 +50,7 @@ import {
   wireStatus,
 } from './extension'
 import { routingTransport, withPageSecrets } from './routing'
+import { browserScriptHost } from './script-host'
 import { originOf, type SecretStore, secretStore } from './secrets'
 
 /**
@@ -106,6 +110,8 @@ export interface RunInput {
   onEvent?: (e: RunEvent) => void
   onInput?: Parameters<typeof runSequence>[1]['onInput']
   signal?: AbortSignal
+  /** Makes the container a script step renders into (the panel); without it a script that needs one fails. */
+  mount?: ScriptHost['mount']
   proxyBase?: string
   locale?: string
   seed?: number
@@ -155,42 +161,7 @@ const hasTemplate = (v: unknown): boolean =>
 const text = (v: unknown) =>
   v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')
 
-/** What a browser may send to an API without the person's say-so (as the extension's read-only default). */
-const READS = new Set(['GET', 'HEAD', 'OPTIONS'])
-const SIMPLE_HEADERS = new Set(['accept', 'accept-language', 'content-language', 'content-type'])
-const SIMPLE_TYPES = new Set([
-  'application/x-www-form-urlencoded',
-  'multipart/form-data',
-  'text/plain',
-])
-
-/**
- * Whether a browser asks the API's permission (a CORS preflight) before sending this request. If it
- * does and the API does not answer yes, the request never leaves the page, so trying it directly cannot
- * reach an API that blocks browsers. Only a plain POST, with a form or text body (or none) and no
- * header of its own, goes out unasked.
- */
-export function willPreflight(req: {
-  method: string
-  encoding: string
-  headers: Record<string, string>
-}) {
-  const method = req.method.toUpperCase()
-  if (READS.has(method)) return false
-  if (method !== 'POST') return true
-  const headers = Object.fromEntries(
-    Object.entries(req.headers).map(([k, v]) => [k.toLowerCase(), v]),
-  )
-  if (Object.keys(headers).some((k) => !SIMPLE_HEADERS.has(k))) return true
-  const type = (
-    headers['content-type'] ??
-    (req.encoding === 'json' || req.encoding === 'graphql' ? 'application/json' : 'text/plain')
-  )
-    .split(';')[0]
-    ?.trim()
-    .toLowerCase()
-  return !SIMPLE_TYPES.has(type ?? '')
-}
+export { willPreflight }
 
 export function createEngine(reg: Registry, opts: EngineOptions = {}) {
   // no faker to load: a `{{faker.*}}` ends the run with the registry's message, not "install @faker-js/faker"
@@ -559,10 +530,7 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
             ? `The browser could not reach the sign-in provider (${extra[req.service] ?? 'unknown'}). It probably does not allow calls from this page (CORS). Embedding the viewer on the API's origin does not help when the sign-in server is on another host. You can still paste an access token.`
             : `The browser could not reach ${req.service} in "${env}". The API probably does not allow calls from this page (CORS). It works when the viewer runs on the API's own origin: embed it in the API's docs route ("Embed the viewer" in the README). Mock data keeps working.`
           // what the page can offer, said where this failure is shown (not for the page's own origin: that is no CORS)
-          const hint =
-            target && target !== pageOrigin
-              ? { code: level === 'outdated' ? 'outdated' : 'cors', origin: target }
-              : undefined
+          const hint = corsHint(target, pageOrigin, level)
           throw Object.assign(new Error(message), hint ? { hint } : {})
         }
       }
@@ -814,6 +782,9 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
         i.version,
         tokenOrigins,
       ),
+      // a script's `fetch` goes through the extension like a request does, but never the dev proxy, which only knows the
+      // project's own APIs (a request step calls those, with their credentials)
+      scripts: await scriptHost(i),
       // placeholders stay in the request: the dev server's proxy or a static page's transport fills them
       deferSecrets: true,
       auth,
@@ -827,6 +798,17 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
         loadExample(`${op.service}/${op.id}`, name, i.version),
       readFile: (path: string, dir?: string) => readFile(path, dir ?? i.fileDir),
     }
+  }
+
+  /** What script steps run on in a page. The mock environment answers a script with its mock, so it asks no one. */
+  async function scriptHost(i: RunInput): Promise<ScriptHost> {
+    const bridge = i.env === 'mock' ? undefined : await opts.extension?.()
+    return browserScriptHost({
+      bridge,
+      level: bridge ? extensionLevel(bridge) : undefined,
+      pageOrigin: globalThis.location?.origin,
+      mount: i.mount,
+    })
   }
 
   /** Sequences and requests with init generators or lazy data may call faker; everything else is visible. */
@@ -948,7 +930,8 @@ export function createEngine(reg: Registry, opts: EngineOptions = {}) {
       entries.map(async (e) => {
         try {
           const seq = pickRunnable(await e.load(version))
-          if (seq?.kind === 'sequence') list.push({ file: e.file, seq })
+          if (seq?.kind === 'script') list.push({ file: e.file, seq: scriptFlow(seq) })
+          else if (seq?.kind === 'sequence') list.push({ file: e.file, seq })
         } catch {
           /* ignore broken files */
         }
@@ -1003,7 +986,8 @@ export interface SequenceInfo {
 
 /** Default export, else the first runnable named export. */
 export function pickRunnable(mod: Record<string, any>) {
-  const isRun = (v: any) => v && (v.kind === 'request' || v.kind === 'sequence')
+  const isRun = (v: any) =>
+    v && (v.kind === 'request' || v.kind === 'sequence' || v.kind === 'script')
   if (isRun(mod.default)) return mod.default
   return Object.values(mod).find(isRun)
 }

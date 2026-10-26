@@ -7,6 +7,7 @@ import { useSequenceNotes } from './stepnotes'
 
 const KIND: Record<string, string> = {
   step: 'request',
+  script: 'script',
   each: 'for each item',
   input: 'you choose',
   check: 'check',
@@ -132,7 +133,8 @@ export function SequenceDocs({ info }: { info: SequenceInfo }) {
           <tbody>
             {seq.nodes.map((n, i) => {
               const def = n.kind === 'step' && typeof n.def !== 'function' ? n.def : undefined
-              const op = def?.op
+              const op = def?.kind === 'request' ? def.op : undefined
+              const script = def?.kind === 'script' ? def : undefined
               const note = notes.get(n.name)
               return (
                 <>
@@ -150,6 +152,10 @@ export function SequenceDocs({ info }: { info: SequenceInfo }) {
                           <span class={`method ${op.method}`}>{op.method}</span>{' '}
                           <code>{op.path}</code>
                         </button>
+                      ) : script ? (
+                        <span class="muted">
+                          script <code>{script.meta.id}</code> · {script.meta.runtime}
+                        </span>
                       ) : (
                         <span class="muted">{KIND[n.kind] ?? n.kind}</span>
                       )}

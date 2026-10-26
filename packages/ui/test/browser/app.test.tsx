@@ -80,10 +80,12 @@ describe('docs and play panel', () => {
       $<HTMLButtonElement>(`.flows-title:has(.method.${kind})`) as HTMLButtonElement
     // the list keeps its scrollbar's space whether or not it has one, so folding does not make it jump
     expect(getComputedStyle($('.list-col') as Element).scrollbarGutter).toContain('stable')
-    expect(root.querySelectorAll('.flow-row').length).toBe(6)
+    expect(root.querySelectorAll('.flows:not(.scripts) .flow-row').length).toBe(8)
     expect(title('flow').getAttribute('aria-expanded')).toBe('true')
     title('flow').click()
-    await waitFor(() => expect(root.querySelectorAll('.flow-row').length).toBe(0))
+    await waitFor(() =>
+      expect(root.querySelectorAll('.flows:not(.scripts) .flow-row').length).toBe(0),
+    )
     expect(title('flow').getAttribute('aria-expanded')).toBe('false')
     // the requests are a section of their own, and fold on their own
     const requests = root.querySelectorAll('.req-row').length
@@ -94,12 +96,17 @@ describe('docs and play panel', () => {
       await waitFor(() => expect(root.querySelectorAll('.req-row').length).toBe(requests))
     }
     title('flow').click()
-    await waitFor(() => expect(root.querySelectorAll('.flow-row').length).toBe(6))
+    await waitFor(() =>
+      expect(root.querySelectorAll('.flows:not(.scripts) .flow-row').length).toBe(8),
+    )
   })
 
   it('is a list of APIs and flows, and ⌘K jumps straight into the panel', async () => {
     await mount()
-    expect(root.querySelectorAll('.flow-row').length).toBe(6)
+    expect(root.querySelectorAll('.flows:not(.scripts) .flow-row').length).toBe(8)
+    // the project's scripts are listed on their own, under a SCRIPT badge
+    expect($('.flows.scripts .method.script')?.textContent).toBe('SCRIPT')
+    expect(root.querySelectorAll('.flows.scripts .flow-row').length).toBe(3)
     // flows are one section with a single FLOW badge; ungrouped ones are under Default (no sub-heading)
     expect($('.flows .flows-title .method.flow')?.textContent).toBe('FLOW')
     expect(root.querySelectorAll('.flows .method.flow').length).toBe(1)
@@ -927,6 +934,35 @@ describe('docs and play panel', () => {
 
     ;(root.querySelectorAll('.jhead')[2] as HTMLButtonElement).click()
     await waitFor(() => expect($('.seq-right')?.textContent).toContain('/store/order'))
+  })
+
+  it('runs a flow with scripts: a script step is laid out as inputs and output, and the app shell is untouched', async () => {
+    await mount()
+    go({ kind: 'seq', id: 'approve-order', play: '' })
+    await vi.waitFor(() => expect($('.sequence-panel .journey')).not.toBeNull(), {
+      timeout: 30_000,
+    })
+    // the shell's own `stage` is the area the panel docks into: a script's surface has a class of its own
+    const shell = $('main.stage') as HTMLElement
+    expect(getComputedStyle(shell).borderTopStyle).toBe('none')
+    button('▶ Run', $('.sequence-panel') as HTMLElement).click()
+    await vi.waitFor(() => expect(root.querySelectorAll('.jstep.pass').length).toBe(4), {
+      timeout: 15_000,
+    })
+    expect(getComputedStyle(shell).borderTopStyle).toBe('none')
+    // on the mock a script answers from its mock: nothing to press
+    expect(root.querySelectorAll('.script-stage').length).toBe(0)
+    const chips = [...root.querySelectorAll('.cap.make')].map((c) => c.textContent).join(' ')
+    expect(chips).toContain('approvedAt')
+    expect(chips).toContain('fingerprint')
+
+    ;(root.querySelectorAll('.jhead')[2] as HTMLButtonElement).click()
+    await waitFor(() =>
+      expect($('.step-exchange .rq-bar')?.textContent).toContain('approve-payment'),
+    )
+    const tabs = [...root.querySelectorAll('.step-exchange .rq-tab')].map((t) => t.textContent)
+    expect(tabs.join(' ')).toMatch(/Output\s+Inputs/)
+    expect($('.step-exchange .rq-bar .method')).toBeNull()
   })
 
   it('lays a step out like an operation: bar, Request and Response tabs, checked against the schema', async () => {

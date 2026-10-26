@@ -77,7 +77,13 @@ export function Palette({ entries }: { entries: Entry[] }) {
               >
                 <span class="p-title">{e.title}</span>
                 <span class="muted">
-                  {e.kind === 'seq' ? 'Sequence' : e.kind === 'req' ? 'Request' : e.group}
+                  {e.kind === 'seq'
+                    ? 'Sequence'
+                    : e.kind === 'script'
+                      ? 'Script'
+                      : e.kind === 'req'
+                        ? 'Request'
+                        : e.group}
                 </span>
               </button>
             </li>

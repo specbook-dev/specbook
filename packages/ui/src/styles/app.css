@@ -613,6 +613,34 @@
     background: var(--sb-success-subtle);
     color: var(--sb-success);
   }
+  /* where a script step renders what it needs a person for: an SDK's button or frame */
+  .script-stage {
+    margin-top: var(--sb-space-3);
+    padding: var(--sb-space-1);
+    min-height: 44px;
+    /* an SDK's widget has a width of its own (Turnstile's is 300px): it scrolls here rather than being cut off */
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px dashed var(--sb-border);
+    border-radius: var(--sb-radius-control);
+  }
+  .script-stage:not(:empty) {
+    border-style: solid;
+  }
+  .script-logs {
+    margin: 0;
+    padding: var(--sb-space-3);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-family: var(--sb-font-mono);
+    font-size: 12px;
+    background: var(--sb-bg);
+    border-radius: var(--sb-radius-control);
+  }
+  .seq-unmet {
+    margin: var(--sb-space-2) 0;
+    font-size: 13px;
+  }
   .pause {
     margin-top: var(--sb-space-3);
     padding: var(--sb-space-3);
@@ -685,6 +713,10 @@
   .badge.pass {
     background: var(--sb-success-subtle);
     color: var(--sb-success);
+  }
+  .badge.skipped {
+    background: var(--sb-surface-raised);
+    color: var(--sb-text-muted);
   }
   .badge.fail,
   .badge.error {

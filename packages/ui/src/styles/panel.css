@@ -438,6 +438,9 @@
   .method.flow {
     color: var(--sb-accent);
   }
+  .method.script {
+    color: var(--sb-text-muted);
+  }
   /* flows are the differentiator: one tinted block above the operations, badge once */
   .flows {
     margin-bottom: var(--sb-space-4);
@@ -1758,6 +1761,13 @@
     .sequence-panel {
       grid-template-columns: minmax(0, 1fr);
       overflow: auto;
+    }
+  }
+  /* a script draws its own widget in its step (Turnstile's is 300px wide, and the timeline's padding and gutter take about
+     75px of the column): the column is wide enough for it, and only for a flow that has one */
+  @media (min-width: 901px) {
+    .sequence-panel.has-script {
+      grid-template-columns: minmax(392px, 4fr) minmax(0, 7fr);
     }
   }
   .seq-inputs {

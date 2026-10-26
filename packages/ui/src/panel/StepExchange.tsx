@@ -7,12 +7,19 @@ import { version } from '../store'
 import { StepCodeSample } from './CodeSample'
 import { queryString, RequestView } from './RequestView'
 import { ResponseView } from './ResponseView'
+import { ScriptExchange } from './ScriptExchange'
 
 /**
  * The selected step of a run, laid out like an operation: a bar with method, URL and result, then
  * Request and Response tabs (the response checked against the operation's schema).
  */
-export function StepExchange({
+export function StepExchange(props: { step: StepResult; note?: string; services?: string[] }) {
+  // a script has no request or response: it is shown as what it was given and what it returned
+  if (props.step.kind === 'script') return <ScriptExchange {...props} />
+  return <RequestExchange {...props} />
+}
+
+function RequestExchange({
   step,
   note,
   services,

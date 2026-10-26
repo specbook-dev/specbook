@@ -1,4 +1,4 @@
-import type { RunResult, StepResult } from '@specbook/core'
+import { flowSkipReason, type RunResult, type StepResult } from '@specbook/core'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import type { Security } from '../auth-options'
 import { EnvBadge } from '../components/EnvBadge'
@@ -71,8 +71,10 @@ export function SequencePanel({
   const serviceNames = useMemo(() => {
     const names = new Set<string>()
     for (const n of seq.nodes) {
-      if (n.kind === 'step' && typeof n.def !== 'function') names.add(n.def.op.service)
-      else if (n.kind === 'step' || n.kind === 'each') return undefined
+      if (n.kind === 'step' && typeof n.def !== 'function') {
+        // a script calls no operation of the spec: it adds no service and does not make the list unknown
+        if (n.def.kind === 'request') names.add(n.def.op.service)
+      } else if (n.kind === 'step' || n.kind === 'each') return undefined
     }
     return [...names]
   }, [seq])
@@ -80,10 +82,22 @@ export function SequencePanel({
   const securities = useMemo(() => {
     const out: Record<string, Security[]> = {}
     for (const n of seq.nodes)
-      if (n.kind === 'step' && typeof n.def !== 'function')
+      if (n.kind === 'step' && typeof n.def !== 'function' && n.def.kind === 'request')
         out[n.def.op.service] = [...(out[n.def.op.service] ?? []), n.def.op.security]
     return out
   }, [seq])
+  // a flow with a script step gives the timeline room for what a script draws in its row (a 300px widget)
+  const hasScript = useMemo(
+    () =>
+      seq.nodes.some(
+        (n) =>
+          n.kind === 'step' &&
+          typeof n.def !== 'function' &&
+          n.def.kind === 'script' &&
+          n.def.meta.runtime === 'browser',
+      ),
+    [seq],
+  )
   const [inputs, setInputs] = useState<Record<string, unknown>>({})
   const [result, setResult] = useState<RunResult>()
   const [live, setLive] = useState<Live>({})
@@ -93,6 +107,8 @@ export function SequencePanel({
     controls: Record<string, FieldSpec>
     resolve: (v: Record<string, unknown>) => void
   }>()
+  // a script step that is waiting for a container to render into: it gets the element once it is on the page
+  const [stage, setStage] = useState<{ name: string; resolve: (el: HTMLElement) => void }>()
   const [choice, setChoice] = useState<Record<string, unknown>>({})
   const [picked, setPicked] = useState<number>(0)
   // a phone shows the selected step's request and response as a sheet over the timeline
@@ -123,7 +139,10 @@ export function SequencePanel({
 
   useEffect(() => {
     let current = true
-    const saved = kept.get(keptKey)
+    // a button that names its own starting values (an embed's data-specbook-inputs) means them, whatever an earlier open of
+    // the same flow left behind; with none named, the flow comes back as it was left
+    const named = !!preset && Object.keys(preset).length > 0
+    const saved = named ? undefined : kept.get(keptKey)
     if (saved) {
       // back on a flow that was being filled in: what was typed is still there, and nothing runs by itself
       setInputs(startValues(specs, saved))
@@ -144,6 +163,7 @@ export function SequencePanel({
     setResult(undefined)
     setLive({})
     setPause(undefined)
+    setStage(undefined)
     return () => {
       current = false
     }
@@ -199,8 +219,36 @@ export function SequencePanel({
         signal: ctl.signal,
         onEvent: (e) => {
           if (e.type === 'step:start') setLive((l) => ({ ...l, [e.name]: 'running' }))
-          if (e.type === 'step:end') setLive((l) => ({ ...l, [e.name]: e.status }))
+          if (e.type === 'step:end') {
+            setLive((l) => ({ ...l, [e.name]: e.status }))
+            // a script's container goes with its step
+            setStage((s) => (s?.name === e.name ? undefined : s))
+          }
         },
+        // a script renders into a container in its own row; it is made when the script asks for it, and ends with the step
+        mount: (name, stopSignal) =>
+          new Promise<HTMLElement>((resolve, reject) => {
+            let done = false
+            const entry = {
+              name,
+              resolve: (el: HTMLElement) => {
+                if (done) return
+                done = true
+                resolve(el)
+              },
+            }
+            setStage(entry)
+            stopSignal?.addEventListener(
+              'abort',
+              () => {
+                setStage((s) => (s === entry ? undefined : s))
+                if (done) return
+                done = true
+                reject(new Error('Stopped before the step finished.'))
+              },
+              { once: true },
+            )
+          }),
         onInput: options.headless
           ? undefined
           : ({ name, controls }) =>
@@ -242,6 +290,7 @@ export function SequencePanel({
       stopper.current = undefined
       setRunning(false)
       setPause(undefined)
+      setStage(undefined)
     }
   }
 
@@ -260,6 +309,8 @@ export function SequencePanel({
   }, [])
 
   const overall = result?.status
+  // a flow whose scripts need what this page is not (node), before it runs or after it was left out of a run
+  const unmet = result?.skipped ?? flowSkipReason(seq, 'browser', env.value)
   const hasForm = Object.keys(specs).length > 0
   // the form is drawn in one place: under its stop on a narrow screen, in the right pane on a wide one
   const form = (
@@ -271,7 +322,10 @@ export function SequencePanel({
   const inputsError = inputsFailed ? bad0?.error : undefined
 
   return (
-    <div class={`sequence-panel ${sheet && current ? 'sheet-open' : ''}`} data-seq={seq.meta.id}>
+    <div
+      class={`sequence-panel ${sheet && current ? 'sheet-open' : ''} ${hasScript ? 'has-script' : ''}`}
+      data-seq={seq.meta.id}
+    >
       <div class="seq-left" ref={left}>
         <SecretsBar services={serviceNames} securities={securities} />
         <div class="seq-run" ref={runRow}>
@@ -300,20 +354,27 @@ export function SequencePanel({
           )}
           <EnvBadge />
           {result && (
-            <span class={`badge ${overall}`}>
-              {ICON[overall as 'pass']}{' '}
-              {overall === 'pass'
-                ? 'Passed'
-                : stopped
-                  ? 'Stopped'
-                  : overall === 'fail'
-                    ? 'Failed'
-                    : 'Error'}{' '}
+            <span class={`badge ${result.skipped ? 'skipped' : overall}`}>
+              {ICON[result.skipped ? 'skipped' : (overall as 'pass')]}{' '}
+              {result.skipped
+                ? 'Skipped'
+                : overall === 'pass'
+                  ? 'Passed'
+                  : stopped
+                    ? 'Stopped'
+                    : overall === 'fail'
+                      ? 'Failed'
+                      : 'Error'}{' '}
               · {result.totals.passed}/{result.totals.steps} steps · {result.durationMs}ms
             </span>
           )}
         </div>
         {error && <p class="error-text">{error}</p>}
+        {unmet && (
+          <p class="muted seq-unmet" role="status">
+            {unmet}
+          </p>
+        )}
         <ol class="journey" part="timeline" aria-label="Timeline">
           {hasForm && (
             <li class={`jin ${inputsOpen ? 'open' : ''} ${inputsError ? 'bad' : ''}`}>
@@ -368,6 +429,11 @@ export function SequencePanel({
                         {step.response.status} · {step.durationMs}ms
                       </span>
                     )}
+                    {step?.kind === 'script' && step.status !== 'skipped' && (
+                      <span class="muted">
+                        {step.script?.runtime} · {step.durationMs}ms
+                      </span>
+                    )}
                     {step && step.assertions.length > 0 && (
                       <span class={failed.length ? 'error-text' : 'muted'}>
                         {step.assertions.length - failed.length}/{step.assertions.length} checks
@@ -393,10 +459,21 @@ export function SequencePanel({
                   ))}
                   {status === 'skipped' && (
                     <div class="muted">
-                      {stopped
-                        ? 'Skipped: you stopped the run.'
-                        : 'Skipped: an earlier step did not pass.'}
+                      {step?.note ??
+                        (stopped
+                          ? 'Skipped: you stopped the run.'
+                          : 'Skipped: an earlier step did not pass.')}
                     </div>
+                  )}
+                  {stage && stage.name === row.name && live[row.name] === 'running' && (
+                    // the script renders its own surface here (a button, a frame); it is handed this element, never a selector
+                    <div
+                      class="script-stage"
+                      key={`script-stage-${row.name}`}
+                      ref={(el) => {
+                        if (el) stage.resolve(el)
+                      }}
+                    />
                   )}
                   {pause && live[row.name] === 'paused' && (
                     <div class="pause">

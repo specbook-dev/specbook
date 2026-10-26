@@ -25,7 +25,11 @@ function isActive(e: Entry): boolean {
     const onSaved = (r.play ?? '').startsWith('saved:')
     return e.kind === 'req' ? r.play === e.route.play : !onSaved
   }
-  return e.route.kind === 'seq' && r.kind === 'seq' && e.route.id === r.id
+  return (
+    (e.route.kind === 'seq' || e.route.kind === 'script') &&
+    e.route.kind === r.kind &&
+    e.route.id === r.id
+  )
 }
 
 function OpRow({ e }: { e: Entry }) {
@@ -58,6 +62,8 @@ function useCatalog(entries: Entry[], services: ServiceInfo[]) {
   const ops = useMemo(() => entries.filter((e) => e.kind === 'op'), [entries])
   const flows = useMemo(() => entries.filter((e) => e.kind === 'seq'), [entries])
   const reqs = useMemo(() => entries.filter((e) => e.kind === 'req'), [entries])
+  const scripts = useMemo(() => entries.filter((e) => e.kind === 'script'), [entries])
+  const shownScripts = useMemo(() => (q ? search(scripts, q, 100) : scripts), [scripts, q])
   const shownReqs = useMemo(() => {
     const scoped = svc ? reqs.filter((e) => e.service === svc) : reqs
     return q ? search(scoped, q, 200) : scoped
@@ -70,7 +76,7 @@ function useCatalog(entries: Entry[], services: ServiceInfo[]) {
     const scoped = svc && !single ? flows.filter((e) => e.tags?.includes(svc)) : flows
     return q ? search(scoped, q, 100) : scoped
   }, [flows, svc, q, single])
-  return { q, single, svc, shownOps, shownFlows, shownReqs }
+  return { q, single, svc, shownOps, shownFlows, shownReqs, shownScripts }
 }
 
 /** The left column: pills, filter and grouped rows. It never changes width, so opening the panel moves nothing. */
@@ -79,7 +85,10 @@ export function CatalogList({ entries, services }: { entries: Entry[]; services:
   const list = useRef<HTMLDivElement>(null)
   // what the user chose per group; groups they haven't touched follow the default
   const [chosen, setChosen] = useState<Map<string, boolean>>(new Map())
-  const { q, single, svc, shownOps, shownFlows, shownReqs } = useCatalog(entries, services)
+  const { q, single, svc, shownOps, shownFlows, shownReqs, shownScripts } = useCatalog(
+    entries,
+    services,
+  )
   // the flows and the requests are each a section that folds, open until the person closes it
   const sectionOpen = (name: string) => chosen.get(`section:${name}`) ?? true
   const toggleSection = (name: string) => {
@@ -255,6 +264,35 @@ export function CatalogList({ entries, services }: { entries: Entry[]; services:
                 </div>
               )
             })}
+        </section>
+      )}
+
+      {shownScripts.length > 0 && (
+        <section class="flows scripts" aria-label="Scripts">
+          <button
+            type="button"
+            class="flows-title"
+            aria-expanded={sectionOpen('scripts')}
+            onClick={() => toggleSection('scripts')}
+          >
+            <span class="caret">{sectionOpen('scripts') ? '▾' : '▸'}</span>
+            <span class="method script">SCRIPT</span>
+            <span class="muted small">Steps that are code, run on their own</span>
+            <span class="count">{shownScripts.length}</span>
+          </button>
+          {sectionOpen('scripts') &&
+            shownScripts.map((e) => (
+              <button
+                type="button"
+                class={`op-row flow-row ${isActive(e) ? 'active' : ''}`}
+                onClick={() => go(e.route)}
+              >
+                <span class="flow-play" aria-hidden="true">
+                  ▶
+                </span>
+                <span class="op-title">{e.title}</span>
+              </button>
+            ))}
         </section>
       )}
 

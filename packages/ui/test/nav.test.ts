@@ -57,3 +57,19 @@ describe('a host that is not the app', () => {
     expect(route.value).toBe(before)
   })
 })
+
+describe('a script on its own', () => {
+  it('has a route of its own, apart from a flow of the same id', async () => {
+    const { parseHash, hashFor } = await import('../src/nav')
+    expect(parseHash('#/script/turnstile')).toEqual({
+      kind: 'script',
+      id: 'turnstile',
+      play: undefined,
+      tab: undefined,
+    })
+    expect(parseHash('#/seq/turnstile')).toMatchObject({ kind: 'seq' })
+    expect(hashFor({ kind: 'script', id: 'card fingerprint', tab: 'docs' })).toBe(
+      '#/script/card%20fingerprint?tab=docs',
+    )
+  })
+})

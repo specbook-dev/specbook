@@ -1,4 +1,4 @@
-import { defineOperation, sequence, withMock } from '@specbook/core'
+import { c, defineOperation, script, sequence, withMock } from '@specbook/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createEngine, pickRunnable, willPreflight } from '../src/engine'
 
@@ -144,6 +144,77 @@ describe('ui engine', () => {
     })
     expect(asked).toEqual(['pick'])
     expect(r.status).toBe('pass')
+  })
+
+  describe('scripts', () => {
+    const where = script({
+      id: 'where',
+      name: 'Where',
+      runtime: 'browser',
+      run: async (_i, h) => ({ runtime: h.runtime }),
+    })
+    const onNode = withMock(
+      script({
+        id: 'node-only',
+        name: 'Node only',
+        runtime: 'node',
+        run: async () => ({ ok: true }),
+      }),
+      () => ({ ok: true }),
+    )
+    const box = script({
+      id: 'box',
+      name: 'Box',
+      runtime: 'browser',
+      inputs: { label: c.text({ default: 'Approve' }) },
+      run: async ({ label }, h) => {
+        const el = (await h.mount()) as unknown as { label?: string }
+        el.label = label
+        return { shown: label }
+      },
+    })
+
+    it('runs a browser script on a host that is a page, and says so to the body', async () => {
+      const r = await engine.run(sequence({ id: 's', title: 'S' }).step('Where', where), {
+        env: 'live',
+        version: 0,
+      })
+      expect(r.status).toBe('pass')
+      expect(r.steps[0]?.captured).toEqual({ runtime: 'browser' })
+    })
+
+    it('leaves a flow that needs node out of a page, and counts it as passed', async () => {
+      const r = await engine.run(sequence({ id: 's', title: 'S' }).step('Node', onNode), {
+        env: 'live',
+        version: 0,
+      })
+      expect([r.status, r.skipped]).toEqual(['pass', expect.stringContaining('Needs node')])
+    })
+
+    it('gives a script the container the panel makes', async () => {
+      const el: { label?: string } = {}
+      const asked: string[] = []
+      const r = await engine.run(sequence({ id: 's', title: 'S' }).step('Box', box), {
+        env: 'live',
+        version: 0,
+        mount: async (name) => {
+          asked.push(name)
+          return el as never
+        },
+      })
+      expect(asked).toEqual(['Box'])
+      expect(el.label).toBe('Approve')
+      expect(r.steps[0]?.captured).toEqual({ shown: 'Approve' })
+    })
+
+    it('answers from its mock in the mock environment, whatever the host', async () => {
+      const r = await engine.run(sequence({ id: 's', title: 'S' }).step('Node', onNode), {
+        env: 'mock',
+        version: 0,
+      })
+      expect(r.skipped).toBeUndefined()
+      expect(r.steps[0]?.captured).toEqual({ ok: true })
+    })
   })
 
   it('loads faker only when a run can use it', async () => {
