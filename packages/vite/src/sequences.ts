@@ -9,7 +9,7 @@ export interface SequenceMeta {
   group?: string
 }
 
-const KEYS = ['id', 'title', 'description', 'group', 'tags'] as const
+const KEYS: readonly string[] = ['id', 'title', 'description', 'group', 'tags']
 
 /** Reads a quoted string literal at `i`, returning its value and the index after it. */
 function readString(src: string, i: number): [string, number] | undefined {
@@ -59,15 +59,20 @@ function skipValue(src: string, i: number): number {
 }
 
 /**
- * Pulls `id`, `title`, `description`, `group` and `tags` out of the `sequence({ ... })` call in a `.seq.ts`
- * without importing it. Returns undefined when any of them is not a plain literal (computed titles,
- * concatenation, ...), so the caller can import that file instead.
+ * Pulls the literal keys of a `call({ ... })` (`sequence` or `script`) out of a file without importing it. Returns
+ * undefined when any of them is not a plain literal (computed titles, concatenation, ...), so the caller can import
+ * that file instead.
  */
-export function parseSequenceMeta(src: string): SequenceMeta | undefined {
-  const call = /\bsequence\s*(?:<[^>]*>)?\s*\(\s*\{/.exec(src)
-  if (!call) return undefined
+function parseCallMeta(
+  src: string,
+  call: string,
+  keys: readonly string[],
+  required: readonly string[],
+): Record<string, unknown> | undefined {
+  const head = new RegExp(`\\b${call}\\s*(?:<[^>]*>)?\\s*\\(\\s*\\{`).exec(src)
+  if (!head) return undefined
   const found: Record<string, unknown> = {}
-  let i = call.index + call[0].length
+  let i = head.index + head[0].length
   for (;;) {
     i = skipSpace(src, i)
     if (i >= src.length || src[i] === '}') break
@@ -77,11 +82,11 @@ export function parseSequenceMeta(src: string): SequenceMeta | undefined {
     i = skipSpace(src, i + key[0].length)
     if (src[i] !== ':') {
       // shorthand `id,` or a method; either way not a literal
-      if ((KEYS as readonly string[]).includes(name)) return undefined
+      if (keys.includes(name)) return undefined
       i = skipValue(src, i)
     } else {
       i = skipSpace(src, i + 1)
-      if ((KEYS as readonly string[]).includes(name)) {
+      if (keys.includes(name)) {
         const str = readString(src, i)
         if (str) {
           found[name] = str[0]
@@ -110,8 +115,28 @@ export function parseSequenceMeta(src: string): SequenceMeta | undefined {
     i = skipSpace(src, i)
     if (src[i] === ',') i++
   }
-  if (typeof found.id !== 'string' || typeof found.title !== 'string') return undefined
-  return found as unknown as SequenceMeta
+  if (required.some((k) => typeof found[k] !== 'string')) return undefined
+  return found
+}
+
+/** `id`, `title`, `description`, `group` and `tags` of the `sequence({ ... })` call in a `.seq.ts`. */
+export function parseSequenceMeta(src: string): SequenceMeta | undefined {
+  return parseCallMeta(src, 'sequence', KEYS, ['id', 'title']) as SequenceMeta | undefined
+}
+
+export interface ScriptHeader {
+  id: string
+  name?: string
+  description?: string
+  tags?: string[]
+  runtime?: string
+}
+
+/** The same for the `script({ ... })` call in a `.script.ts`, with or without a `withMock(...)` around it. */
+export function parseScriptMeta(src: string): ScriptHeader | undefined {
+  return parseCallMeta(src, 'script', ['id', 'name', 'description', 'tags', 'runtime'], ['id']) as
+    | ScriptHeader
+    | undefined
 }
 
 export interface SequenceScan {
@@ -127,6 +152,26 @@ export async function scanSequences(root: string, files: string[]): Promise<Sequ
   await Promise.all(
     files.map(async (file) => {
       const parsed = parseSequenceMeta(await readFile(join(root, file), 'utf8').catch(() => ''))
+      if (parsed) meta[parsed.id] = { ...parsed, file }
+      else unresolved.push(file)
+    }),
+  )
+  return { meta, unresolved: unresolved.sort() }
+}
+
+export interface ScriptScan {
+  /** keyed by id, with the project-relative file it came from */
+  meta: Record<string, ScriptHeader & { file: string }>
+  /** files whose header is not plain literals; the UI imports these */
+  unresolved: string[]
+}
+
+export async function scanScripts(root: string, files: string[]): Promise<ScriptScan> {
+  const meta: ScriptScan['meta'] = {}
+  const unresolved: string[] = []
+  await Promise.all(
+    files.map(async (file) => {
+      const parsed = parseScriptMeta(await readFile(join(root, file), 'utf8').catch(() => ''))
       if (parsed) meta[parsed.id] = { ...parsed, file }
       else unresolved.push(file)
     }),

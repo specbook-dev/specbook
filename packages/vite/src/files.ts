@@ -5,18 +5,24 @@ import fg from 'fast-glob'
 
 const IGNORE = ['**/node_modules/**', '**/.generated/**', '**/dist/**', '**/.git/**']
 
+/** A script's contract and the file its browser body lives in: `x.script.ts`, and `x.browser.ts` beside it. */
+export const SCRIPT_FILE = /\.(script|browser)\.ts$/
+
 export interface ProjectFiles {
   requests: string[]
   sequences: string[]
+  /** the contracts of the project's scripts: every `.script.ts` file */
+  scripts: string[]
   /** every .ts/.json file the editor may need for typings (relative to root) */
   sources: string[]
 }
 
 export async function scanProject(root: string): Promise<ProjectFiles> {
   const rel = (e: string[]) => e.map((f) => relative(root, f).split(sep).join('/')).sort()
-  const [requests, sequences, sources] = await Promise.all([
+  const [requests, sequences, scripts, sources] = await Promise.all([
     fg('**/*.req.ts', { cwd: root, absolute: true, ignore: IGNORE }),
     fg('**/*.seq.ts', { cwd: root, absolute: true, ignore: IGNORE }),
+    fg('**/*.script.ts', { cwd: root, absolute: true, ignore: IGNORE }),
     fg(['**/*.ts', '**/*.json'], {
       cwd: root,
       absolute: true,
@@ -30,7 +36,12 @@ export async function scanProject(root: string): Promise<ProjectFiles> {
       ],
     }),
   ])
-  return { requests: rel(requests), sequences: rel(sequences), sources: rel(sources) }
+  return {
+    requests: rel(requests),
+    sequences: rel(sequences),
+    scripts: rel(scripts),
+    sources: rel(sources),
+  }
 }
 
 /** Sources, plus the sample files an example may upload. */

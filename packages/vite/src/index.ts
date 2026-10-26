@@ -23,13 +23,13 @@ import {
   writeEnvKey,
 } from './environments'
 import { scanExamples } from './examples'
-import { requestsDirFor, safeProjectPath, scanProject } from './files'
+import { requestsDirFor, SCRIPT_FILE, safeProjectPath, scanProject } from './files'
 import { type EnvironmentAddresses, handleProxy, type ProxyConfig } from './proxy'
 import { scanRequests } from './requests'
-import { parseSequenceMeta, scanSequences } from './sequences'
+import { parseSequenceMeta, scanScripts, scanSequences } from './sequences'
 
 export * from './environments'
-export { requestsDirFor, safeProjectPath, scanProject } from './files'
+export { requestsDirFor, SCRIPT_FILE, safeProjectPath, scanProject } from './files'
 export type { EnvironmentAddresses, ProxyConfig, ProxyDeps } from './proxy'
 export { handleProxy } from './proxy'
 
@@ -236,7 +236,7 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
       /* not installed: fine unless a file uses it, checked below */
     }
     if (!fakerEntry) {
-      for (const f of [...files.requests, ...files.sequences]) {
+      for (const f of [...files.requests, ...files.sequences, ...files.scripts]) {
         if (USES_FAKER.test(await readFile(join(root, f), 'utf8').catch(() => '')))
           throw new Error(
             `${f} uses faker, but @faker-js/faker is not installed in this project. Add it to devDependencies (npm install --save-dev @faker-js/faker).`,
@@ -292,6 +292,7 @@ export function specbook(options: SpecbookPluginOptions): Plugin {
     )
     // Sequence titles come from each file's literal header, so listing them imports no sequence.
     const sequenceScan = await scanSequences(root, files.sequences)
+    const scriptScan = await scanScripts(root, files.scripts)
     // which operation each request file is for, read from its text, so an embed imports only the one it opens
     const requestScan = await scanRequests(root, files.requests, new Set(Object.keys(manifests)))
     for (const f of files.sequences) {
@@ -437,6 +438,9 @@ export const unresolvedRequests = ${JSON.stringify(requestScan.unresolved)}
 export const sequences = [${files.sequences.map(entry).join(',\n')}]
 export const sequenceMeta = ${JSON.stringify(sequenceScan.meta)}
 export const unresolvedSequences = ${JSON.stringify(sequenceScan.unresolved)}
+export const scripts = [${files.scripts.map(entry).join(',\n')}]
+export const scriptMeta = ${JSON.stringify(scriptScan.meta)}
+export const unresolvedScripts = ${JSON.stringify(scriptScan.unresolved)}
 export const brandingAssets = {\n${brandingEntries.join(',\n')}\n}
 export const environmentVars = ${JSON.stringify(await readAllVars(root))}
 const loadOperations = () => import(${JSON.stringify(VIRTUAL_OPERATIONS)}).then((m) => m.operations)
@@ -491,6 +495,9 @@ export const unresolvedRequests = ${JSON.stringify(requestScan.unresolved)}
 export const sequences = [${files.sequences.map(entry).join(',\n')}]
 export const sequenceMeta = ${JSON.stringify(sequenceScan.meta)}
 export const unresolvedSequences = ${JSON.stringify(sequenceScan.unresolved)}
+export const scripts = [${files.scripts.map(entry).join(',\n')}]
+export const scriptMeta = ${JSON.stringify(scriptScan.meta)}
+export const unresolvedScripts = ${JSON.stringify(scriptScan.unresolved)}
 export const brandingAssets = {\n${brandingEntries.join(',\n')}\n}
 export const environmentVars = ${JSON.stringify(await readAllVars(root))}
 export const operations = {\n${operationEntries.join(',\n')}\n}
@@ -679,7 +686,13 @@ ${names.map((n) => `  ${JSON.stringify(n)}: () => import(${JSON.stringify(`${VIR
         if (rel.startsWith('..') || /node_modules/.test(rel)) return false
         // not `.specbook/environments/*.env`: the page reads an environment's variables live, and a reload
         // when its file is first written would blank the page under whoever is editing a variable
-        return /\.(req|seq)\.ts$|\.example\.json$|\.md$/.test(rel) || rel.startsWith(outDir)
+        // a script's contract or body too: a flow imports the contract, and the body is loaded when its step runs, so
+        // an edit to either is only seen by a page that starts again
+        return (
+          /\.(req|seq)\.ts$|\.example\.json$|\.md$/.test(rel) ||
+          SCRIPT_FILE.test(rel) ||
+          rel.startsWith(outDir)
+        )
       }
       // one reload per burst of changes: a save also arrives here from the watcher
       let pending: ReturnType<typeof setTimeout> | undefined
@@ -697,7 +710,7 @@ ${names.map((n) => `  ${JSON.stringify(n)}: () => import(${JSON.stringify(`${VIR
       s.watcher.on('add', refresh)
       s.watcher.on('unlink', refresh)
       s.watcher.on('change', async (file) => {
-        if (file.endsWith('.md')) return refresh(file)
+        if (file.endsWith('.md') || SCRIPT_FILE.test(file)) return refresh(file)
         if (!file.endsWith('.seq.ts')) return
         // only the listing is affected by the header; the module itself is re-imported on open
         const header = JSON.stringify(
