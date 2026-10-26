@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { bundleCommand } from '../src/commands/bundle'
+import { bundleCommand, isBrowserBody } from '../src/commands/bundle'
 import { createLoader, type Loader } from '../src/load'
 import { loadProject, type Project } from '../src/project'
 import { fakeApi } from './fake-api'
@@ -215,4 +215,107 @@ describe('specbook bundle', () => {
       await writeFile(join(dir, 'requests/typo.req.ts'), '')
     }
   }, 60_000)
+})
+
+describe('specbook bundle with scripts', () => {
+  let dir2: string
+  let loader2: Loader
+  let project2: Project
+
+  beforeAll(async () => {
+    dir2 = await mkdtemp(join(tmpdir(), 'sb-bundle-scripts-'))
+    const files: Record<string, string> = {
+      '.specbook/specbook.config.ts': `import { defineConfig } from '@specbook/core'
+export default defineConfig({
+  project: 'tmp',
+  vars: { apiUrl: ${JSON.stringify(base)} },
+  services: { api: { spec: './api.json', baseUrl: '{{apiUrl}}' } },
+})
+`,
+      '.generated/api/opmeta.json': JSON.stringify(ops.api),
+      'requests/get-pet.req.ts':
+        "import { GetPet } from '#api/api'\nexport default GetPet.request({ name: 'Get pet', path: { id: 1 } })\n",
+      // a browser script: its body, and the SDK the body imports, must stay out of the file
+      'scripts/pay.script.ts': `import { script, withMock } from '@specbook/core'
+export default withMock(
+  script({
+    id: 'pay',
+    name: 'Pay',
+    runtime: 'browser',
+    load: () => import('./pay.browser'),
+  }),
+  () => ({ nonce: 'a-nonce' }),
+)
+`,
+      'scripts/pay.browser.ts': `import { shim } from './sdk-shim'
+export const run = async () => ({ nonce: 'BROWSER-BODY-MARKER' + shim })
+`,
+      'scripts/sdk-shim.ts': "export const shim = 'SDK-SHIM-MARKER'\n",
+      // an isomorphic one: its body is part of the file
+      'scripts/digest.script.ts': `import { c, script, withMock } from '@specbook/core'
+export default withMock(
+  script({
+    id: 'digest',
+    name: 'Digest',
+    runtime: 'isomorphic',
+    inputs: { text: c.text({ default: 'abc' }) },
+    run: async ({ text }) => ({ digest: 'ISOMORPHIC-BODY-MARKER:' + text.length }),
+  }),
+  () => ({ digest: '' }),
+)
+`,
+      'sequences/checkout.seq.ts': `import { sequence } from '@specbook/core'
+import get from '../requests/get-pet.req'
+import pay from '../scripts/pay.script'
+export default sequence({ id: 'checkout', title: 'Checkout flow' }).step('Get pet', get).step('Pay', pay)
+`,
+      'sequences/digest.seq.ts': `import { sequence } from '@specbook/core'
+import digest from '../scripts/digest.script'
+export default sequence({ id: 'digest', title: 'Digest flow' })
+  .step('Digest', digest)
+  .check('Counted', (ctx, { assert }) => assert.is(ctx.captured.digest, 'ISOMORPHIC-BODY-MARKER:3', 'counted'))
+`,
+    }
+    for (const [path, text] of Object.entries(files)) {
+      await mkdir(join(dir2, path, '..'), { recursive: true })
+      await writeFile(join(dir2, path), text)
+    }
+    await symlink(join(example, 'node_modules'), join(dir2, 'node_modules'))
+    loader2 = await createLoader(dir2, { plugins: [fakeApi(ops)] })
+    project2 = await loadProject(dir2, loader2)
+  }, 60_000)
+
+  afterAll(async () => {
+    await loader2.close()
+  })
+
+  it('stubs the project’s browser bodies and not a dependency’s file of that name', () => {
+    expect(isBrowserBody('/p/scripts/pay.browser.ts')).toBe(true)
+    expect(isBrowserBody('/p/node_modules/dep/index.browser.js')).toBe(false)
+  })
+
+  it('leaves a browser body and the SDK it imports out of the file, and keeps an isomorphic body', async () => {
+    const out = await outFile()
+    expect(await quiet(() => bundleCommand(project2, loader2, { out, tags: [] }))).toBe(0)
+    const text = await readFile(out, 'utf8')
+    expect(text).not.toContain('BROWSER-BODY-MARKER')
+    expect(text).not.toContain('SDK-SHIM-MARKER')
+    expect(text).toContain('ISOMORPHIC-BODY-MARKER')
+  })
+
+  it('skips the flow that needs a browser when it runs, and runs the one that does not', async () => {
+    const out = await outFile()
+    await quiet(() => bundleCommand(project2, loader2, { out, tags: [] }))
+    const r = await runFile(out, ['--env', 'live'])
+    expect(r.err).toBe('')
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('– Checkout flow  skipped: Needs a browser')
+    expect(r.out).toContain('✓ Digest flow › Digest')
+    expect(r.out).toContain('✓ Digest flow › Counted')
+    // a script is a target on its own: the isomorphic one runs, the browser one is skipped
+    expect(r.out).toContain('– Pay  skipped: Needs a browser')
+    expect(r.out).toContain('✓ Digest')
+    // the request runs on its own as well as in the flow that is skipped
+    expect(r.out).toMatch(/Flows\s+3 passed \| 2 skipped/)
+  })
 })

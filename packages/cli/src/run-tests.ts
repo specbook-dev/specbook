@@ -23,6 +23,7 @@ import {
   environmentScope,
   envProvider,
   type FileReader,
+  flowSkipReason,
   formatGithub,
   formatList,
   githubSummary,
@@ -40,8 +41,10 @@ import {
   resolveSecrets,
   retryLine,
   runSuite,
+  type ScriptDef,
   type Sequence,
   type SpecbookConfig,
+  scriptFlow,
   serviceProfiles,
   type Transport,
   testExitCode,
@@ -49,6 +52,7 @@ import {
   withoutLocations,
 } from '@specbook/core'
 import { readDotenv } from './project'
+import { nodeScriptHost } from './script-host'
 import { cliVersion } from './version'
 
 export type Runnable = RequestDef<any, any, any> | Sequence<any, any>
@@ -66,15 +70,18 @@ export const titleOf = (r: Runnable) =>
 export const tagsOf = (r: Runnable): string[] =>
   r.kind === 'sequence' ? (r.meta.tags ?? []) : (r.input.tags ?? [])
 
-function isRunnable(v: unknown): v is Runnable {
+function isTarget(v: unknown): v is Runnable | ScriptDef<any, any, any> {
   const k = (v as { kind?: string } | undefined)?.kind
-  return k === 'request' || k === 'sequence'
+  return k === 'request' || k === 'sequence' || k === 'script'
 }
 
-/** The requests and flows a module exports: its default, or else each export that is one. */
+/** The requests, flows and scripts a module exports: its default, or else each export that is one. A script runs as a flow of one step. */
 export function targetsOf(mod: Record<string, unknown>, file: string): Target[] {
-  const found = isRunnable(mod.default) ? [mod.default] : Object.values(mod).filter(isRunnable)
-  return found.map((run) => ({ run, file, title: titleOf(run), tags: tagsOf(run) }))
+  const found = isTarget(mod.default) ? [mod.default] : Object.values(mod).filter(isTarget)
+  return found.map((d) => {
+    const run = d.kind === 'script' ? scriptFlow(d) : d
+    return { run, file, title: titleOf(run), tags: tagsOf(run) }
+  })
 }
 
 export type MockLoader = Parameters<typeof createMockTransport>[0]['loader']
@@ -172,6 +179,14 @@ function parseShard(s: string): { index: number; total: number } | undefined {
   if (!m) return undefined
   const [index, total] = [Number(m[1]), Number(m[2])]
   return index >= 1 && total >= 1 && index <= total ? { index, total } : undefined
+}
+
+/**
+ * Why a flow will not run in node on this environment, when it will not: its scripts need a browser. The `mock`
+ * environment answers every script with its mock, so a flow runs there whatever its scripts need.
+ */
+export function notRunHere(t: Target, env: string): string | undefined {
+  return t.run.kind === 'sequence' ? flowSkipReason(t.run, 'node', env) : undefined
 }
 
 function select(targets: Target[], o: TestCommandOptions): Target[] | string {
@@ -328,8 +343,12 @@ export async function runTests(ctx: TestContext, o: TestCommandOptions): Promise
   }
 
   if (o.list) {
-    for (const t of picked)
-      console.log(`${t.file} › ${t.title}${t.tags.length ? `  [${t.tags.join(', ')}]` : ''}`)
+    for (const t of picked) {
+      const why = notRunHere(t, o.env)
+      console.log(
+        `${t.file} › ${t.title}${t.tags.length ? `  [${t.tags.join(', ')}]` : ''}${why ? `  (skipped in node: ${why})` : ''}`,
+      )
+    }
     console.log(`\n${picked.length} ${picked.length === 1 ? 'test' : 'tests'}`)
     return 0
   }
@@ -347,7 +366,8 @@ export async function runTests(ctx: TestContext, o: TestCommandOptions): Promise
     try {
       secrets = await resolveRunSecrets(
         ctx,
-        picked.map((t) => t.run),
+        // a flow that is skipped here needs none of its secrets
+        picked.filter((t) => !notRunHere(t, o.env)).map((t) => t.run),
         o.env,
         envFiles,
         o.secretsFile,
@@ -457,6 +477,7 @@ async function execute(
       overrides: o.vars,
       inputs: o.inputs,
       transport,
+      scripts: nodeScriptHost(),
       secrets,
       auth: authOf(config),
       serviceAuth: serviceAuthOf(config),

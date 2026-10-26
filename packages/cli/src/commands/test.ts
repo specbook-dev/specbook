@@ -31,7 +31,11 @@ export async function testCommand(
   }
   const patterns = o.patterns.length
     ? o.patterns
-    : [`${'sequences'}/**/*.seq.ts`, `${requestsDirFor(project.root)}/**/*.req.ts`]
+    : [
+        `${'sequences'}/**/*.seq.ts`,
+        `${requestsDirFor(project.root)}/**/*.req.ts`,
+        'scripts/**/*.script.ts',
+      ]
   const found = await discoverTargets(project, loader, patterns)
   if (found.files.length === 0) {
     console.error(`No files matched: ${patterns.join(', ')}`)

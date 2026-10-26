@@ -175,6 +175,7 @@ describe('the guide', () => {
       '## Asserts',
       '## Capture',
       '## Build a flow',
+      '## Add a script',
       '### Chain steps with types, not strings',
       '## Write isomorphic code',
       'Buffer',

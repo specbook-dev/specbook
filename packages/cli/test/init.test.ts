@@ -35,13 +35,14 @@ describe('init and faker', () => {
 })
 
 describe('init and TypeScript', () => {
-  it('adds typescript and a tsconfig that checks requests, flows and the config', async () => {
+  it('adds typescript and a tsconfig that checks requests, flows, scripts and the config', async () => {
     await initCommand(dir, { agents: false })
     expect((await pkgOf()).devDependencies.typescript).toMatch(/^\d+\.\d+\.\d+$/)
     const tsconfig = JSON.parse(await readFile(join(dir, 'tsconfig.json'), 'utf8'))
     expect(tsconfig.include).toEqual([
       'requests',
       'sequences',
+      'scripts',
       '.specbook/*.ts',
       '.generated/*/index.ts',
     ])

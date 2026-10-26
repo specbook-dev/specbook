@@ -23,7 +23,7 @@ const TSCONFIG = {
     types: [],
   },
   // `.specbook/*.ts`, not `.specbook`: a bare folder does not pick up specbook.config.ts
-  include: ['requests', 'sequences', '.specbook/*.ts', '.generated/*/index.ts'],
+  include: ['requests', 'sequences', 'scripts', '.specbook/*.ts', '.generated/*/index.ts'],
 }
 
 export async function initCommand(cwd: string, opts: { agents?: boolean } = {}): Promise<void> {
@@ -94,10 +94,10 @@ export default defineConfig({
   const tsconfig = join(cwd, 'tsconfig.json')
   if (!existsSync(tsconfig)) {
     await writeFile(tsconfig, `${JSON.stringify(TSCONFIG, null, 2)}\n`)
-    console.log('✓ created tsconfig.json (npx tsc --noEmit checks requests and flows)')
+    console.log('✓ created tsconfig.json (npx tsc --noEmit checks requests, flows and scripts)')
   } else {
     console.log(
-      `tsconfig.json already exists and was not changed. For npx tsc --noEmit to check requests and flows, its "include" needs ${JSON.stringify(TSCONFIG.include)} and "moduleResolution" needs to be "Bundler"`,
+      `tsconfig.json already exists and was not changed. For npx tsc --noEmit to check requests, flows and scripts, its "include" needs ${JSON.stringify(TSCONFIG.include)} and "moduleResolution" needs to be "Bundler"`,
     )
   }
 
