@@ -1,4 +1,5 @@
 ---
+import Heading from '../components/Heading.astro'
 import Next from '../components/Next.astro'
 import Prompt from '../components/Prompt.astro'
 import Snippet from '../components/Snippet.astro'
@@ -25,7 +26,7 @@ import Page from '../layouts/Page.astro'
 
   <section class="block" style="padding-top: 8px">
     <div class="wrap">
-      <h2 class="title">Set up the project</h2>
+      <Heading>Set up the project</Heading>
       <div class="prose">
         <p>
           Install Specbook, run <code>specbook init</code>, then <code>specbook add</code> the spec. Adding a spec
@@ -56,7 +57,7 @@ import Page from '../layouts/Page.astro'
         </p>
       </div>
 
-      <h2 class="title">Ask for a request</h2>
+      <Heading>Ask for a request</Heading>
       <div class="prose">
         <p>That is the whole setup. This is the whole prompt.</p>
       </div>
@@ -69,7 +70,7 @@ import Page from '../layouts/Page.astro'
       </div>
       <Snippet file="snippets/ai/sandbox-public-token-create.req.ts" />
 
-      <h2 class="title">Ask for a flow</h2>
+      <Heading>Ask for a flow</Heading>
       <div class="prose">
         <p>The second prompt says what should end up working. It does not list the calls.</p>
       </div>
@@ -84,7 +85,7 @@ import Page from '../layouts/Page.astro'
       </div>
       <Snippet file="snippets/ai/link-bank-account.seq.ts" mark="18,21,26" />
 
-      <h2 class="title">Values pass by name, and the names are checked</h2>
+      <Heading>Values pass by name, and the names are checked</Heading>
       <div class="prose">
         <p>
           The first request captures <code>publicToken</code>. The next step sends it as{' '}
@@ -100,7 +101,7 @@ import Page from '../layouts/Page.astro'
         </p>
       </div>
 
-      <h2 class="title">Rename a capture</h2>
+      <Heading>Rename a capture</Heading>
       <div class="prose">
         <p>
           Rename <code>publicToken</code> to <code>publicTokenX</code> in the first request, then run the compiler
@@ -116,7 +117,7 @@ import Page from '../layouts/Page.astro'
         </p>
       </div>
 
-      <h2 class="title">It runs on mock data</h2>
+      <Heading>It runs on mock data</Heading>
       <div class="prose">
         <p>
           <code>npx specbook test</code> runs the flow against the mock, which answers from the spec's examples.
@@ -133,7 +134,7 @@ import Page from '../layouts/Page.astro'
         </p>
       </div>
 
-      <h2 class="title">Do the same in your project</h2>
+      <Heading>Do the same in your project</Heading>
       <div class="prose">
         <p>
           Run <code>specbook init</code> and your agent has the guide. It also writes a short Specbook section to

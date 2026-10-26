@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { generate } from '@specbook/codegen'
 import {
   AddressError,
@@ -9,6 +9,7 @@ import {
   collectPlaceholders,
   environmentNames,
   environmentScope,
+  flowRuntime,
   isAbsoluteHttp,
   isClientCredentials,
   type OAuthSettings,
@@ -236,6 +237,55 @@ export async function checkCommand(project: Project, loader: Loader): Promise<nu
     if (init.has('faker'))
       warnings.push(`[${rel}] "faker" is reserved for {{faker.*}}; rename this var`)
   }
+
+  // scripts: each file's default export is a script, ids are unique, and a script that needs a browser loads its body when its
+  // step runs, so the portal fetches it then and a bundle leaves it out
+  const scriptFiles = await fg('**/*.script.ts', {
+    cwd: project.root,
+    absolute: true,
+    ignore: ['**/node_modules/**', '**/.generated/**', '**/dist/**'],
+  })
+  const scriptIds = new Map<string, string>()
+  for (const file of scriptFiles.sort()) {
+    const rel = file.slice(project.root.length + 1)
+    let mod: Record<string, any>
+    try {
+      mod = await loader.import(file)
+    } catch (e) {
+      errors.push(`[${rel}] failed to load: ${e instanceof Error ? e.message : e}`)
+      continue
+    }
+    const def = mod.default
+    if (def?.kind !== 'script') {
+      errors.push(`[${rel}] the default export is not a script(): export default script({ ... })`)
+      continue
+    }
+    const first = scriptIds.get(def.meta.id)
+    if (first) errors.push(`[${rel}] the script id "${def.meta.id}" is also used by ${first}`)
+    else scriptIds.set(def.meta.id, rel)
+    if (def.meta.runtime === 'browser' && def.run && !def.load)
+      warnings.push(
+        `[${rel}] runs in a browser but holds its body inline: use load: () => import('./${basename(file, '.script.ts')}.browser') so the portal fetches it only when the step runs, and a bundle leaves it out`,
+      )
+    if (!def.mockHook)
+      warnings.push(
+        `[${rel}] has no mock, so its step fails on the mock environment: export default withMock(script({ ... }), ({ inputs }) => ({ ... })) returns what the mock answers`,
+      )
+  }
+  // flows are not read for anything else here, so one that does not load is for `test` to say, not `check`
+  const flowFiles = await fg('**/*.seq.ts', {
+    cwd: project.root,
+    absolute: true,
+    ignore: ['**/node_modules/**', '**/.generated/**', '**/dist/**'],
+  })
+  if (scriptFiles.length)
+    for (const file of flowFiles.sort()) {
+      const mod: Record<string, any> | undefined = await loader.import(file).catch(() => undefined)
+      if (mod?.default?.kind === 'sequence' && flowRuntime(mod.default) === 'both')
+        warnings.push(
+          `[${file.slice(project.root.length + 1)}] has a script that needs a browser and one that needs node, so it only runs on mock: split it into two flows`,
+        )
+    }
 
   for (const w of warnings) console.log(`⚠ ${w}`)
   for (const e of errors) console.log(`✗ ${e}`)

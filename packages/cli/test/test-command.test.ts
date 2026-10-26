@@ -95,6 +95,94 @@ export default defineConfig({
     'requests/flaky.req.ts': req('Flaky', "{ name: 'Flaky', tags: ['flaky'] }"),
     'requests/slow.req.ts': req('Slow', "{ name: 'Slow', tags: ['slow'], timeoutMs: 150 }"),
     'requests/slow-default.req.ts': req('Slow', "{ name: 'Slow default', tags: ['slow-default'] }"),
+    // scripts: one that runs anywhere, one that needs a browser (its body must never be loaded here), two that need node
+    'scripts/fingerprint.script.ts': `import { c, script, withMock } from '@specbook/core'
+export default withMock(
+  script({
+    id: 'fingerprint',
+    name: 'Fingerprint',
+    runtime: 'isomorphic',
+    inputs: { card: c.text({ default: '4242424242424242' }) },
+    run: async ({ card }) => {
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(card))
+      const fingerprint = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+      return { fingerprint, last4: card.slice(-4) }
+    },
+  }),
+  ({ inputs }) => ({ fingerprint: '', last4: inputs.card.slice(-4) }),
+)
+`,
+    'scripts/approve.script.ts': `import { c, script, withMock } from '@specbook/core'
+export default withMock(
+  script({
+    id: 'approve',
+    name: 'Approve',
+    runtime: 'browser',
+    inputs: { amount: c.number({ default: 5 }) },
+    load: () => import('./approve.browser'),
+  }),
+  () => ({ approvedAt: 'mock-time' }),
+)
+`,
+    'scripts/approve.browser.ts': `throw new Error('a browser body was loaded in node')
+export const run = async () => ({ approvedAt: 'never' })
+`,
+    'scripts/charge.script.ts': `import { script, withMock } from '@specbook/core'
+export default withMock(
+  script({
+    id: 'charge',
+    name: 'Charge',
+    runtime: 'node',
+    run: async (_i, h) => {
+      const res = await h.fetch(\`\${h.vars.apiUrl}/pets\`, { method: 'POST' })
+      return { status: res.status }
+    },
+  }),
+  () => ({ status: 201 }),
+)
+`,
+    'scripts/lookup.script.ts': `import { script, withMock } from '@specbook/core'
+export default withMock(
+  script({
+    id: 'lookup',
+    name: 'Lookup',
+    runtime: 'node',
+    safe: true,
+    run: async (_i, h) => {
+      const res = await h.fetch(\`\${h.vars.apiUrl}/search\`, { method: 'POST' })
+      return { status: res.status }
+    },
+  }),
+  () => ({ status: 200 }),
+)
+`,
+    'sequences/fingerprint.seq.ts': `import { sequence } from '@specbook/core'
+import fingerprint from '../scripts/fingerprint.script'
+export default sequence({ id: 'fingerprint-flow', title: 'Fingerprint flow', tags: ['scripts'] })
+  .step('Fingerprint', fingerprint.with({ inputs: { card: '5555555555554444' } }))
+  .check('Fingerprint is a SHA-256', (ctx, { assert }) => {
+    assert.is(ctx.captured.fingerprint.length, 64, 'sixty-four hex digits')
+    assert.is(ctx.captured.last4, '4444', 'last four')
+  })
+`,
+    'sequences/approve.seq.ts': `import { sequence } from '@specbook/core'
+import get from '../requests/get-pet.req'
+import approve from '../scripts/approve.script'
+export default sequence({ id: 'approve-flow', title: 'Approve flow', tags: ['scripts'] })
+  .step('Get pet', get)
+  .step('Approve', approve)
+  .check('Approved', (ctx, { assert }) => assert.ok(ctx.captured.approvedAt, 'approved'))
+`,
+    'sequences/charge.seq.ts': `import { sequence } from '@specbook/core'
+import charge from '../scripts/charge.script'
+export default sequence({ id: 'charge-flow', title: 'Charge flow', tags: ['scripts'] })
+  .step('Charge', charge)
+`,
+    'sequences/lookup.seq.ts': `import { sequence } from '@specbook/core'
+import lookup from '../scripts/lookup.script'
+export default sequence({ id: 'lookup-flow', title: 'Lookup flow', tags: ['scripts'] })
+  .step('Lookup', lookup)
+`,
     'sequences/pets.seq.ts': `import { sequence } from '@specbook/core'
 import get from '../requests/get-pet.req'
 import missing from '../requests/missing.req'
@@ -326,5 +414,89 @@ describe('specbook test', () => {
     expect((await run({ env: 'nowhere' })).code).toBe(3)
     expect((await run({ reporters: ['teapot'] })).err).toContain('Unknown reporter "teapot"')
     expect((await run({ patterns: ['nothing/*.ts'] })).code).toBe(3)
+  })
+})
+
+describe('specbook test with scripts', () => {
+  afterEach(() => {
+    delete process.env.API_KEY
+  })
+
+  it('runs a script that works anywhere, and its output reaches the checks', async () => {
+    const r = await run({ patterns: ['sequences/fingerprint.seq.ts'] })
+    expect(r.err).toBe('')
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('✓ Fingerprint flow › Fingerprint')
+    expect(r.out).toContain('✓ Fingerprint flow › Fingerprint is a SHA-256')
+    expect(r.out).toMatch(/Flows\s+1 passed/)
+  })
+
+  it('skips a flow whose script needs a browser, never loads its body, and asks for none of its secrets', async () => {
+    // no API_KEY: the flow has a request that needs it, and it is not run here
+    const r = await run({ patterns: ['sequences/approve.seq.ts'] })
+    expect(r.err).toBe('')
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('– Approve flow  skipped: Needs a browser')
+    expect(r.out).toMatch(/Flows\s+1 skipped/)
+    expect(r.out).not.toMatch(/Flows\s+.*passed/)
+    expect(r.out).not.toContain('Get pet')
+  })
+
+  it('runs a script on its own: with --input live, from its contract on mock', async () => {
+    const live = await run({
+      patterns: ['scripts/fingerprint.script.ts'],
+      inputs: { card: '1111' },
+    })
+    expect(live.err).toBe('')
+    expect(live.code).toBe(0)
+    expect(live.out).toContain('✓ Fingerprint')
+    const mock = await run({ patterns: ['scripts/approve.script.ts'], env: 'mock' })
+    expect(mock.code).toBe(0)
+    expect(mock.out).toContain('✓ Approve')
+    const skipped = await run({ patterns: ['scripts/approve.script.ts'] })
+    expect(skipped.out).toContain('– Approve  skipped: Needs a browser')
+  })
+
+  it('says in the list which flows are skipped in node, and not on mock', async () => {
+    const live = await run({ patterns: ['sequences/*.seq.ts'], tags: ['scripts'], list: true })
+    expect(live.out).toContain(
+      'sequences/approve.seq.ts › Approve flow  [scripts]  (skipped in node: Needs a browser: run this flow in the portal.)',
+    )
+    expect(live.out).toContain('sequences/fingerprint.seq.ts › Fingerprint flow  [scripts]\n')
+    expect(live.out).not.toContain('Charge flow  [scripts]  (skipped')
+  })
+
+  it('reports a skipped flow as passed with the reason, and its steps as skipped scripts', async () => {
+    const file = join(dir, 'reports', 'skipped.json')
+    const r = await run({ patterns: ['sequences/approve.seq.ts'], reporters: [`json:${file}`] })
+    expect(r.code).toBe(0)
+    const report = JSON.parse(await readFile(file, 'utf8'))
+    const flow = report.results[0]
+    expect(flow.status).toBe('pass')
+    expect(flow.skipped).toContain('Needs a browser')
+    expect(flow.steps.map((s: any) => [s.name, s.kind, s.status])).toEqual([
+      ['Get pet', 'request', 'skipped'],
+      ['Approve', 'script', 'skipped'],
+      ['Approved', 'check', 'skipped'],
+    ])
+  })
+
+  it('runs a script that needs node, with the global fetch', async () => {
+    const before = posts
+    const r = await run({ patterns: ['sequences/charge.seq.ts'] })
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('✓ Charge flow › Charge')
+    expect(posts).toBe(before + 1)
+  })
+
+  it('refuses a script’s write in a --safe run, unless the script says it only reads', async () => {
+    const before = posts
+    const refused = await run({ patterns: ['sequences/charge.seq.ts'], safe: true })
+    expect(refused.code).toBe(1)
+    expect(refused.out + refused.err).toContain(`Refusing POST ${base}/pets`)
+    expect(posts).toBe(before)
+    const allowed = await run({ patterns: ['sequences/lookup.seq.ts'], safe: true })
+    expect(allowed.code).toBe(0)
+    expect(allowed.out).toContain('✓ Lookup flow › Lookup')
   })
 })

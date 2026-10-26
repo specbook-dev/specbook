@@ -55,7 +55,8 @@ type HostModule = typeof import('./panel/Host')
 /** The side panel is a separate chunk: it holds the editor and is only fetched on first Play. */
 function usePanelHost() {
   const [host, setHost] = useState<HostModule>()
-  const wanted = route.value.kind === 'op' || route.value.kind === 'seq'
+  const wanted =
+    route.value.kind === 'op' || route.value.kind === 'seq' || route.value.kind === 'script'
   useEffect(() => {
     if (wanted && !host) import('./panel/Host').then(setHost)
   }, [wanted, host])
@@ -66,6 +67,7 @@ export function App() {
   useDefaultService()
   const [variants, setVariants] = useState<Record<string, Variant[]>>({})
   const [sequences, setSequences] = useState<SequenceInfo[] | undefined>(undefined)
+  const [scripts, setScripts] = useState<SequenceInfo[] | undefined>(undefined)
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
@@ -80,6 +82,8 @@ export function App() {
       // Headers are read from the files' text; only ones that aren't plain literals are imported.
       const odd = registry.sequences.filter((e) => registry.unresolvedSequences.includes(e.file))
       if (odd.length) engine.loadSequences(odd, version.value).then(setSequences)
+      const oddScripts = registry.scripts.filter((e) => registry.unresolvedScripts.includes(e.file))
+      if (oddScripts.length) engine.loadSequences(oddScripts, version.value).then(setScripts)
     }
     engine
       .config(version.value)
@@ -158,6 +162,21 @@ export function App() {
         hay: `${m.description ?? ''} ${(m.tags ?? []).join(' ')}`,
       })
     }
+    const scriptMetas = [
+      ...Object.values(registry.scriptMeta).map((m) => ({ ...m, title: m.name ?? m.id })),
+      ...(scripts ?? []).map((s) => ({ ...s.seq.meta, runtime: undefined })),
+    ]
+    for (const m of scriptMetas) {
+      out.push({
+        kind: 'script',
+        route: { kind: 'script', id: m.id },
+        title: m.title,
+        group: 'script',
+        tags: m.tags,
+        description: m.description,
+        hay: `${m.description ?? ''} ${(m.tags ?? []).join(' ')} ${m.runtime ?? ''}`,
+      })
+    }
     for (const m of Object.values(registry.manifests)) {
       for (const o of m.operations) {
         const key = `${m.service}/${o.id}`
@@ -192,21 +211,28 @@ export function App() {
       }
     }
     return out
-  }, [sequences, variants, multiService])
+  }, [sequences, scripts, variants, multiService])
 
   const r = route.value
   const opInfo = r.kind === 'op' ? findOp(r.key) : undefined
-  const seqId = r.kind === 'seq' ? r.id : undefined
-  const [opened, setOpened] = useState<SequenceInfo>()
+  // a flow, or a script, which runs as a flow of one step
+  const seqId = r.kind === 'seq' || r.kind === 'script' ? r.id : undefined
+  const seqKind = r.kind === 'script' ? 'script' : 'seq'
+  const [opened, setOpened] = useState<{ kind: string; info?: SequenceInfo }>()
   useEffect(() => {
     if (!seqId) return
-    const file = registry.sequenceMeta[seqId]?.file
+    const script = seqKind === 'script'
+    const file = (script ? registry.scriptMeta : registry.sequenceMeta)[seqId]?.file
+    const loaded = script ? scripts : sequences
     if (file) {
-      const entry = registry.sequences.filter((e) => e.file === file)
-      engine.loadSequences(entry, version.value).then((l) => setOpened(l[0]))
-    } else setOpened(sequences?.find((s) => s.seq.meta.id === seqId))
-  }, [seqId, sequences, version.value])
-  const seqInfo = opened?.seq.meta.id === seqId ? opened : undefined
+      const entry = (script ? registry.scripts : registry.sequences).filter((e) => e.file === file)
+      engine
+        .loadSequences(entry, version.value)
+        .then((l) => setOpened({ kind: seqKind, info: l[0] }))
+    } else setOpened({ kind: seqKind, info: loaded?.find((s) => s.seq.meta.id === seqId) })
+  }, [seqId, seqKind, sequences, scripts, version.value])
+  const seqInfo =
+    opened?.kind === seqKind && opened.info?.seq.meta.id === seqId ? opened.info : undefined
   const panel = usePanelHost()
   const close = () => go(pageOf(route.value))
 
@@ -225,29 +251,33 @@ export function App() {
 
   // previous/next within the group the open item belongs to
   const neighbors = useMemo(() => {
-    if (r.kind !== 'op' && r.kind !== 'seq') return {}
+    if (r.kind !== 'op' && r.kind !== 'seq' && r.kind !== 'script') return {}
     const active = entries.find(
       (e) =>
         (e.kind === 'op' && r.kind === 'op' && e.route.kind === 'op' && e.route.key === r.key) ||
-        (e.kind === 'seq' && r.kind === 'seq' && e.route.kind === 'seq' && e.route.id === r.id),
+        (e.kind === 'seq' && r.kind === 'seq' && e.route.kind === 'seq' && e.route.id === r.id) ||
+        (e.kind === 'script' &&
+          r.kind === 'script' &&
+          e.route.kind === 'script' &&
+          e.route.id === r.id),
     )
     if (!active) return {}
     const sibs = entries.filter((e) =>
-      active.kind === 'seq'
-        ? e.kind === 'seq'
+      active.kind === 'seq' || active.kind === 'script'
+        ? e.kind === active.kind
         : e.kind === 'op' && e.service === active.service && e.tag === active.tag,
     )
     const at = sibs.indexOf(active)
     const to = (e?: Entry) => (e ? () => go({ ...e.route, play: '' } as typeof r) : undefined)
     return { prev: to(sibs[at - 1]), next: to(sibs[at + 1]) }
-  }, [entries, r.kind === 'op' ? r.key : r.kind === 'seq' ? r.id : ''])
+  }, [entries, r.kind === 'op' ? r.key : r.kind === 'seq' || r.kind === 'script' ? r.id : ''])
 
   const navigate = (to: { tab: 'docs' | 'try'; example?: string }) =>
     go(
       r.kind === 'op'
         ? { kind: 'op', key: r.key, play: to.example ?? r.play ?? '', tab: to.tab }
-        : r.kind === 'seq'
-          ? { kind: 'seq', id: r.id, play: '', tab: to.tab }
+        : r.kind === 'seq' || r.kind === 'script'
+          ? { kind: r.kind, id: r.id, play: '', tab: to.tab }
           : r,
     )
 
@@ -412,7 +442,7 @@ export function App() {
           onClose={close}
         />
       )}
-      {panel && r.kind === 'seq' && seqInfo && (
+      {panel && (r.kind === 'seq' || r.kind === 'script') && seqInfo && (
         <panel.Host
           kind="seq"
           modal={false}

@@ -1,4 +1,5 @@
 ---
+import Heading from '../components/Heading.astro'
 import Next from '../components/Next.astro'
 import Snippet from '../components/Snippet.astro'
 import Page from '../layouts/Page.astro'
@@ -22,7 +23,7 @@ import Page from '../layouts/Page.astro'
 
   <section class="block" style="padding-top: 8px">
     <div class="wrap">
-      <h2 class="title">Write notes beside each operation</h2>
+      <Heading>Write notes beside each operation</Heading>
       <div class="prose">
         <p>Drop a Markdown file right next to the endpoint it describes.</p>
       </div>
@@ -54,7 +55,7 @@ import Page from '../layouts/Page.astro'
         </details>
       </div>
 
-      <h2 class="title">Make any example runnable</h2>
+      <Heading>Make any example runnable</Heading>
       <div class="prose">
         <p>
           Load one script on your documentation site and add a data attribute. A plain element gets a Play
@@ -87,7 +88,7 @@ import Page from '../layouts/Page.astro'
         </div>
       </div>
 
-      <h2 class="title">It looks like your site</h2>
+      <Heading>It looks like your site</Heading>
       <div class="prose">
         <p>
           The panel is isolated from your page, so neither can break the other. It uses your colors, follows your

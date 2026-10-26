@@ -9,6 +9,8 @@ export interface Target {
   /** a saved request, by its project file (`requests/petstore/find-pets.req.ts`) */
   request?: string
   sequence?: string
+  /** a script run on its own, by its id */
+  script?: string
   example?: string
   /** open on the Docs tab instead of Try */
   tab?: 'docs' | 'try'
@@ -22,7 +24,7 @@ export interface Target {
 }
 
 /** The attributes the panel reads, all namespaced so a host page's own `data-theme` or `data-env` cannot collide. */
-export const TRIGGER_SELECTOR = '[data-specbook-try],[data-specbook-flow]'
+export const TRIGGER_SELECTOR = '[data-specbook-try],[data-specbook-flow],[data-specbook-script]'
 
 const THEMES = new Set<string>(['host', 'auto', 'light', 'dark'])
 
@@ -38,12 +40,14 @@ function inherited(el: Attrs, name: string): string | undefined {
 
 /**
  * Reads one trigger. `data-specbook-try="petstore/GetPetById"` (or a bare `GetPetById`, or a saved request's file)
- * opens a request and `data-specbook-flow="adopt-pet"` a flow; a flow wins when both are given.
+ * opens a request, `data-specbook-flow="adopt-pet"` a flow and `data-specbook-script="turnstile"` a script on its own;
+ * a flow wins over a script, and a script over a request.
  */
 export function parseTarget(el: Attrs): Target | undefined {
   const tryValue = attr(el, 'try')
   const flow = attr(el, 'flow')
-  if (!tryValue && !flow) return undefined
+  const script = attr(el, 'script')
+  if (!tryValue && !flow && !script) return undefined
 
   const target: Target = {
     example: attr(el, 'example'),
@@ -55,6 +59,7 @@ export function parseTarget(el: Attrs): Target | undefined {
   if (theme && THEMES.has(theme)) target.theme = theme as EmbedTheme
 
   if (flow) target.sequence = flow
+  else if (script) target.script = script
   else if (tryValue) {
     if (/\.req\.ts$/.test(tryValue)) target.request = tryValue
     else {

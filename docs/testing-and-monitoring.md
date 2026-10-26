@@ -182,6 +182,32 @@ Generated values are available wherever a project runs, and only paid for where 
   open request or flow uses faker. Use the seed from a failed `specbook test --seed 42` to see the same data there.
 - The hosted viewer at ui.specbook.dev has no faker and refuses `{{faker.*}}`.
 
+### Scripts: steps that are code
+
+Not every step is a request. Approving a payment in a provider's browser SDK, or encrypting a card number with a vendor's
+library, is code. A **script** is that code with a contract: inputs built from the same controls, and an output, whatever its body returns,
+that the next step reads as `ctx.captured.<name>`. It lives in `scripts/<name>.script.ts`, and a body that needs a page goes in
+`scripts/<name>.browser.ts`, loaded when the step runs.
+
+```ts
+// sequences/checkout.seq.ts
+  .step('Get client token', getClientToken)
+  .step('Approve', approve.with({ inputs: { clientToken: '{{clientToken}}' } })) // a browser step
+  .step('Pay', (ctx) => pay.with({ data: { nonce: ctx.captured.nonce } }))
+```
+
+- In the portal a browser script renders into its step's row (a button, a frame) and the run waits for the person.
+- The `mock` environment answers a script with what its `withMock` returns, as it answers a request, and never runs the body,
+  so a flow with a browser step is still checked in CI. A script without a `withMock` fails there, and `specbook check` says so.
+- On a real environment `specbook test` and a bundle run what node can and **skip a flow whose scripts need a browser**, as a
+  whole, saying why. It counts as passed and none of its secrets are asked for. A script that works anywhere
+  (`runtime: 'isomorphic'`, the default) runs in all three places. A script that runs in node ends at the run's `--timeout`.
+- A script also runs on its own, as a flow of one step: `specbook test` picks up `scripts/**/*.script.ts`, and the portal lists it
+  with a form for its inputs.
+- `--safe` also covers a script's `fetch`: a write is refused unless the script says `safe: true`.
+
+More on the docs site: [Scripts](https://docs.specbook.dev/reference/scripts/).
+
 ### Running them
 
 ```sh
@@ -324,7 +350,8 @@ Secrets come from environment variables; no secrets file and no environment's se
 also leaves out documentation, branding and the UI. A `specbook-tests.mjs.sha256` file is written beside it, so
 `sha256sum -c specbook-tests.mjs.sha256` proves the file is the one the pipeline built.
 
-Build it once in your repository's pipeline and keep it as the artifact. Whatever your requests import is compiled in.
+A script's body that needs a browser (`*.browser.ts`) is not part of the file: a flow that needs one is skipped when the
+bundle runs on a real environment. Build it once in your repository's pipeline and keep it as the artifact. Whatever your requests import is compiled in.
 A package that cannot be (a native addon, a computed `require`) is reported when you build, and can stay an import
 with `--external <package>`; it must then be installed where the file runs, and the request cannot run in the portal, because a
 browser cannot load it. Files that requests upload are embedded

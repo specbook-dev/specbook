@@ -301,3 +301,102 @@ export default FindPetsByStatus.request({ query: { status: 'available' } })
     }
   }, 60_000)
 })
+
+describe('check on scripts', () => {
+  const checkWith = async (files: Record<string, string>) => {
+    const dir = await tempProject()
+    const lines: string[] = []
+    const log = vi.spyOn(console, 'log').mockImplementation((...a) => void lines.push(a.join(' ')))
+    const cwd = vi.spyOn(process, 'cwd').mockReturnValue(dir)
+    try {
+      for (const [path, text] of Object.entries(files)) {
+        await mkdir(join(dir, path, '..'), { recursive: true })
+        await writeFile(join(dir, path), text)
+      }
+      const { generateToDisk } = await import('@specbook/codegen')
+      await generateToDisk({
+        spec: join(dir, 'openapi/petstore.json'),
+        service: 'petstore',
+        outDir: join(dir, '.generated'),
+      })
+      const loader = await createLoader(dir)
+      try {
+        const code = await checkCommand(await loadProject(dir, loader), loader)
+        return { code, said: lines.join('\n') }
+      } finally {
+        await loader.close()
+      }
+    } finally {
+      log.mockRestore()
+      cwd.mockRestore()
+    }
+  }
+  const script = (id: string, extra = "load: () => import('./x.browser')", runtime = 'browser') =>
+    `import { script, withMock } from '@specbook/core'
+export default withMock(script({ id: '${id}', name: '${id}', runtime: '${runtime}', ${extra} }), () => ({ ok: true }))
+`
+
+  it('is quiet about a script that loads its body, and about an isomorphic one that holds it inline', async () => {
+    const r = await checkWith({
+      'scripts/a.script.ts': script('a'),
+      'scripts/b.script.ts': script('b', 'run: async () => ({ ok: true })', 'isomorphic'),
+    })
+    expect(r.code).toBe(0)
+    expect(r.said).not.toContain('scripts/')
+  }, 60_000)
+
+  it('errors on a file that is no script, a script that does not load, and an id used twice', async () => {
+    const r = await checkWith({
+      'scripts/plain.script.ts': 'export default { hello: 1 }\n',
+      'scripts/broken.script.ts': "throw new Error('boom at import')\n",
+      'scripts/one.script.ts': script('same'),
+      'scripts/two.script.ts': script('same'),
+    })
+    expect(r.code).toBe(1)
+    expect(r.said).toContain('[scripts/plain.script.ts] the default export is not a script()')
+    expect(r.said).toContain('[scripts/broken.script.ts] failed to load: boom at import')
+    expect(r.said).toContain(
+      '[scripts/two.script.ts] the script id "same" is also used by scripts/one.script.ts',
+    )
+  }, 60_000)
+
+  it('warns on a browser script that holds its body inline, and says what to write', async () => {
+    const r = await checkWith({
+      'scripts/pay.script.ts': script('pay', 'run: async () => ({ ok: true })'),
+    })
+    expect(r.code).toBe(0)
+    expect(r.said).toContain('[scripts/pay.script.ts] runs in a browser but holds its body inline')
+    expect(r.said).toContain("load: () => import('./pay.browser')")
+  }, 60_000)
+
+  it('warns on a script with no withMock, and says what to write', async () => {
+    const r = await checkWith({
+      'scripts/bare.script.ts': `import { script } from '@specbook/core'
+export default script({ id: 'bare', name: 'Bare', runtime: 'isomorphic', run: async () => ({ ok: true }) })
+`,
+    })
+    expect(r.code).toBe(0)
+    expect(r.said).toContain('[scripts/bare.script.ts] has no mock')
+    expect(r.said).toContain('withMock(script({ ... })')
+  }, 60_000)
+
+  it('warns on a flow with a step for the browser and one for node', async () => {
+    const r = await checkWith({
+      'scripts/b.script.ts': script('b'),
+      'scripts/n.script.ts': script('n', "load: () => import('./n.node')", 'node'),
+      'sequences/mixed.seq.ts': `import { sequence } from '@specbook/core'
+import b from '../scripts/b.script'
+import n from '../scripts/n.script'
+export default sequence({ id: 'mixed', title: 'Mixed' }).step('B', b).step('N', n)
+`,
+    })
+    expect(r.said).toContain(
+      '[sequences/mixed.seq.ts] has a script that needs a browser and one that needs node',
+    )
+  }, 60_000)
+
+  it('says nothing about flows when the project has no scripts', async () => {
+    const r = await checkWith({})
+    expect(r.said).not.toContain('needs a browser')
+  }, 60_000)
+})

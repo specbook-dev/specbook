@@ -1,0 +1,72 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Cloudflare Turnstile",
+    "version": "1.0.0",
+    "description": "The one call a server makes with the token the Turnstile widget gave a page. Cloudflare answers 200 whether the token is good or not: `success` says which. https://developers.cloudflare.com/turnstile/get-started/server-side-validation/"
+  },
+  "servers": [{ "url": "https://challenges.cloudflare.com/turnstile/v0" }],
+  "paths": {
+    "/siteverify": {
+      "post": {
+        "operationId": "Siteverify",
+        "summary": "Verify a Turnstile token",
+        "description": "Checks a token with the site's secret key. Call it from a server: the secret must never reach a browser, so Cloudflare does not allow browsers to read the answer.",
+        "tags": ["turnstile"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": { "$ref": "#/components/schemas/SiteverifyRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The result of the check",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SiteverifyResponse" },
+                "example": {
+                  "success": true,
+                  "error-codes": [],
+                  "challenge_ts": "2025-01-01T00:00:00.000Z",
+                  "hostname": "example.com"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SiteverifyRequest": {
+        "type": "object",
+        "required": ["secret", "response"],
+        "properties": {
+          "secret": { "type": "string", "description": "The site's secret key." },
+          "response": { "type": "string", "description": "The token the widget gave the page." },
+          "remoteip": { "type": "string", "description": "The visitor's address, when you want it checked." },
+          "idempotency_key": {
+            "type": "string",
+            "description": "Lets the same token be checked again, for a retry."
+          }
+        }
+      },
+      "SiteverifyResponse": {
+        "type": "object",
+        "required": ["success", "error-codes"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "error-codes": { "type": "array", "items": { "type": "string" } },
+          "challenge_ts": { "type": "string", "description": "When the challenge was solved." },
+          "hostname": { "type": "string", "description": "The site the widget was on." },
+          "action": { "type": "string" },
+          "cdata": { "type": "string" }
+        }
+      }
+    }
+  }
+}

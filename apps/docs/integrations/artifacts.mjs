@@ -89,17 +89,26 @@ export function inlineStyleHashes(html) {
 const ANALYTICS_SCRIPT = 'https://static.cloudflareinsights.com'
 const ANALYTICS_REPORT = 'https://cloudflareinsights.com'
 
-/** The `_headers` file: one strict policy for the pages, a looser one for the copied apps that call other origins. */
+/** Cloudflare Turnstile: the script that draws the widget, and the frame it draws in. */
+const TURNSTILE = 'https://challenges.cloudflare.com'
+
+/**
+ * The `_headers` file: one strict policy for the pages, a looser one for the copied apps that call other origins.
+ * Every one of them may load Cloudflare's Turnstile widget (its script and its frame), except the viewer, which runs no
+ * project code and so can never show one.
+ */
 export function headersFile(scriptHashes, styleHashes = []) {
-  const base = [
+  const base = (widget) => [
     "default-src 'self'",
-    `script-src 'self' ${scriptHashes.join(' ')} ${ANALYTICS_SCRIPT}`.replace(/ +/g, ' '),
+    `script-src 'self' ${scriptHashes.join(' ')} ${ANALYTICS_SCRIPT} ${widget ? TURNSTILE : ''}`
+      .replace(/ +/g, ' ')
+      .trim(),
     `style-src 'self' ${styleHashes.join(' ')}`.trim(),
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",
     "worker-src 'self' blob:",
-    "frame-src 'self'",
+    `frame-src 'self' ${widget ? TURNSTILE : ''}`.trim(),
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -107,16 +116,17 @@ export function headersFile(scriptHashes, styleHashes = []) {
   ]
   // the landing page runs its example against the public Petstore, which answers any origin
   const policy = [
-    ...base,
+    ...base(true),
     `connect-src 'self' https://petstore3.swagger.io ${ANALYTICS_REPORT}`,
   ].join('; ')
   // the viewer opens any address a visitor gives it, and the demo and QA portal can run against a real API
   // and they are the apps' own pages, which the viewer's production policy lets set inline styles
-  const open = [
-    ...base.filter((d) => !d.startsWith('style-src')),
-    "style-src 'self' 'unsafe-inline'",
-    'connect-src *',
-  ].join('; ')
+  const open = (widget) =>
+    [
+      ...base(widget).filter((d) => !d.startsWith('style-src')),
+      "style-src 'self' 'unsafe-inline'",
+      'connect-src *',
+    ].join('; ')
   const common = [
     'X-Content-Type-Options: nosniff',
     'Referrer-Policy: strict-origin-when-cross-origin',
@@ -125,8 +135,9 @@ export function headersFile(scriptHashes, styleHashes = []) {
   const rule = (path, lines) => `${path}\n${lines.map((l) => `  ${l}`).join('\n')}\n`
   return [
     rule('/*', [`Content-Security-Policy: ${policy}`, ...common]),
-    ...['/viewer/*', '/demo/*', '/qa/*'].map((p) =>
-      rule(p, ['! Content-Security-Policy', `Content-Security-Policy: ${open}`]),
+    rule('/viewer/*', ['! Content-Security-Policy', `Content-Security-Policy: ${open(false)}`]),
+    ...['/demo/*', '/qa/*'].map((p) =>
+      rule(p, ['! Content-Security-Policy', `Content-Security-Policy: ${open(true)}`]),
     ),
     rule('/', ['Cache-Control: no-cache']),
     rule('/*.html', ['Cache-Control: no-cache']),

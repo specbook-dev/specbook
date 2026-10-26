@@ -205,3 +205,63 @@ describe('chaos', () => {
     ).toBe(10_000)
   })
 })
+
+describe('the demo API verifies a Turnstile token as Cloudflare does', () => {
+  const SECRET = '1x0000000000000000000000000000000AA'
+  const TOKEN = 'XXXX.DUMMY.TOKEN.XXXX'
+  const verify = (app: ReturnType<typeof fresh>['app'], fields: Record<string, string>) =>
+    app.request('/api/turnstile/siteverify', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(fields).toString(),
+    })
+  const answer = async (res: Response) => (await res.json()) as Record<string, unknown>
+
+  it('accepts the token the test site key gives, with the test secret', async () => {
+    const { app } = fresh()
+    const res = await verify(app, { secret: SECRET, response: TOKEN })
+    expect(res.status).toBe(200)
+    expect(await answer(res)).toEqual({
+      success: true,
+      'error-codes': [],
+      challenge_ts: '2026-01-01T00:00:00.000Z',
+      hostname: 'docs.specbook.dev',
+    })
+  })
+
+  it('answers 200 with the reason when it does not, as the real endpoint does', async () => {
+    const { app } = fresh()
+    for (const [fields, code] of [
+      [{ response: TOKEN }, 'missing-input-secret'],
+      [{ secret: SECRET }, 'missing-input-response'],
+      [{ secret: 'not-the-secret', response: TOKEN }, 'invalid-input-secret'],
+      [{ secret: SECRET, response: 'some-other-token' }, 'invalid-input-response'],
+    ] as const) {
+      const res = await verify(app, fields)
+      expect(res.status).toBe(200)
+      expect(await answer(res)).toEqual({ success: false, 'error-codes': [code] })
+    }
+  })
+
+  it('answers the shape the spec gives', async () => {
+    const { app } = fresh()
+    const schemas = json('turnstile/schemas/Siteverify.responses.schema.json')
+    const turnstileDefs = json('turnstile/schemas/definitions.schema.json')
+    const cases: Record<string, string>[] = [
+      { secret: SECRET, response: TOKEN },
+      { secret: SECRET },
+    ]
+    for (const fields of cases) {
+      const body = await answer(await verify(app, fields))
+      expect(validate(body, schemas['200'], turnstileDefs, { reportExtra: true })).toEqual([])
+    }
+  })
+
+  it('is not told to fail by the chaos controls, which are for the APIs it stands in front of', async () => {
+    const { app } = fresh()
+    await chaos(app, { fail: true })
+    const res = await verify(app, { secret: SECRET, response: TOKEN })
+    expect(res.status).toBe(200)
+    expect((await answer(res)).success).toBe(true)
+  })
+})

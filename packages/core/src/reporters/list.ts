@@ -130,6 +130,12 @@ function assertionBlock(a: AssertionResult, o: ListOptions, c: Colors): string[]
   return out
 }
 
+/** A flow that was not run here, said once: `– Checkout  skipped: Needs a browser: run this flow in the portal.` */
+function skippedFlowLine(r: RunResult, c: Colors, indent = '  '): string | undefined {
+  if (!r.skipped || r.steps.some((s) => s.status !== 'skipped')) return undefined
+  return `${indent}${paint('skipped', c, MARKS.skipped)} ${r.title}  ${c.dim(`skipped: ${r.skipped}`)}`
+}
+
 /** One block per failed or errored step: the assertions that failed, why a step errored, and its trace. */
 export function formatFailures(results: RunResult[], o: ListOptions = {}): string {
   const c = o.colors ?? createColors(false)
@@ -157,6 +163,8 @@ export function formatFailures(results: RunResult[], o: ListOptions = {}): strin
 export function formatSummary(results: RunResult[], o: ListOptions = {}): string {
   const c = o.colors ?? createColors(false)
   const t = reportTotals(results)
+  // a flow that was not run here passes, as far as the exit code goes, but it is not said to have passed
+  const notRun = results.filter((r) => r.skipped).length
   const part = (n: number, word: string, paintFn: (s: string) => string) =>
     n ? paintFn(`${n} ${word}`) : ''
   const join = (...parts: string[]) => parts.filter(Boolean).join(c.dim(' | ')) || c.dim('none')
@@ -166,7 +174,8 @@ export function formatSummary(results: RunResult[], o: ListOptions = {}): string
       part(t.flows.failed, 'failed', c.red),
       part(t.flows.errored, 'errored', c.yellow),
       part(t.flows.flaky, 'flaky', c.yellow),
-      part(t.flows.passed, 'passed', c.green),
+      part(t.flows.passed - notRun, 'passed', c.green),
+      part(notRun, 'skipped', c.dim),
     )} ${c.dim(`(${results.length})`)}`,
     `${c.bold(' Steps      ')} ${join(
       part(t.steps.failed, 'failed', c.red),
@@ -219,8 +228,11 @@ export function formatList(results: RunResult[], o: ListOptions = {}): string {
   const c = o.colors ?? createColors(false)
   const lines: string[] = []
   if (!o.quiet)
-    for (const r of results)
-      for (const s of leaves(r.steps)) lines.push(stepLine(stepFacts(r, s), c))
+    for (const r of results) {
+      const whole = skippedFlowLine(r, c)
+      if (whole) lines.push(whole)
+      else for (const s of leaves(r.steps)) lines.push(stepLine(stepFacts(r, s), c))
+    }
   const failures = formatFailures(results, o)
   return [lines.join('\n'), failures, formatSummary(results, o)].filter((x) => x !== '').join('\n')
 }
@@ -242,6 +254,10 @@ export function createListReporter(o: ListOptions & { write(text: string): void 
         facts.delete(e.name)
         if (e.status === 'pass' && o.quiet) return
         o.write(`${stepLine({ ...f, status: e.status, flow, step: e.name }, c)}\n`)
+      } else if (e.type === 'done' && !o.quiet) {
+        // a flow that did not start has no step events: it is said once, here
+        const whole = skippedFlowLine(e.result, c)
+        if (whole) o.write(`${whole}\n`)
       }
     },
     onEnd(results: RunResult[]) {

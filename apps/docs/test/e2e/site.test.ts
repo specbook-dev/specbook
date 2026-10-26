@@ -20,6 +20,7 @@ const PAGES = [
   '/ai/',
   '/reference/embed/',
   '/reference/authorization/',
+  '/reference/scripts/',
 ]
 const types: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -86,6 +87,8 @@ async function find(path: string): Promise<{ file: string; status: number } | un
 let server: Server
 let origin: string
 let browser: Browser
+/** Whether Cloudflare can be reached: the Turnstile widget is theirs, so a run without a network cannot show it. */
+let cloudflareReachable = false
 
 beforeAll(async () => {
   const rules = parseHeaders(await readFile(join(dist, '_headers'), 'utf8'))
@@ -108,6 +111,12 @@ beforeAll(async () => {
   await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok))
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
   browser = await chromium.launch()
+  cloudflareReachable = await fetch('https://challenges.cloudflare.com/turnstile/v0/api.js', {
+    signal: AbortSignal.timeout(8_000),
+  }).then(
+    (r) => r.ok,
+    () => false,
+  )
 })
 
 afterAll(async () => {
@@ -296,6 +305,142 @@ describe('the built site', () => {
         timeout: 30_000,
       })
       .toMatch(/200/)
+    expect(await violations(page)).toEqual([])
+    expect(problems).toEqual([])
+    await context.close()
+  })
+
+  it('every page and the demo and QA portal may load Cloudflare’s widget, and the viewer, which runs no project code, may not', async () => {
+    for (const [path, widget, open] of [
+      ['/', true, false],
+      ['/develop/', true, false],
+      ['/test/', true, false],
+      ['/reference/scripts/', true, false],
+      ['/reference/embed/', true, false],
+      ['/qa/', true, true],
+      ['/demo/', true, true],
+      ['/viewer/', false, true],
+    ] as const) {
+      const policy = (await fetch(origin + path)).headers.get('content-security-policy') ?? ''
+      expect(policy.includes('https://challenges.cloudflare.com'), path).toBe(widget)
+      // whatever the page, scripts stay without 'unsafe-inline'; only the apps' own pages connect anywhere
+      expect(policy, path).not.toMatch(/script-src[^;]*unsafe-inline/)
+      expect(policy.includes('connect-src *'), path).toBe(open)
+    }
+  })
+
+  it('the QA portal copy runs the human check flow: the widget loads under its policy, and the token is verified by the demo API', async (t) => {
+    if (!cloudflareReachable) return t.skip()
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+    // the demo API is a service worker that a page of the site registers, and it serves the portal too
+    const first = await open(context, '/')
+    await expect.poll(demoState(first.page), { timeout: 30_000 }).toBe('ready')
+    const { page, problems } = first
+    const frames: string[] = []
+    page.on('framenavigated', (f) => frames.push(f.url()))
+    await page.goto(`${origin}/qa/#/seq/human-check`)
+    await page.locator('.seq-run .env-badge select').selectOption('demo')
+    await page.locator('.seq-run .btn.primary').click()
+    await expect
+      .poll(() => page.locator('.seq-run .badge').first().textContent(), { timeout: 60_000 })
+      .toMatch(/pass/i)
+    expect(frames.some((u) => u.startsWith('https://challenges.cloudflare.com/'))).toBe(true)
+    expect(await page.locator('.jstep').allTextContents()).toEqual(
+      expect.arrayContaining([expect.stringContaining('Verify the token')]),
+    )
+    expect(await violations(page)).toEqual([])
+    expect(problems).toEqual([])
+    await context.close()
+  })
+
+  it('the demo copy runs the human check flow of the example project: the widget loads under the policy', async (t) => {
+    if (!cloudflareReachable) return t.skip()
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+    const { page, problems } = await open(context, '/demo/#/seq/human-check')
+    const frames: string[] = []
+    page.on('framenavigated', (f) => frames.push(f.url()))
+    await page.locator('.seq-run .env-badge select').selectOption('live')
+    await page.locator('.seq-run .btn.primary').click()
+    await expect
+      .poll(() => page.locator('.seq-run .badge').first().textContent(), { timeout: 60_000 })
+      .toMatch(/pass/i)
+    expect(frames.some((u) => u.startsWith('https://challenges.cloudflare.com/'))).toBe(true)
+    expect(await violations(page)).toEqual([])
+    expect(problems).toEqual([])
+    await context.close()
+  })
+
+  it('each button on the Scripts page starts the flow with its own key, and the flow asks for no credentials', async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+    const { page } = await open(context, '/reference/scripts/')
+    await expect.poll(demoState(page), { timeout: 30_000 }).toBe('ready')
+    const key = () => page.locator('specbook-panel input[role="combobox"]').first().inputValue()
+    const buttons = page.locator('button[data-specbook-flow="human-check"]')
+    // the second button first, then the first, then the second again: each opens on its own key, whatever was open before
+    for (const [i, label] of [
+      [1, 'Asks for a click first'],
+      [0, 'Always passes'],
+      [1, 'Asks for a click first'],
+    ] as const) {
+      await buttons.nth(i).click()
+      await expect.poll(key, { timeout: 15_000 }).toBe(label)
+      // the flow calls only the Turnstile API, which has no key: nothing asks for the Petstore's
+      expect(await page.locator('specbook-panel').getByText('PETSTORE_API_KEY').count()).toBe(0)
+      await page.keyboard.press('Escape')
+    }
+    await context.close()
+  })
+
+  it('the Test page opens the human check flow on the key that asks for a click, and it passes once the box is ticked', async (t) => {
+    if (!cloudflareReachable) return t.skip()
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+    const { page, problems } = await open(context, '/test/')
+    await expect.poll(demoState(page), { timeout: 30_000 }).toBe('ready')
+    const frames: string[] = []
+    page.on('framenavigated', (f) => frames.push(f.url()))
+    await page.locator('button[data-specbook-flow="human-check"]').click()
+    const key = () => page.locator('specbook-panel input[role="combobox"]').first().inputValue()
+    await expect.poll(key, { timeout: 15_000 }).toBe('Asks for a click first')
+    expect(await page.locator('specbook-panel').getByText('PETSTORE_API_KEY').count()).toBe(0)
+    await page.locator('specbook-panel .seq-run .btn.primary').first().click()
+    // the widget draws its own box, and waits: it does not pass on its own
+    const stage = page.locator('specbook-panel .script-stage')
+    await stage.waitFor({ timeout: 30_000 })
+    await expect
+      .poll(() => frames.some((u) => u.startsWith('https://challenges.cloudflare.com/')), {
+        timeout: 30_000,
+      })
+      .toBe(true)
+    await page.waitForTimeout(3_000)
+    const badge = page.locator('specbook-panel .seq-run .badge')
+    expect(await badge.count()).toBe(0)
+    const box = await stage.boundingBox()
+    await page.mouse.click((box?.x ?? 0) + 32, (box?.y ?? 0) + 40)
+    await expect.poll(() => badge.first().textContent(), { timeout: 60_000 }).toMatch(/pass/i)
+    expect(await violations(page)).toEqual([])
+    expect(problems).toEqual([])
+    await context.close()
+  })
+
+  it('the Scripts page runs a flow with a script: the Turnstile widget loads under the page’s own policy, and the token is verified', async (t) => {
+    if (!cloudflareReachable) return t.skip()
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+    const { page, problems } = await open(context, '/reference/scripts/')
+    await expect.poll(demoState(page), { timeout: 30_000 }).toBe('ready')
+    // the widget's frame goes with its step, so it is noted as it opens
+    const frames: string[] = []
+    page.on('framenavigated', (f) => frames.push(f.url()))
+    await page.locator('button[data-specbook-flow="human-check"]').first().click()
+    await page.getByRole('button', { name: 'Run with defaults' }).click()
+    await expect
+      .poll(() => page.locator('specbook-panel .seq-run .badge').first().textContent(), {
+        timeout: 60_000,
+      })
+      .toMatch(/pass/i)
+    // the widget was Cloudflare's, in a frame the policy allowed, and the verify step answered from the service worker
+    expect(frames.some((u) => u.startsWith('https://challenges.cloudflare.com/'))).toBe(true)
+    const steps = await page.locator('specbook-panel .jstep').allTextContents()
+    expect(steps.join(' ')).toContain('Verify the token')
     expect(await violations(page)).toEqual([])
     expect(problems).toEqual([])
     await context.close()

@@ -108,6 +108,8 @@ const vars = [
   `petstoreUrl=${demo.origin}/api/petstore`,
   '--var',
   `countriesUrl=${demo.origin}/api/countries`,
+  '--var',
+  `turnstileUrl=${demo.origin}/api/turnstile`,
 ]
 const test = (name, command, extra, expect, patch = {}) => ({
   name,

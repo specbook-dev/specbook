@@ -1,6 +1,8 @@
 ---
 title: Embed and the play panel
 description: Put Try it on any page, or the whole viewer, with one script.
+sidebar:
+  order: 4
 ---
 
 import Snippet from '../../../components/Snippet.astro'
@@ -17,8 +19,9 @@ A plain element gets a Play button beside it. A button or link that carries the 
 | --- | --- |
 | `data-specbook-try="service/Operation"` | Opens a request. A bare `Operation` works when the build has one service. A request file such as `requests/petstore/find-pets.req.ts` opens that request, with its checks. |
 | `data-specbook-flow="id"` | Opens a flow by its id. |
+| `data-specbook-script="id"` | Opens a [script](../scripts/) on its own, by its id, with a form for its inputs. |
 | `data-specbook-example="name"` | Starts from a named example. |
-| `data-specbook-inputs='{"quantity":2}'` | Sets a flow's inputs, over their defaults. A group or a list is given as an object or an array, and what it leaves out keeps its default. |
+| `data-specbook-inputs='{"quantity":2}'` | Sets a flow's or a script's inputs, over their defaults. A group or a list is given as an object or an array, and what it leaves out keeps its default. |
 | `data-specbook-env="demo"` | Chooses the environment. Set it on an element or on any ancestor, so a page can set it once. |
 | `data-specbook-tab="docs"` | Opens on the Docs tab instead of Try. |
 | `data-specbook-auto-run` | Runs as soon as the panel opens. Never against production. |

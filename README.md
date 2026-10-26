@@ -34,7 +34,8 @@ examples run in the page.
   in the tab. [How to set it up](#sign-in-to-oauth-apis).
 - **Test and monitor.** The same requests and flows run in CI and against production, with no spec needed, and QA
   can run them from a published portal. [How](docs/testing-and-monitoring.md), or on the [docs site](https://docs.specbook.dev/test/).
-- **Flows.** Chain requests, capture values from one response into the next, and assert on the way.
+- **Flows.** Chain requests, capture values from one response into the next, and assert on the way. A step can also be a
+  script: code with typed inputs and outputs, such as a payment SDK that needs a browser. A script also runs on its own.
 - **Share a view.** A link opens the same operation for someone else, for any spec served from a public address.
 - **Embed it.** Serve the viewer from your API's docs route: it runs on your origin, so no CORS, and your
   visitors' cookies are sent.

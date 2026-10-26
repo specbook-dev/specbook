@@ -40,6 +40,34 @@ describe('the headers the site is served with', () => {
     }
   })
 
+  it('lets every page and the demo and QA portal load Cloudflare’s widget, its script and its frame, and not the viewer', () => {
+    const text = headersFile(["'sha256-abc='"])
+    const cloudflare = 'https://challenges.cloudflare.com'
+    const policyOf = (path: string) => {
+      const rule = text.slice(text.indexOf(`${path}\n`))
+      const lines = rule.slice(0, rule.indexOf('\n\n')).split('\n')
+      return lines.find((l) => l.includes('Content-Security-Policy: ')) ?? ''
+    }
+    for (const path of ['/*', '/demo/*', '/qa/*']) {
+      const policy = policyOf(path)
+      expect(policy, path).toMatch(new RegExp(`script-src 'self' 'sha256-abc=' [^;]*${cloudflare}`))
+      expect(policy, path).toContain(`frame-src 'self' ${cloudflare}`)
+      // nothing else is widened by it: the host is named twice, once for scripts and once for frames
+      expect(policy.split(cloudflare).length - 1, path).toBe(2)
+      expect(policy, path).not.toMatch(/script-src[^;]*unsafe-inline/)
+      expect(policy, path).toContain("object-src 'none'")
+      expect(policy, path).toContain("frame-ancestors 'self'")
+    }
+    // the pages still call only the Petstore and the analytics, and the apps' own pages stay open as they were
+    expect(policyOf('/*')).toContain("connect-src 'self' https://petstore3.swagger.io")
+    expect(policyOf('/*')).not.toContain('connect-src *')
+    for (const path of ['/demo/*', '/qa/*']) expect(policyOf(path), path).toContain('connect-src *')
+    // the viewer runs no project code, so it can never show a widget and does not name Cloudflare
+    expect(policyOf('/viewer/*')).not.toContain(cloudflare)
+    expect(policyOf('/viewer/*')).toContain("frame-src 'self';")
+    expect(text.split(cloudflare).length - 1).toBe(6)
+  })
+
   it('never lets the worker or the entry scripts go stale, and hashed files live forever', () => {
     const text = headersFile([])
     expect(text).toMatch(/\/sw\.js\n\s+Cache-Control: no-cache/)

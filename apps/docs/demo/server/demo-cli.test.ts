@@ -50,6 +50,8 @@ function test(...args: string[]) {
         `petstoreUrl=${demo.origin}/api/petstore`,
         '--var',
         `countriesUrl=${demo.origin}/api/countries`,
+        '--var',
+        `turnstileUrl=${demo.origin}/api/turnstile`,
         ...args,
       ],
       { cwd: root, env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '' } },

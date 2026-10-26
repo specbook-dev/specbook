@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { type EnvironmentAddresses, handleProxy, safeProjectPath, scanProject } from '../src'
-import { requestsDirFor } from '../src/files'
-import { parseSequenceMeta } from '../src/sequences'
+import { requestsDirFor, SCRIPT_FILE } from '../src/files'
+import { parseScriptMeta, parseSequenceMeta } from '../src/sequences'
 
 describe('safeProjectPath', () => {
   const root = '/proj'
@@ -39,10 +39,22 @@ describe('scanProject', () => {
     await writeFile(join(dir, 'requests/b.seq.ts'), '')
     await writeFile(join(dir, 'requests/body.json'), '{}')
     await writeFile(join(dir, 'node_modules/x/c.req.ts'), '')
+    await mkdir(join(dir, 'scripts'), { recursive: true })
+    await writeFile(join(dir, 'scripts/pay.script.ts'), '')
+    await writeFile(join(dir, 'scripts/pay.browser.ts'), '')
+    await writeFile(join(dir, 'node_modules/x/d.script.ts'), '')
     const r = await scanProject(dir)
     expect(r.requests).toEqual(['requests/a.req.ts'])
     expect(r.sequences).toEqual(['requests/b.seq.ts'])
-    expect(r.sources).toEqual(['requests/a.req.ts', 'requests/b.seq.ts', 'requests/body.json'])
+    // the contract is the script; its body is a source for the editor, not a script of its own
+    expect(r.scripts).toEqual(['scripts/pay.script.ts'])
+    expect(r.sources).toEqual([
+      'requests/a.req.ts',
+      'requests/b.seq.ts',
+      'requests/body.json',
+      'scripts/pay.browser.ts',
+      'scripts/pay.script.ts',
+    ])
   })
 })
 
@@ -445,6 +457,38 @@ describe('examples and docs', () => {
   })
 })
 
+describe('parseScriptMeta', () => {
+  it('reads the literal header of a script, also inside withMock, without importing it', () => {
+    const src = `import { c, script, withMock } from '@specbook/core'
+export default withMock(
+  script({
+    id: 'turnstile',
+    name: 'Prove you are human',
+    tags: ['captcha'],
+    runtime: 'browser',
+    inputs: { siteKey: c.text({ default: 'k', id: 'nope' }) },
+    load: () => import('./turnstile.browser'),
+  }),
+  ({ inputs }) => ({ token: inputs.siteKey, id: 'nope' }),
+)`
+    expect(parseScriptMeta(src)).toEqual({
+      id: 'turnstile',
+      name: 'Prove you are human',
+      tags: ['captcha'],
+      runtime: 'browser',
+    })
+  })
+
+  it('needs only an id, and gives up on a header that is not literal', () => {
+    expect(parseScriptMeta("script({ id: 'a', run: async () => ({}) })")).toEqual({
+      id: 'a',
+    })
+    expect(parseScriptMeta("script({ id: 'a' + 'b', run: async () => ({}) })")).toBeUndefined()
+    expect(parseScriptMeta('script({ id, run: async () => ({}) })')).toBeUndefined()
+    expect(parseScriptMeta('export const x = 1')).toBeUndefined()
+  })
+})
+
 describe('parseSequenceMeta', () => {
   it('reads the literal header without importing the file', () => {
     const src = `import { c, sequence } from '@specbook/core'
@@ -526,5 +570,22 @@ describe('requestsDirFor', () => {
     expect(requestsDirFor(old)).toBe('apis')
     await mkdir(join(old, 'requests'))
     expect(requestsDirFor(old)).toBe('requests')
+  })
+})
+
+describe('SCRIPT_FILE', () => {
+  it('names a script and its browser body, and nothing else', () => {
+    for (const f of ['scripts/pay.script.ts', 'scripts/pay.browser.ts'])
+      expect(SCRIPT_FILE.test(f), f).toBe(true)
+    for (const f of [
+      'requests/a.req.ts',
+      'sequences/b.seq.ts',
+      'scripts/pay.ts',
+      'scripts/pay.browser.json',
+      'scripts/browser.ts',
+      'scripts/hash.node.ts',
+      'a/b/hash.body.ts',
+    ])
+      expect(SCRIPT_FILE.test(f), f).toBe(false)
   })
 })

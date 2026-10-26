@@ -12,6 +12,8 @@ export type Route =
   | { kind: 'browse' }
   | { kind: 'op'; key: string; play?: string; tab?: PanelTab }
   | { kind: 'seq'; id: string; play?: string; tab?: PanelTab }
+  /** a script run on its own, as a flow of one step */
+  | { kind: 'script'; id: string; play?: string; tab?: PanelTab }
 
 /**
  * A project with one API needs no service in its links: `#/op/FindPetsByStatus`, not
@@ -44,6 +46,8 @@ export function parseHash(hash: string): Route {
   if (op) return { kind: 'op', key: keyIn(decodeURIComponent(op[1] as string)), play, tab }
   const seq = /^#\/seq\/(.+)$/.exec(path)
   if (seq) return { kind: 'seq', id: decodeURIComponent(seq[1] as string), play, tab }
+  const sc = /^#\/script\/(.+)$/.exec(path)
+  if (sc) return { kind: 'script', id: decodeURIComponent(sc[1] as string), play, tab }
   if (path === '#/browse') return { kind: 'browse' }
   return { kind: 'home' }
 }
@@ -51,7 +55,12 @@ export function parseHash(hash: string): Route {
 export function hashFor(r: Route): string {
   if (r.kind === 'home') return '#/'
   if (r.kind === 'browse') return '#/browse'
-  const base = r.kind === 'op' ? `#/op/${soft(keyOut(r.key))}` : `#/seq/${encodeURIComponent(r.id)}`
+  const base =
+    r.kind === 'op'
+      ? `#/op/${soft(keyOut(r.key))}`
+      : r.kind === 'script'
+        ? `#/script/${encodeURIComponent(r.id)}`
+        : `#/seq/${encodeURIComponent(r.id)}`
   const q = new URLSearchParams()
   if (r.play !== undefined) q.set('play', r.play)
   if (r.tab) q.set('tab', r.tab)
@@ -106,7 +115,7 @@ export interface Entry {
   /** extra text matched by search, never shown */
   hay: string
   /** `req`: a saved request, which opens its operation on that request */
-  kind: 'seq' | 'op' | 'req'
+  kind: 'seq' | 'op' | 'req' | 'script'
 }
 
 export function search(entries: Entry[], query: string, limit = 40): Entry[] {
@@ -120,7 +129,7 @@ export function search(entries: Entry[], query: string, limit = 40): Entry[] {
     // prefer title matches and sequences
     let score = 0
     for (const t of terms) score += title.startsWith(t) ? 3 : title.includes(t) ? 2 : 1
-    if (e.kind === 'seq') score += 0.5
+    if (e.kind === 'seq' || e.kind === 'script') score += 0.5
     if (e.kind === 'req') score += 0.4
     scored.push([score, e])
   }

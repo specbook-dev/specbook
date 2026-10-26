@@ -185,6 +185,33 @@ describe('the Inputs stop and the forms of groups and lists', () => {
     })
   })
 
+  it('a flow opened again comes back as it was left, unless the button that opens it names its own starting values', async () => {
+    const name = () => field('traveler1.name')?.value
+    // no values named: what was typed is still there
+    show(groups, 'groups-kept.seq.ts')
+    await ready()
+    type(field('traveler1.name') as HTMLInputElement, 'Ada Lovelace')
+    await tick()
+    render(null, root)
+    show(groups, 'groups-kept.seq.ts')
+    await ready()
+    expect(name()).toBe('Ada Lovelace')
+    render(null, root)
+
+    // values named: they win, each time, over what the last open left
+    show(groups, 'groups-named.seq.ts', { traveler1: { name: 'First button' } })
+    await ready()
+    expect(name()).toBe('First button')
+    type(field('traveler1.name') as HTMLInputElement, 'typed over it')
+    await tick()
+    render(null, root)
+    show(groups, 'groups-named.seq.ts', { traveler1: { name: 'Second button' } })
+    await vi.waitFor(() => expect(name()).toBe('Second button'))
+    render(null, root)
+    show(groups, 'groups-named.seq.ts', { traveler1: { name: 'First button' } })
+    await vi.waitFor(() => expect(name()).toBe('First button'))
+  })
+
   it('a preset of one field of a group leaves the rest of the group at its defaults', async () => {
     await viewport(1280, 800, async () => {
       show(groups, 'groups-preset.seq.ts', { traveler2: { name: 'Preset Person' } })

@@ -1,4 +1,5 @@
 ---
+import Heading from '../components/Heading.astro'
 import Next from '../components/Next.astro'
 import Replay from '../components/Replay'
 import Snippet from '../components/Snippet.astro'
@@ -26,7 +27,7 @@ import { capture } from '../lib/captures'
 
   <section class="block" style="padding-top: 8px">
     <div class="wrap">
-      <h2 class="title">Assert what matters</h2>
+      <Heading>Assert what matters</Heading>
       <div class="prose">
         <p>
           By default, a request passes on any 2xx response. Add <code>assert</code> checks when you need more,
@@ -40,7 +41,7 @@ import { capture } from '../lib/captures'
       </div>
       <Snippet file="demo/requests/petstore/find-pets.req.ts" region="request" />
 
-      <h2 class="title">Let QA change the inputs</h2>
+      <Heading>Let QA change the inputs</Heading>
       <div class="prose">
         <p>
           A flow has <strong>inputs</strong>, like a GitHub workflow's inputs or Storybook's controls. QA changes
@@ -66,7 +67,34 @@ import { capture } from '../lib/captures'
         </p>
       </div>
 
-      <h2 class="title">Give QA a portal</h2>
+      <Heading>Steps that need a browser</Heading>
+      <div class="prose">
+        <p>
+          Not every step is a request. A <strong>script</strong> step can fetch a token from your API, then render
+          a PayPal button for the charge amount, so QA can sign in to the PayPal sandbox and authorize the payment.
+          What the script returns, such as the approval, goes to the next step.
+        </p>
+        <p>
+          On the mock environment a script answers with its mock, so the flow still runs. On a real
+          environment <code>specbook test</code> skips a flow that needs a browser and says why. The example here
+          uses Cloudflare's Turnstile, which needs no account. Press the button, tick the box, and the next step
+          verifies the token.
+        </p>
+      </div>
+      <p style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px">
+        <button
+          type="button"
+          class="run"
+          data-specbook-flow="human-check"
+          data-specbook-env="demo"
+          data-specbook-inputs='{"siteKey":"3x00000000000000000000FF"}'
+        >
+          ▶ Run a flow with a human check
+        </button>
+        <a href="/reference/scripts/">How scripts work</a>
+      </p>
+
+      <Heading>Give QA a portal</Heading>
       <div class="prose">
         <p>
           <code>specbook build --minimal</code> publishes only the operations your requests and flows use. QA
@@ -75,7 +103,7 @@ import { capture } from '../lib/captures'
       </div>
       <p><a class="btn primary" href="/qa/">Open the QA portal ↗</a></p>
 
-      <h2 class="title">See exactly what failed</h2>
+      <Heading>See exactly what failed</Heading>
       <div class="prose">
         <p>
           When the API answers with something your checks did not expect, the run shows which check failed, what
@@ -92,7 +120,7 @@ import { capture } from '../lib/captures'
       </div>
       <Replay client:visible capture={capture('test-flaky')} />
 
-      <h2 class="title">Run it in CI too</h2>
+      <Heading>Run it in CI too</Heading>
       <div class="prose">
         <p>Add one workflow and CI runs your checks on every change.</p>
       </div>

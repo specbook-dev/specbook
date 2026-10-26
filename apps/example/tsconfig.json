@@ -4,5 +4,5 @@
     "noEmit": true,
     "types": []
   },
-  "include": ["requests", "sequences", ".specbook/*.ts", ".generated/*/index.ts"]
+  "include": ["requests", "sequences", "scripts", ".specbook/*.ts", ".generated/*/index.ts"]
 }

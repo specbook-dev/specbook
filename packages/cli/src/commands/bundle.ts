@@ -29,6 +29,12 @@ export interface BundleOptions {
 
 const ENTRY = '\0specbook:entry'
 const FAKER = '\0specbook:faker'
+/** The file a script's browser body lives in, by the convention `<name>.browser.ts`. */
+const BROWSER_BODY = /\.browser\.[cm]?[jt]sx?$/
+/** The project's own browser bodies: a dependency that happens to ship `x.browser.js` is not one. */
+export const isBrowserBody = (id: string) => BROWSER_BODY.test(id) && !id.includes('/node_modules/')
+const BROWSER_BODY_STUB =
+  'export const run = () => { throw new Error("This step needs a browser: run the flow in the portal.") }'
 
 function git(root: string): { sha?: string; branch?: string } {
   const run = (...args: string[]) => {
@@ -166,6 +172,7 @@ export async function bundleCommand(
   const { targets } = await discoverTargets(project, loader, [
     `${requestsDirFor(root)}/**/*.req.ts`,
     'sequences/**/*.seq.ts',
+    'scripts/**/*.script.ts',
   ])
   const chosen = o.tags.length
     ? targets.filter((t) => t.tags.some((x) => o.tags.includes(x)))
@@ -236,6 +243,10 @@ export async function bundleCommand(
       load(id) {
         if (id === ENTRY) return entry
         if (id === FAKER) return faker
+        // The body of a script that needs a browser (`x.browser.ts`) never runs in node, and the SDK it imports could be
+        // large: its code is left out. A run in node skips the flow before the body is loaded; this is what is there if
+        // anything ever asks for it.
+        if (isBrowserBody(id)) return BROWSER_BODY_STUB
         if (!id.startsWith('\0specbook:api:')) return undefined
         const service = id.slice('\0specbook:api:'.length)
         const metas = ops.services[service]

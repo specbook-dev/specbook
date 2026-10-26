@@ -68,6 +68,21 @@ declare module 'virtual:specbook/registry' {
   >
   /** Sequence files whose header is not plain literals; these are imported to be listed. */
   export const unresolvedSequences: string[]
+  export const scripts: Entry[]
+  /** Script headers read from the `*.script.ts` text (no import), keyed by id. */
+  export const scriptMeta: Record<
+    string,
+    {
+      id: string
+      name?: string
+      description?: string
+      tags?: string[]
+      runtime?: string
+      file: string
+    }
+  >
+  /** Script files whose header is not plain literals; these are imported to be listed. */
+  export const unresolvedScripts: string[]
   /** `.specbook/branding/logo.*` and `favicon.*`, resolved to URLs on demand. */
   export const brandingAssets: Partial<Record<'logo' | 'favicon', () => Promise<string>>>
   /** Non-secret variables from `.specbook/environments/<env>.env`, by environment. */

@@ -1,3 +1,5 @@
+import type { Controls } from './controls'
+import { type ScriptDef, type ScriptMockHook, withScriptMock } from './script'
 import { deepMerge } from './template'
 import type {
   AnyOp,
@@ -53,8 +55,18 @@ function make<T extends OpTypes, I extends Init, C>(
 export function withMock<T extends OpTypes, I extends Init, C>(
   def: RequestDef<T, I, C>,
   hook: MockHook<T, I>,
-): RequestDef<T, I, C> {
-  return make(def.op, def.input, def.dataPatches, def.varOverrides, hook)
+): RequestDef<T, I, C>
+/** The same for a script: the hook returns what the mock environment answers, typed from the script's body. */
+export function withMock<I extends Controls, O extends Record<string, unknown>, C>(
+  def: ScriptDef<I, O, C>,
+  hook: ScriptMockHook<I, NoInfer<O>>,
+): ScriptDef<I, O, C>
+export function withMock(
+  def: RequestDef<any, any, any> | ScriptDef<any, any, any>,
+  hook: MockHook<any, any> | ScriptMockHook<any, any>,
+): RequestDef<any, any, any> | ScriptDef<any, any, any> {
+  if (def.kind === 'script') return withScriptMock(def, hook as ScriptMockHook<any, any>)
+  return make(def.op, def.input, def.dataPatches, def.varOverrides, hook as MockHook<any, any>)
 }
 
 /** Generated code calls this once per operation. */

@@ -19,6 +19,10 @@ const error = (code: number, type: string, message: string): ApiResponse => ({
 
 const STATUSES = ['available', 'pending', 'sold'] as const
 
+/** What Cloudflare's published test site keys and secret make: the token the widget gives, and the secret that accepts it. */
+const TURNSTILE_TEST_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX'
+const TURNSTILE_TEST_SECRET = '1x0000000000000000000000000000000AA'
+
 /**
  * The demo API: the Petstore operations the docs' requests and flows use, and a small Countries GraphQL endpoint.
  * It answers on one origin under `/api`, from a service worker in the browser and from node when a recording or a test
@@ -63,6 +67,26 @@ export function createDemoApp({ store, clock = () => new Date(), sleep }: DemoOp
 
   const mutate = (k: Chaos) => k.mutate
   const hidden = (k: Chaos) => k.notFound
+
+  // ---- Cloudflare Turnstile: the one call a server makes with the token the widget gave a page. The real endpoint answers 200
+  // whether the token is good or not, and so does this one. It accepts only what Cloudflare's test keys make, so the demo
+  // needs no account and no secret of its own.
+  app.post('/turnstile/siteverify', async (c) => {
+    const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>)
+    const secret = typeof form.secret === 'string' ? form.secret : ''
+    const response = typeof form.response === 'string' ? form.response : ''
+    const fail = (...codes: string[]) => c.json({ success: false, 'error-codes': codes })
+    if (!secret) return fail('missing-input-secret')
+    if (!response) return fail('missing-input-response')
+    if (secret !== TURNSTILE_TEST_SECRET) return fail('invalid-input-secret')
+    if (response !== TURNSTILE_TEST_TOKEN) return fail('invalid-input-response')
+    return c.json({
+      success: true,
+      'error-codes': [],
+      challenge_ts: clock().toISOString(),
+      hostname: 'docs.specbook.dev',
+    })
+  })
 
   // ---- Petstore
   app.get('/petstore/pet/findByStatus', async (c) => {

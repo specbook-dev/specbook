@@ -1,0 +1,39 @@
+---
+// Play buttons for the Turnstile flow, on a page that is not one of the site's own. The reference pages load neither the
+// play panel nor the worker that answers for the demo API, so this brings both, and only to the page that uses it.
+---
+
+<!-- not-content: Starlight spaces the siblings of a page's text, which would pull these buttons and dots apart -->
+<div class="demo not-content">
+  <div class="demo-bar">
+    <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span>On this page, it does this</span>
+  </div>
+  <div class="demo-body prose" style="max-width: none">
+    <p style="display: flex; flex-wrap: wrap; gap: 12px">
+      <button
+        type="button"
+        class="run"
+        data-specbook-flow="human-check"
+        data-specbook-env="demo"
+        data-specbook-inputs='{"siteKey":"1x00000000000000000000AA"}'
+      >
+        ▶ Run with the key that always passes
+      </button>
+      <button
+        type="button"
+        class="run"
+        data-specbook-flow="human-check"
+        data-specbook-env="demo"
+        data-specbook-inputs='{"siteKey":"3x00000000000000000000FF"}'
+      >
+        ▶ Run with the key that asks for a click
+      </button>
+    </p>
+  </div>
+</div>
+
+<script>
+  import '../scripts/demo-api'
+</script>
+<script is:inline type="module" src="/qa/specbook.js"></script>
