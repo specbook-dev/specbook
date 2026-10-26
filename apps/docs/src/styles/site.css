@@ -249,8 +249,15 @@ h2.title .anchor {
   color: var(--muted, currentColor);
   font-weight: 400;
   text-decoration: none;
+  /* the same link icon Starlight puts beside the headings of the reference, at its size: a share of the title's own */
+  display: inline-flex;
+  vertical-align: middle;
   opacity: 0;
   transition: opacity 0.15s;
+}
+h2.title .anchor svg {
+  width: 0.8275em;
+  height: 0.8275em;
 }
 h2.title:hover .anchor,
 h2.title .anchor:focus-visible {
