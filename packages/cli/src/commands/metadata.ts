@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { writeAtomically } from '@specbook/codegen'
-import { scanProject } from '@specbook/vite'
+import { scanProject } from '@specbook/vite/internal'
 import fg from 'fast-glob'
 import type { Loader } from '../load'
 

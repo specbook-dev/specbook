@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
-import { isMockVariants, MOCK_VARIANTS } from '@specbook/core'
+import { isMockVariants, MOCK_VARIANTS } from '@specbook/core/internal'
 import { afterAll, describe, expect, it } from 'vitest'
 import { generate, generateToDisk } from '../src'
 

@@ -1,32 +1,19 @@
-export { assert, createAsserter, stripAnsi } from './assert'
-export * from './config'
-export * from './controls'
-export * from './diff'
-export * from './environment'
-export type { Example, ExampleLoader, FileReader, Row } from './example'
-export { fromFormRows, fromRows, toFormRows, toRows } from './example'
+// What a project imports to write requests, flows, scripts and its config. Everything Specbook's own packages
+// need beyond this is in `@specbook/core/internal`, which may change in any release.
+export type { BrandingConfig, EnvironmentConfig, ServiceConfig, SpecbookConfig } from './config'
+export { defineConfig } from './config'
+export type { Control, Controls, Default, InferControls } from './controls'
+export { c } from './controls'
 export type { FakerConfig } from './faker-runtime'
-export {
-  faker,
-  fakerLocaleExports,
-  fakerLocaleNames,
-  installFaker,
-  prepareFaker,
-  setFaker,
-} from './faker-runtime'
-export * from './mock'
-export * from './mock-variants'
-export * from './oauth'
-export * from './proxy/index'
-export * from './reporters/index'
+export type { OAuthClientCredentials, OAuthDiscovery, OAuthEndpoints, OAuthSettings } from './oauth'
 export { defineOperation, request, withMock } from './request'
-export * from './runner/index'
+export type { AuthProfile, Session } from './runner/run'
 export type {
+  Given,
   PageElement,
   ScriptBody,
   ScriptDef,
   ScriptHelpers,
-  ScriptHost,
   ScriptInput,
   ScriptLoadOptions,
   ScriptMeta,
@@ -35,48 +22,7 @@ export type {
   ScriptRuntime,
 } from './script'
 export { script } from './script'
-export * from './secrets'
+export type { SecretProvider, SecretRef } from './secrets'
 export type { Sequence, SequenceMeta, StepCtx, StepNode } from './sequence'
-export {
-  flowRuntime,
-  flowSkipReason,
-  SKIP_REASONS,
-  scriptFlow,
-  scriptSkipReason,
-  sequence,
-} from './sequence'
-export type { SnippetInput, SnippetLang } from './snippets'
-export { snippetLangs, toSnippet } from './snippets'
-export {
-  authFromSpec,
-  credentialsFromSpec,
-  environmentsFromServers,
-  type JsonAuthProfile,
-  liveBaseUrl,
-  MAX_SERVERS,
-  openApiServers,
-  type ProfileKind,
-  type ProfilesOptions,
-  profileNameFor,
-  profilesFromSpec,
-  type SchemeCredential,
-  type SchemeKind,
-  type ServerEntry,
-  type SpecAuth,
-  type SpecCredentials,
-  type SpecProfile,
-  type SpecProfiles,
-  schemeCredential,
-  serviceSecretName,
-} from './spec-config'
-export {
-  collectPlaceholders,
-  deepMerge,
-  FakerPlaceholderError,
-  render,
-  renderString,
-  rootName,
-  TemplateError,
-  usesFaker,
-} from './template'
-export * from './types'
+export { sequence } from './sequence'
+export type * from './types'

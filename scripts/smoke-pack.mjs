@@ -170,15 +170,21 @@ try {
 
   writeFileSync(
     join(proj, 'requests/find-pets.req.ts'),
-    `import { FindPetsByStatus } from '#api/petstore'
+    `import { faker } from '@specbook/core/faker'
+import { FindPetsByStatus } from '#api/petstore'
 
 export default FindPetsByStatus.request({
   name: 'Find pets by status',
+  init: { who: () => faker.person.firstName() },
   query: { status: 'available' },
   assert: (res, { assert }) => assert.is(res.status, 200, 'ok'),
 })
 `,
   )
+  // init added typescript and faker to package.json without installing them; the installed core has to typecheck
+  // under the tsconfig init wrote (the root entry, and the typed faker entry)
+  run('npm', ['install', '--no-audit', '--no-fund'], proj, 'npm install of what init added')
+  run(join(proj, 'node_modules/.bin/tsc'), ['--noEmit'], proj, 'tsc in the installed project')
   sb(['test', '--env', 'mock'], 'specbook test (mock)')
 
   sb(['build', '--viewer', '--out', 'dist-docs'], 'specbook build --viewer')

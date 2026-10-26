@@ -24,7 +24,7 @@ import {
   toJUnit,
   traceLines,
   withMock,
-} from '../src'
+} from '../src/internal'
 import { fakeTransport } from './helpers'
 
 const CreateOrder = defineOperation<{

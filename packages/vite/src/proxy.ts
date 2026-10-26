@@ -1,5 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { AUTH_SERVICE_PREFIX, DISCOVERY_SERVICE_PREFIX, handleProxy as proxy } from '@specbook/core'
+import {
+  AUTH_SERVICE_PREFIX,
+  DISCOVERY_SERVICE_PREFIX,
+  handleProxy as proxy,
+} from '@specbook/core/internal'
 
 export { AUTH_SERVICE_PREFIX, DISCOVERY_SERVICE_PREFIX }
 

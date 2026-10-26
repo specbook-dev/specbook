@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { credentialsFromSpec, type SpecCredentials } from '@specbook/core'
+import { credentialsFromSpec, type SpecCredentials } from '@specbook/core/internal'
 import { describe, expect, it, vi } from 'vitest'
 import {
   applyCredentials,

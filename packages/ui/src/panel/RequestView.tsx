@@ -1,4 +1,4 @@
-import type { RenderedRequest } from '@specbook/core'
+import type { RenderedRequest } from '@specbook/core/internal'
 import { useMemo, useState } from 'preact/hooks'
 import { fieldDoc } from '../fielddoc'
 import { type Defs, type JsonSchema, linePaths } from '../schema'

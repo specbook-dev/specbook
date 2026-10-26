@@ -1,4 +1,4 @@
-import type { OAuthSettings } from '@specbook/core'
+import type { OAuthSettings } from '@specbook/core/internal'
 
 export interface AuthProfileLike {
   title: string

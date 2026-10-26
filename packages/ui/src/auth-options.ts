@@ -8,7 +8,7 @@ import {
   type SecurityRequirement,
   type SpecbookConfig,
   serviceProfiles,
-} from '@specbook/core'
+} from '@specbook/core/internal'
 import { SECRET_PLACEHOLDER } from './secrets'
 
 /**

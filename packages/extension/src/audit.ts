@@ -1,4 +1,4 @@
-import type { WireAuditEvent } from '@specbook/core/wire'
+import type { WireAuditEvent } from '@specbook/core/internal'
 import type { Area } from './state'
 
 const KEY = 'audit'

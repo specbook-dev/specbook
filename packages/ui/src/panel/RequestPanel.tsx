@@ -4,7 +4,7 @@ import {
   type Example,
   type RunResult,
   rootName,
-} from '@specbook/core'
+} from '@specbook/core/internal'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import type { Security } from '../auth-options'
 import { EnvBadge } from '../components/EnvBadge'

@@ -4,7 +4,7 @@
 
 import { createHash } from 'node:crypto'
 import vm from 'node:vm'
-import type { ScriptHost } from '@specbook/core'
+import type { ScriptHost } from '@specbook/core/internal'
 
 const ALGORITHMS = { sha256: 'sha256', sha384: 'sha384', sha512: 'sha512' } as const
 

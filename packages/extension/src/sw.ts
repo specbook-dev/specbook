@@ -1,4 +1,4 @@
-import { createWireHandler, parseWireCall } from '@specbook/core/wire'
+import { createWireHandler, parseWireCall } from '@specbook/core/internal'
 import { createAudit } from './audit'
 import { createHost } from './host'
 import { createState } from './state'

@@ -3,7 +3,7 @@
 
 import { readFile } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
-import type { OpMeta } from '@specbook/core'
+import type { OpMeta } from '@specbook/core/internal'
 import fg from 'fast-glob'
 import { parseSync } from 'vite'
 import type { Project } from './project'

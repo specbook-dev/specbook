@@ -14,7 +14,7 @@ import {
   toFormRows,
   toRows,
   usesFaker,
-} from '../src'
+} from '../src/internal'
 import { formatPretty } from '../src/reporters'
 import { fakeTransport } from './helpers'
 

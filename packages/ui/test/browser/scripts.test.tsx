@@ -1,4 +1,4 @@
-import { c, type Sequence, script, scriptFlow, sequence, withMock } from '@specbook/core'
+import { c, type Sequence, script, scriptFlow, sequence, withMock } from '@specbook/core/internal'
 import { render } from 'preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'

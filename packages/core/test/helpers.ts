@@ -1,4 +1,4 @@
-import type { PreparedRequest, RawResponse, Transport } from '../src'
+import type { PreparedRequest, RawResponse, Transport } from '../src/internal'
 
 /** Fake transport driven by a handler; records every wire request. */
 export function fakeTransport(

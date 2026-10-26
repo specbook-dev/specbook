@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_TIMEOUT_MS, defineOperation, runRequest, runSequence, sequence } from '../src'
+import {
+  DEFAULT_TIMEOUT_MS,
+  defineOperation,
+  runRequest,
+  runSequence,
+  sequence,
+} from '../src/internal'
 import { fakeTransport } from './helpers'
 
 const Get = defineOperation<{

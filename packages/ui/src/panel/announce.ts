@@ -1,5 +1,5 @@
 import { signal } from '@preact/signals'
-import type { RunResult } from '@specbook/core'
+import type { RunResult } from '@specbook/core/internal'
 
 /** What a screen reader is told when a run finishes: the panel renders it in a polite live region. */
 export const announcement = signal('')

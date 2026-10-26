@@ -3,7 +3,7 @@ import {
   MissingSecretsError,
   parseWireCall,
   type WireHost,
-} from '@specbook/core'
+} from '@specbook/core/internal'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   detectExtension,

@@ -1,12 +1,12 @@
 import * as reg from 'virtual:specbook/registry'
+import { faker } from '@specbook/core/faker'
 import {
   handleWireFetch,
   installFaker,
   prepareFaker,
   type WireCall,
   type WireReply,
-} from '@specbook/core'
-import { faker } from '@specbook/core/faker'
+} from '@specbook/core/internal'
 import { describe, expect, it } from 'vitest'
 import { createEngine } from '../../src/engine'
 import type { ExtensionBridge } from '../../src/extension'

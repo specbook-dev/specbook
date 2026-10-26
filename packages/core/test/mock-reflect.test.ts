@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createMockTransport, defineOperation, runRequest, withMock } from '../src'
+import { createMockTransport, defineOperation, runRequest, withMock } from '../src/internal'
 import { reflectRequest } from '../src/mock-reflect'
 
 describe('reflectRequest', () => {

@@ -293,7 +293,7 @@ Requests and flows run in three places: node (`specbook test`), the single-file 
 browser (the docs UI, the QA portal and "Try it"). Everything they import must work in all three. A build and a green `specbook test`
 do not prove it: a request that needs Node builds cleanly and passes in node, and only fails when someone opens it in the portal.
 
-- Use what is already there: `fetch` (global), `@specbook/core` (`assert`, `faker` from `@specbook/core/faker`, the `c` controls) and
+- Use what is already there: `fetch` (global), `@specbook/core` (the `c` controls; `assert` arrives as the argument of an `assert` or `check` callback), `faker` from `@specbook/core/faker` and
   the language itself (`Date`, `Intl`, `URL`, `btoa`, `crypto.randomUUID()`). Prefer no new dependencies. A library such as lodash does
   work in the browser, but it adds a lot of weight to the portal and the bundle for something a few lines of code do.
 - Do not use `Buffer`: in the browser it is "Buffer is not defined". Use `btoa`, `Uint8Array`, `TextEncoder` and `TextDecoder`.

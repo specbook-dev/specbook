@@ -1,4 +1,4 @@
-import type { WireAuditEvent, WireHost } from '@specbook/core/wire'
+import type { WireAuditEvent, WireHost } from '@specbook/core/internal'
 import type { State } from './state'
 
 export interface HostDeps {

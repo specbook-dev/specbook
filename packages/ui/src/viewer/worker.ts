@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import { generateData, type OperationMeta, openSpec } from '@specbook/codegen/browser'
-import { authFromSpec, MAX_SERVERS, openApiServers } from '@specbook/core'
+import { authFromSpec, MAX_SERVERS, openApiServers } from '@specbook/core/internal'
 import { bundleJson, type Parts, sortFiles } from './bundles'
 import type { OpenResult, Request, Response, Source } from './protocol'
 

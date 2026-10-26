@@ -1,7 +1,7 @@
 {
   "name": "@specbook/core",
   "version": "0.12.0",
-  "description": "The runner, mock engine, template engine and shared proxy behind Specbook: Storybook for APIs.",
+  "description": "The authoring API behind Specbook (requests, flows, scripts, config), plus the runner, mock engine and proxy its tools share.",
   "keywords": [
     "specbook",
     "openapi",
@@ -29,25 +29,13 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
-    "./wire": {
-      "types": "./src/proxy/index.ts",
-      "default": "./src/proxy/index.ts"
-    },
-    "./assert": {
-      "types": "./src/assert.ts",
-      "default": "./src/assert.ts"
-    },
-    "./runner": {
-      "types": "./src/runner/index.ts",
-      "default": "./src/runner/index.ts"
-    },
-    "./reporters": {
-      "types": "./src/reporters/index.ts",
-      "default": "./src/reporters/index.ts"
-    },
     "./faker": {
       "types": "./src/faker.ts",
       "default": "./src/faker.ts"
+    },
+    "./internal": {
+      "types": "./src/internal.ts",
+      "default": "./src/internal.ts"
     }
   },
   "scripts": {

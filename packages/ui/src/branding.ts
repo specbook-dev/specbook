@@ -1,5 +1,5 @@
 import { signal } from '@preact/signals'
-import type { BrandingConfig } from '@specbook/core'
+import type { BrandingConfig } from '@specbook/core/internal'
 
 export interface Brand {
   /** the project's config has been read; until then the overview would show its fallback text */

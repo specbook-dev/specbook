@@ -12,7 +12,7 @@ import {
   substituteText,
   upstreamProblem,
   wireToRequest,
-} from '../src'
+} from '../src/internal'
 
 const bytes = (...n: number[]) => new Uint8Array(n)
 const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')

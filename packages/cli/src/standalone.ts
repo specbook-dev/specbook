@@ -10,7 +10,7 @@ import {
   environmentNames,
   type FileReader,
   type SpecbookConfig,
-} from '@specbook/core'
+} from '@specbook/core/internal'
 import { runTests, type Target, targetsOf } from './run-tests'
 import { TEST_FLAGS, TEST_HELP, testOptions, UsageError } from './test-args'
 import { fixCliVersion } from './version'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isMockVariants, MOCK_VARIANTS, mockVariantNames, pickMockVariant } from '../src'
+import { isMockVariants, MOCK_VARIANTS, mockVariantNames, pickMockVariant } from '../src/internal'
 
 const file = {
   $variants: [

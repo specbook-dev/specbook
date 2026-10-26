@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { c, describeControls, resolveControls } from '../src'
+import { c, describeControls, resolveControls } from '../src/internal'
 
 describe('controls', () => {
   it('takes the first option when the default is not one of them: `default: 0` on pet ids is the first pet, not pet 0', () => {

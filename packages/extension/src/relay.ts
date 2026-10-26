@@ -1,4 +1,4 @@
-import { parseWireCall, WIRE_VERSION } from '@specbook/core/wire'
+import { parseWireCall, WIRE_VERSION } from '@specbook/core/internal'
 
 /** The page's two channel names: the page side (`packages/ui/src/extension.ts`) uses the same. */
 export const CALL_CHANNEL = 'specbook:call'

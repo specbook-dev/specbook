@@ -7,8 +7,13 @@ import {
   openApiServers,
   type ServerEntry,
   type SpecCredentials,
-} from '@specbook/core'
-import { ensureEnvironmentsDir, readEnvironment, varsFile, writeEnvKey } from '@specbook/vite'
+} from '@specbook/core/internal'
+import {
+  ensureEnvironmentsDir,
+  readEnvironment,
+  varsFile,
+  writeEnvKey,
+} from '@specbook/vite/internal'
 import type { Project } from '../project'
 import { applyCredentials, authValue, credentialsSnippet, planCredentials, quote } from './add-auth'
 import { fetchSpec, isUrl, sizeOf } from './spec-source'

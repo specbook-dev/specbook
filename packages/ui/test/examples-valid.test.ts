@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { isMockVariants } from '@specbook/core'
+import { isMockVariants } from '@specbook/core/internal'
 import { describe, expect, it } from 'vitest'
 import { validate } from '../src/schema'
 

@@ -1,4 +1,4 @@
-import type { StepResult } from '@specbook/core'
+import type { StepResult } from '@specbook/core/internal'
 import { useState } from 'preact/hooks'
 import { extensionInstallUrl } from '../extension'
 import { engine } from '../runtime'

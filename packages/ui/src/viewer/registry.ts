@@ -3,7 +3,7 @@
  * the document in a worker and puts the result on `globalThis.__SPECBOOK_VIEWER__` before the app is
  * imported; this module turns that into the same named exports the dev server and the static build give.
  */
-import { defineOperation, environmentsFromServers, type OpMeta } from '@specbook/core'
+import { defineOperation, environmentsFromServers, type OpMeta } from '@specbook/core/internal'
 import type { OpenResult } from './protocol'
 
 export interface ViewerGlobal {

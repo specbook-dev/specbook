@@ -1,4 +1,4 @@
-import { parseDiscovery } from '@specbook/core'
+import { parseDiscovery } from '@specbook/core/internal'
 
 const FETCH_TIMEOUT_MS = 5_000
 

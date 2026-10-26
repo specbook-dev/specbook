@@ -9,7 +9,7 @@ import {
   serviceProfiles,
   snippetLangs,
   toSnippet,
-} from '@specbook/core'
+} from '@specbook/core/internal'
 import type { ComponentChildren } from 'preact'
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks'
 import { authChoices } from '../auth-choice'

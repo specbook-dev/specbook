@@ -1,4 +1,4 @@
-import { createWireHandler, type WireAuditEvent } from '@specbook/core/wire'
+import { createWireHandler, type WireAuditEvent } from '@specbook/core/internal'
 import { describe, expect, it, vi } from 'vitest'
 import { createHost } from '../src/host'
 import { createState } from '../src/state'

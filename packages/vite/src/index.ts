@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createRequire } from 'node:module'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
-import { environmentNames, type FakerConfig, fakerLocaleExports } from '@specbook/core'
+import { environmentNames, type FakerConfig, fakerLocaleExports } from '@specbook/core/internal'
 import fg from 'fast-glob'
 import type { Plugin, ViteDevServer } from 'vite'
 import { type AddressConfig, addressesFor, NO_ADDRESSES } from './addresses'
@@ -27,11 +27,6 @@ import { requestsDirFor, SCRIPT_FILE, safeProjectPath, scanProject } from './fil
 import { type EnvironmentAddresses, handleProxy, type ProxyConfig } from './proxy'
 import { scanRequests } from './requests'
 import { parseSequenceMeta, scanScripts, scanSequences } from './sequences'
-
-export * from './environments'
-export { requestsDirFor, SCRIPT_FILE, safeProjectPath, scanProject } from './files'
-export type { EnvironmentAddresses, ProxyConfig, ProxyDeps } from './proxy'
-export { handleProxy } from './proxy'
 
 export interface SpecbookPluginOptions {
   /** Absolute path of the user's project (where .specbook/ lives). */

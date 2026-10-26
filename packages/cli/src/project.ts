@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
-import { parseDotenv, type SpecbookConfig } from '@specbook/core'
+import { parseDotenv, type SpecbookConfig } from '@specbook/core/internal'
 import type { Loader } from './load'
 
 const CANDIDATES = [

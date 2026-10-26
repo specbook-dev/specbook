@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { faker, fakerLocaleNames, installFaker, prepareFaker, setFaker } from '../src'
+import { faker, fakerLocaleNames, installFaker, prepareFaker, setFaker } from '../src/internal'
 
 class FakeFaker {
   seeded?: number

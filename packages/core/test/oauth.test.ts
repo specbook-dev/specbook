@@ -16,7 +16,7 @@ import {
   parseTokenResponse,
   profileOfAuthService,
   tokenRequestBody,
-} from '../src'
+} from '../src/internal'
 
 describe('PKCE', () => {
   it('derives the challenge from the RFC 7636 appendix B example', async () => {

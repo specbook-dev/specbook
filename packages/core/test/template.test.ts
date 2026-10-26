@@ -7,7 +7,7 @@ import {
   rootName,
   setFaker,
   TemplateError,
-} from '../src'
+} from '../src/internal'
 
 describe('template', () => {
   const scope = { firstName: 'Ada', qty: 3, list: [1, 2], nested: { a: 'x' } }

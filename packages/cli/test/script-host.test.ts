@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { runSequence, script, sequence } from '@specbook/core'
+import { runSequence, script, sequence } from '@specbook/core/internal'
 import { describe, expect, it } from 'vitest'
 import { checkIntegrity, nodeScriptHost } from '../src/script-host'
 

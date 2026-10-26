@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { handleWireFetch, parseWireCall, REFUSAL_HEADER, type WireCall } from '../src'
+import { handleWireFetch, parseWireCall, REFUSAL_HEADER, type WireCall } from '../src/internal'
 
 type Fetch = typeof fetch
 const fetchCall = (url: string, init: Partial<Extract<WireCall, { type: 'fetch' }>['req']> = {}) =>

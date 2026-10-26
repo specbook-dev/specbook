@@ -1,4 +1,4 @@
-import { createColors } from '@specbook/core'
+import { createColors } from '@specbook/core/internal'
 import { describe, expect, it } from 'vitest'
 import { ansiToHtml } from '../src/lib/ansi'
 

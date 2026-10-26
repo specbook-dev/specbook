@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createColors, defineOperation, headerLine, retryLine, runSuite } from '../src'
+import { createColors, defineOperation, headerLine, retryLine, runSuite } from '../src/internal'
 import { fakeTransport } from './helpers'
 
 const Get = defineOperation<{

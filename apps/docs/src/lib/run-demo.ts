@@ -18,7 +18,7 @@ import {
   type SpecbookConfig,
   testExitCode,
   withoutLocations,
-} from '@specbook/core'
+} from '@specbook/core/internal'
 
 export type Runnable = RequestDef<any, any, any> | Sequence<any, any>
 

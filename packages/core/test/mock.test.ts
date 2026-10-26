@@ -6,7 +6,7 @@ import {
   runSequence,
   sequence,
   withMock,
-} from '../src'
+} from '../src/internal'
 
 const GetOrder = defineOperation<{
   params: { path: { id: string } }

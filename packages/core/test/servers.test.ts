@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { liveBaseUrl, MAX_SERVERS, openApiServers } from '../src'
+import { liveBaseUrl, MAX_SERVERS, openApiServers } from '../src/internal'
 
 const SRC = 'https://docs.example.com/openapi.json'
 const names = (api: object, source = SRC) =>

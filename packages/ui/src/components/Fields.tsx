@@ -1,4 +1,4 @@
-import { resolveControl } from '@specbook/core'
+import { resolveControl } from '@specbook/core/internal'
 import { short } from '../panel/short'
 
 /** Normalised field description, built from either a Control or a described input control. */

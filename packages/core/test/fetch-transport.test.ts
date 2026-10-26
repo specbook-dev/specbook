@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createFetchTransport, type PreparedRequest } from '../src'
+import { createFetchTransport, type PreparedRequest } from '../src/internal'
 
 const req = (extra: Partial<PreparedRequest> = {}): PreparedRequest => ({
   opId: 'Slow',
@@ -104,7 +104,7 @@ describe('when the API cannot be reached', () => {
 
 describe('absoluteBase', () => {
   it('resolves a relative address against the page and leaves an absolute one', async () => {
-    const { absoluteBase } = await import('../src')
+    const { absoluteBase } = await import('../src/internal')
     expect(absoluteBase('/api/petstore', 'https://docs.specbook.dev/test/')).toBe(
       'https://docs.specbook.dev/api/petstore',
     )

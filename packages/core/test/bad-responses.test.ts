@@ -7,7 +7,7 @@ import {
   sequence,
   type Transport,
   withMock,
-} from '../src'
+} from '../src/internal'
 
 /**
  * A run is shown to a person, and what they see is what the run returns. Whatever the API answers, and whatever the

@@ -7,7 +7,7 @@ import {
   parseImplicitCallback,
   parseTokenResponse,
   tokenRequestFields,
-} from '@specbook/core'
+} from '@specbook/core/internal'
 import { OAUTH_CHANNEL, type OAuthMessage } from './oauth-callback'
 import { kv, type Store } from './storage'
 

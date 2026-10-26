@@ -1,4 +1,4 @@
-import { type Encoding, fromFormRows, toFormRows } from '@specbook/core'
+import { type Encoding, fromFormRows, toFormRows } from '@specbook/core/internal'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { type FieldDoc as Doc, fieldDoc, keyPath } from '../fielddoc'
 import { type Defs, type JsonSchema, linePaths } from '../schema'

@@ -1,4 +1,4 @@
-import type { ServerEntry } from '@specbook/core'
+import type { ServerEntry } from '@specbook/core/internal'
 import type { AuthProfileLike } from './registry-data'
 
 /** Where a spec comes from. */

@@ -31,6 +31,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./internal": {
+      "types": "./src/internal.ts",
+      "default": "./dist/internal.js"
     }
   },
   "scripts": {

@@ -1,4 +1,4 @@
-import type { StepResult } from '@specbook/core'
+import type { StepResult } from '@specbook/core/internal'
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import { VIA_HEADER } from '../extension'
 import { fieldDoc } from '../fielddoc'

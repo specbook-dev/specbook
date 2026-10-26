@@ -37,7 +37,7 @@ import {
   type Transport,
   usesFaker,
   withMock,
-} from '@specbook/core'
+} from '@specbook/core/internal'
 import { ordered } from './auth-options'
 import { corsHint, READS, willPreflight } from './cors'
 import type { EnvironmentStore } from './custom-environments'

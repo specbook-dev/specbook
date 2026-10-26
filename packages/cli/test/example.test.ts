@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { stripAnsi } from '@specbook/core'
+import { stripAnsi } from '@specbook/core/internal'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { generateCommand } from '../src/commands/generate'
 import { testCommand } from '../src/commands/test'

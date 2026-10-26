@@ -1,4 +1,4 @@
-import { type AuthProfile, absoluteBase } from '@specbook/core'
+import { type AuthProfile, absoluteBase } from '@specbook/core/internal'
 import { useEffect, useState } from 'preact/hooks'
 import { getChoice, setChoice } from '../auth-choice'
 import { requiredScopes } from '../auth-describe'

@@ -10,7 +10,7 @@ import {
   isAbsoluteHttp,
   oauthFor,
   openApiServers,
-} from '../src'
+} from '../src/internal'
 
 const cfg = {
   vars: { petstoreUrl: 'https://petstore.test/v3', page: 20 },

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { parseDotenv } from '@specbook/core'
+import { parseDotenv } from '@specbook/core/internal'
 
 /**
  * Per-environment values live in `.specbook/environments/`:

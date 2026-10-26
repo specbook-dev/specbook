@@ -24,7 +24,7 @@ import {
   testExitCode,
   toJUnit,
   traceLines,
-} from '../src'
+} from '../src/internal'
 import { fakeTransport } from './helpers'
 
 const GetPet = defineOperation<{

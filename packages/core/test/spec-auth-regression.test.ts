@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import petstore from '../../../apps/example/openapi/petstore.json'
 import petstore2 from '../../codegen/test/fixtures/petstore2.json'
-import { authFromSpec } from '../src'
+import { authFromSpec } from '../src/internal'
 
 // what the viewer and `specbook preview` build from a document: one profile per way, the cheapest to fill first
 

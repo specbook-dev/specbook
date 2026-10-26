@@ -1,4 +1,4 @@
-import { type AssertionResult, type DiffLine, diffAssertion } from '@specbook/core'
+import { type AssertionResult, type DiffLine, diffAssertion } from '@specbook/core/internal'
 import { registry } from '../runtime'
 
 /** The project file an assertion failed in, as `file:line`, when its stack names one of the project's requests or flows. */

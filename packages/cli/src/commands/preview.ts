@@ -6,7 +6,11 @@ import { tmpdir } from 'node:os'
 import { dirname, extname, join, resolve } from 'node:path'
 import SwaggerParser from '@apidevtools/swagger-parser'
 import { generateToDisk } from '@specbook/codegen'
-import { environmentsFromServers, openApiServers, type SpecbookConfig } from '@specbook/core'
+import {
+  environmentsFromServers,
+  openApiServers,
+  type SpecbookConfig,
+} from '@specbook/core/internal'
 import type { Project } from '../project'
 import { authFromSpec } from '../security'
 import { devCommand } from './ui'

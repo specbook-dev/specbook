@@ -1,4 +1,4 @@
-import { challengeFor, type SpecbookConfig } from '@specbook/core'
+import { challengeFor, type SpecbookConfig } from '@specbook/core/internal'
 import { render } from 'preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { redirectUri, signIn } from '../../src/oauth'

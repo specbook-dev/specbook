@@ -1,4 +1,4 @@
-import { WIRE_VERSION, type WireCall, type WireReply } from '@specbook/core'
+import { WIRE_VERSION, type WireCall, type WireReply } from '@specbook/core/internal'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ExtensionBridge } from '../src/extension'
 import { browserScriptHost, resetLoadedScripts } from '../src/script-host'

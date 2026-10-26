@@ -2,7 +2,7 @@
 // an SDK's script file, and the container the panel makes for it. No project code is loaded here; the host is built for
 // each run, and `loadScript` remembers what it loaded for as long as the page lives.
 
-import type { ScriptHost } from '@specbook/core'
+import type { ScriptHost } from '@specbook/core/internal'
 import { corsHint, READS, willPreflight } from './cors'
 import { type ExtensionBridge, extensionFetch, WireError } from './extension'
 

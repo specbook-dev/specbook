@@ -1,4 +1,4 @@
-import type { SpecCredentials } from '@specbook/core'
+import type { SpecCredentials } from '@specbook/core/internal'
 
 /**
  * The credentials `specbook add` writes into a project's config: `secrets`, an `auth` profile for each way the spec accepts,

@@ -16,8 +16,8 @@ import {
   oauthFor,
   rootName,
   serviceProfiles,
-} from '@specbook/core'
-import { listEnvironmentFiles, readEnvironment } from '@specbook/vite'
+} from '@specbook/core/internal'
+import { listEnvironmentFiles, readEnvironment } from '@specbook/vite/internal'
 import fg from 'fast-glob'
 import type { Loader } from '../load'
 import { readGenerated, usedOperations } from '../ops'

@@ -1,6 +1,6 @@
 import { resolve } from 'node:path'
-import type { SecretProvider } from '@specbook/core'
-import { readEnvironment } from '@specbook/vite'
+import type { SecretProvider } from '@specbook/core/internal'
+import { readEnvironment } from '@specbook/vite/internal'
 import { type Project, readDotenv } from '../project'
 
 /**

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ensureEnvironmentsDir } from '@specbook/vite'
+import { ensureEnvironmentsDir } from '@specbook/vite/internal'
 import { agentsStep } from './agents'
 
 /** The faker the CLI itself is tested with. */

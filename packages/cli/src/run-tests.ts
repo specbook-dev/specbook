@@ -50,7 +50,7 @@ import {
   testExitCode,
   toJUnit,
   withoutLocations,
-} from '@specbook/core'
+} from '@specbook/core/internal'
 import { readDotenv } from './project'
 import { nodeScriptHost } from './script-host'
 import { cliVersion } from './version'

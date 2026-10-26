@@ -1,4 +1,4 @@
-import type { SecurityRequirement } from '@specbook/core'
+import type { SecurityRequirement } from '@specbook/core/internal'
 
 /**
  * Words for what the spec says about an operation's credentials, from the manifest's compact `security` (the ways it

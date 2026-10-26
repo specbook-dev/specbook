@@ -4,7 +4,7 @@ import {
   secretNames,
   substituteText,
   type Transport,
-} from '@specbook/core'
+} from '@specbook/core/internal'
 import { originOf, SECRET_PLACEHOLDER, type SecretStore } from './secrets'
 
 /** Who makes the outbound call for a service. */

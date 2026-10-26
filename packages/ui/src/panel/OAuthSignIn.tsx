@@ -1,4 +1,8 @@
-import { isDiscovery, type OAuthClientCredentials, type OAuthSettings } from '@specbook/core'
+import {
+  isDiscovery,
+  type OAuthClientCredentials,
+  type OAuthSettings,
+} from '@specbook/core/internal'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { noteExpiry, recallClientId, redirectUri, rememberClientId, signIn } from '../oauth'
 import { engine } from '../runtime'

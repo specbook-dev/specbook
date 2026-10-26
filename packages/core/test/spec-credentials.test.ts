@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import petstore from '../../../apps/example/openapi/petstore.json'
 import petstore2 from '../../codegen/test/fixtures/petstore2.json'
-import { credentialsFromSpec, profileNameFor, serviceSecretName } from '../src'
+import { credentialsFromSpec, profileNameFor, serviceSecretName } from '../src/internal'
 
 const header = (name: string) => ({ type: 'apiKey', in: 'header', name })
 const doc = (schemes: Record<string, unknown>, security?: unknown, paths?: unknown) => ({

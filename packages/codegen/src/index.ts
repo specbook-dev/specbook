@@ -6,6 +6,6 @@ export type {
   ManifestSecurityScheme,
   OperationMeta,
 } from './build'
-export { generate, generateFromDoc, withPlainSpec } from './generate'
-export { synthesize, tsType } from './schema'
+export { generate, withPlainSpec } from './generate'
+export { synthesize } from './schema'
 export { generateToDisk, writeAtomically } from './write'

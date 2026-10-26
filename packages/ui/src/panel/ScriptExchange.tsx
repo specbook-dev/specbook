@@ -1,4 +1,4 @@
-import type { StepResult } from '@specbook/core'
+import type { StepResult } from '@specbook/core/internal'
 import { useEffect, useState } from 'preact/hooks'
 import { BodyEditor } from './BodyEditor'
 import { Checks } from './Checks'

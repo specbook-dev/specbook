@@ -4,8 +4,13 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
-import { type EnvironmentAddresses, handleProxy, safeProjectPath, scanProject } from '../src'
 import { requestsDirFor, SCRIPT_FILE } from '../src/files'
+import {
+  type EnvironmentAddresses,
+  handleProxy,
+  safeProjectPath,
+  scanProject,
+} from '../src/internal'
 import { parseScriptMeta, parseSequenceMeta } from '../src/sequences'
 
 describe('safeProjectPath', () => {

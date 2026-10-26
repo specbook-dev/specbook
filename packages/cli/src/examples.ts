@@ -1,7 +1,7 @@
 import { File } from 'node:buffer'
 import { readFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
-import type { Example, ExampleLoader, FileReader } from '@specbook/core'
+import type { Example, ExampleLoader, FileReader } from '@specbook/core/internal'
 import fg from 'fast-glob'
 import type { Project } from './project'
 

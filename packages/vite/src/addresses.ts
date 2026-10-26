@@ -5,7 +5,7 @@ import {
   type OAuthSettings,
   oauthFor,
   type SpecbookConfig,
-} from '@specbook/core'
+} from '@specbook/core/internal'
 import type { EnvironmentAddresses } from './proxy'
 
 export type AddressConfig = Omit<Partial<SpecbookConfig>, 'auth'> & {

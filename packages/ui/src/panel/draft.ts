@@ -6,7 +6,7 @@ import {
   type Row,
   toFormRows,
   toRows,
-} from '@specbook/core'
+} from '@specbook/core/internal'
 
 export type FieldRow = Row & { file?: File }
 

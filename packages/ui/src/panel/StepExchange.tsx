@@ -1,4 +1,4 @@
-import type { Encoding, StepResult } from '@specbook/core'
+import type { Encoding, StepResult } from '@specbook/core/internal'
 import { useEffect, useState } from 'preact/hooks'
 import { engine, registry } from '../runtime'
 import type { Defs, JsonSchema } from '../schema'

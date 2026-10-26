@@ -1,4 +1,4 @@
-import { type AuthProfile, acceptedProfiles } from '@specbook/core'
+import { type AuthProfile, acceptedProfiles } from '@specbook/core/internal'
 import { useEffect, useState } from 'preact/hooks'
 import { describeSecurity } from '../auth-describe'
 import { authOptions } from '../auth-options'

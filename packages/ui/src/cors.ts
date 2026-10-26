@@ -1,7 +1,7 @@
 // What a page can know about a cross-origin call before and after the browser blocks it. Shared by the transport that
 // sends a request and the `fetch` a script is given, so both say the same thing and offer the same fix.
 
-import { READ_METHODS } from '@specbook/core'
+import { READ_METHODS } from '@specbook/core/internal'
 
 /** What a browser may send to an API without the person's say-so (as the extension's read-only default). */
 export const READS = READ_METHODS

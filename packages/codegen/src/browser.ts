@@ -17,7 +17,6 @@ export type {
   OperationMeta,
   ResponseDoc,
 } from './build'
-export { generateFromDoc, logoOf } from './build'
 
 /** A document's text as an object: JSON first (fast), then YAML. */
 export function parseSpecText(text: string): any {

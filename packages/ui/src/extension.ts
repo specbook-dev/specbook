@@ -8,7 +8,7 @@ import {
   type WireErrorCode,
   type WireReply,
   wireToResponse,
-} from '@specbook/core'
+} from '@specbook/core/internal'
 
 /** Where to get the extension: its Chrome Web Store listing, which Brave installs from and Edge can once it allows other stores. */
 export const INSTALL_URL =
