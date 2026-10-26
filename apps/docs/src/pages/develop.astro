@@ -1,4 +1,5 @@
 ---
+import Heading from '../components/Heading.astro'
 import Next from '../components/Next.astro'
 import Replay from '../components/Replay'
 import Snippet from '../components/Snippet.astro'
@@ -25,7 +26,7 @@ import { capture } from '../lib/captures'
 
   <section class="block" style="padding-top: 8px">
     <div class="wrap">
-      <h2 class="title">Add your spec</h2>
+      <Heading>Add your spec</Heading>
       <div class="prose">
         <p>
           Install the CLI, create a project and add your OpenAPI file or an address. Specbook generates a typed
@@ -35,7 +36,7 @@ import { capture } from '../lib/captures'
       <Snippet file="snippets/install.sh" region="install" title={false} />
       <Replay client:visible capture={capture('develop-setup')} title="" />
 
-      <h2 class="title">Write a request</h2>
+      <Heading>Write a request</Heading>
       <div class="prose">
         <p>
           A request calls one operation. Your editor autocompletes the path, query, and body from the spec, and
@@ -44,7 +45,7 @@ import { capture } from '../lib/captures'
       </div>
       <Snippet file="demo/requests/petstore/get-pet.req.ts" region="request" />
 
-      <h2 class="title">Chain requests into a flow</h2>
+      <Heading>Chain requests into a flow</Heading>
       <div class="prose">
         <p>
           A flow runs requests in order, and each step can use what the one before it returned. The types come
@@ -53,7 +54,7 @@ import { capture } from '../lib/captures'
       </div>
       <Snippet file="demo/sequences/adopt-pet.seq.ts" region="flow" />
 
-      <h2 class="title">Run it as you write</h2>
+      <Heading>Run it as you write</Heading>
       <div class="prose">
         <p>
           Run <code>specbook dev</code> to try every request and flow in a play panel beside your docs. No API
@@ -63,7 +64,7 @@ import { capture } from '../lib/captures'
       </div>
       <Snippet file="snippets/install.sh" region="develop" title={false} />
 
-      <h2 class="title">Publish it</h2>
+      <Heading>Publish it</Heading>
       <div class="prose">
         <p>
           Share what you wrote. QA gets a portal, your docs get Try it buttons, and production gets a single

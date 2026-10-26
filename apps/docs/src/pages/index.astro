@@ -1,4 +1,5 @@
 ---
+import Heading from '../components/Heading.astro'
 import Snippet from '../components/Snippet.astro'
 import Page from '../layouts/Page.astro'
 import { PAGES } from '../lib/pages'
@@ -38,7 +39,7 @@ import { PAGES } from '../lib/pages'
 
   <section class="block" id="try" style="padding-top: 8px">
     <div class="wrap">
-      <h2 class="title">See it in action</h2>
+      <Heading>See it in action</Heading>
       <p class="lede" style="margin-top: 0">
         Run a request from the Swagger Petstore right here, with nothing to set up. Specbook answers from the
         spec's own examples and checks the response against it. Or run a flow that chains requests together:
@@ -83,7 +84,7 @@ import { PAGES } from '../lib/pages'
 
   <section class="block">
     <div class="wrap">
-      <h2 class="title">Your API, start to finish</h2>
+      <Heading>Your API, start to finish</Heading>
       <p class="lede" style="margin-top: 0">
         Build with it, document it, test it and watch it in production, all from the same requests and flows.
       </p>

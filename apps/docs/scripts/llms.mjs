@@ -29,6 +29,11 @@ export const DOCS = [
     'security schemes as profiles, choosing one, sign-in, client credentials, runs and monitors',
   ],
   [
+    'Scripts',
+    `${SITE}/reference/scripts/`,
+    'steps that are code: a browser SDK or a library, with typed inputs and outputs',
+  ],
+  [
     'Environments and secrets',
     `${SITE}/reference/environments-and-secrets/`,
     'variables per environment, where secrets come from',

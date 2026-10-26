@@ -12,7 +12,7 @@ Words used here: an **operation** is one endpoint of the spec. A **request** is 
 2. `npx specbook init` creates `.specbook/specbook.config.ts`, `.specbook/environments/` and the `#api/*` import in `package.json`.
 3. `npx specbook add <service> --spec <path or URL>` registers a spec and generates its types. A URL is downloaded to `openapi/` and recorded in `openapi/sources.json`. `add` also sets the service's address in `vars` (for example `petstoreUrl`; each environment can override it in `.specbook/environments/<env>.env`) and writes the credentials the spec's security asks for (see Auth and secrets).
 4. `npx specbook check` validates specs, imports and environment files. `npx specbook generate` regenerates types; `test`, `dev` and `build` do it when they need to.
-5. Typecheck. `init` adds `typescript` to `package.json` and writes a `tsconfig.json`, unless the project has them already. Run `npm install` to fetch it, then `npx tsc --noEmit` after every change. It is the only check a flow's wiring gets (see "Chain steps with types"). If the project had its own `tsconfig.json`, `init` left it alone: make sure its `include` has `"requests"`, `"sequences"`, `".specbook/*.ts"` and `".generated/*/index.ts"` (`".specbook"` alone skips the config file) and that `moduleResolution` is `"Bundler"`. A project without one gets:
+5. Typecheck. `init` adds `typescript` to `package.json` and writes a `tsconfig.json`, unless the project has them already. Run `npm install` to fetch it, then `npx tsc --noEmit` after every change. It is the only check a flow's wiring gets (see "Chain steps with types"). If the project had its own `tsconfig.json`, `init` left it alone: make sure its `include` has `"requests"`, `"sequences"`, `"scripts"`, `".specbook/*.ts"` and `".generated/*/index.ts"` (`".specbook"` alone skips the config file) and that `moduleResolution` is `"Bundler"`. A project without one gets:
 
    ```json
    {
@@ -20,7 +20,7 @@ Words used here: an **operation** is one endpoint of the spec. A **request** is 
        "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler", "lib": ["ES2022", "DOM"],
        "strict": true, "skipLibCheck": true, "noEmit": true, "types": []
      },
-     "include": ["requests", "sequences", ".specbook/*.ts", ".generated/*/index.ts"]
+     "include": ["requests", "sequences", "scripts", ".specbook/*.ts", ".generated/*/index.ts"]
    }
    ```
 
@@ -195,6 +195,79 @@ Capture is declared on the request that makes the response, and the flow reads i
   leave out `.input()`, and pass `ctx.captured.productId` to the next step in `.with({ data })`.
 - To let a person choose in the portal, use `.input()` with `c.select`, as above. Automation is not asked and takes the default, the first item.
 
+## Add a script
+
+A step that is code, not a request: a payment SDK that needs a browser, or a library that runs anywhere. It has typed inputs,
+and what its body returns is its typed output, like a request's response. The contract is `scripts/<name>.script.ts`, a flow
+imports it, and a body that needs a page goes in `scripts/<name>.browser.ts`, which exports it as `run` and is loaded when the
+step runs:
+
+```ts
+// scripts/approve.script.ts
+import { c, type InferControls, script, withMock } from '@specbook/core'
+
+export const inputs = { amount: c.number({ default: 25, min: 1 }), clientToken: c.text() }
+export type Inputs = InferControls<typeof inputs>
+
+export default withMock(
+  script({
+    id: 'approve-payment',
+    name: 'Approve a payment', // optional: the title in the catalog, else the id
+    runtime: 'browser', // 'isomorphic' (the default), 'browser' or 'node'
+    inputs,
+    load: () => import('./approve.browser'),
+  }),
+  // what the mock environment answers, from the inputs: it must have the shape the body returns
+  ({ inputs }) => ({ nonce: `fake-${inputs.amount}` }),
+)
+```
+
+```ts
+// scripts/approve.browser.ts
+import type { ScriptBody } from '@specbook/core'
+import type { Inputs } from './approve.script'
+
+// what the body returns is the script's output; annotate it when a field has several possible values
+export type Output = { nonce: string }
+
+export const run: ScriptBody<Inputs, Output> = async ({ amount, clientToken }, h) => {
+  const sdk = await h.loadScript('https://sdk.example/v1.js', { global: 'Pay' })
+  const el = await h.mount() // a container in the step's row: give it to the SDK, never a selector
+  // ... render the SDK's button into el, wait for the person, listen to h.signal for Stop
+  return { nonce: 'a-real-nonce' }
+}
+```
+
+```ts
+// in a flow: the output is captured, so ctx.captured.nonce is a typed string
+.step('Approve', approve.with({ inputs: { clientToken: '{{clientToken}}' } }))
+.step('Pay', (ctx) => pay.with({ data: { nonce: ctx.captured.nonce } }))
+```
+
+- A small script that works anywhere keeps its body in the one file with `run: async (inputs, h) => ({ ... })` in place of `load`.
+  `run` and `load` are alternatives. Every script is wrapped in `withMock`, which returns what the `mock` environment answers:
+  without it the step fails on `mock` and `specbook check` warns. A script runs anywhere unless it says `runtime: 'browser'` or `'node'`. `specbook check` warns
+  about a browser script with an inline body. The checks go in the contract's `assert`, which also runs on `mock`.
+- `.with({ inputs })` takes a value, or a `{{placeholder}}` for a flow input, a config var or an earlier capture. Nothing is
+  picked up by name, and a control with no default that is not given is an error. A script is never handed `{{secrets.*}}`:
+  capture what it needs from an earlier request.
+- The body is given `h.fetch`, `h.loadScript(url, { global, integrity, once })`, `h.mount()`, `h.signal`, `h.log`, `h.env`,
+  `h.vars` and `h.runtime`. `h.loadScript` loads a file once per address by default (for the page's life, or one test run in
+  node); `once: false` loads it again on that call. In a page `h.fetch` goes through the browser extension for a site that needs it. `h.signal` ends on Stop
+  or when the script's `timeoutMs` passes; in node the run's `--timeout` applies when the script names none.
+- A flow whose scripts need a browser is skipped as a whole, and counts as passed, in `specbook test` and a bundle on a real
+  environment. On `mock` every script answers with its `withMock` (the body never runs), so such a flow is still checked in CI.
+  A flow that needs node is skipped in the portal. The bundle leaves `*.browser.ts` files out.
+- A script that loads another site's SDK or widget needs that site allowed by the page that serves the portal: `script-src` for
+  its file, `frame-src` for a frame it opens, `connect-src` for what it calls. Nothing is fetched until the step runs, and never on
+  `mock`. The worked example is Cloudflare Turnstile with its published test keys, which need no account and no secret: a script
+  that shows the widget and returns its token, then a request that verifies the token. Payment SDKs such as PayPal, Braintree and
+  Stripe fit the same way, with a value from your server (a client token, a payment intent) captured by an earlier request step.
+- A script is not used in `.each()`. It also runs on its own, as a flow of one step: `specbook test` runs `scripts/**/*.script.ts`
+  (`--input name=value` sets its inputs), the portal lists it under Scripts with a form built from its inputs, `name`, `description`
+  and `tags` are what the catalog shows and `--tag` selects by, and a page opens it with `data-specbook-script="<id>"`.
+  Run `npx tsc --noEmit` and `npx specbook check` after writing one.
+
 ## Mocks
 
 The `mock` environment (the default for `specbook test` and the UI) answers from the spec's examples with the request's values filled in, and needs no server and no secret values. A status the spec gives several answers for (a `oneOf`, or named examples) keeps all of them in its example file; `res.respond(status, data, 'VariantName')` picks one. When a check needs data the example lacks, wrap the request in `withMock` from `@specbook/core`; the file's one export stays the default:
@@ -231,6 +304,8 @@ do not prove it: a request that needs Node builds cleanly and passes in node, an
 - Do not use native addons, packages that `require()` a computed path, or packages that read their own files at run time.
 - If a new package is unavoidable, it must be plain ESM JavaScript with no install scripts and no Node built-ins. Prove it three ways:
   `npx specbook test`, `npx specbook bundle`, and `npx specbook build --minimal` followed by running the request in the portal.
+- Code that can only run in a browser (a payment SDK, anything that needs `document`) is the one exception, and it goes in a
+  script body, never in a request or a flow (see "Add a script"). Nothing outside a `scripts/*.browser.ts` file may touch the DOM.
 - `specbook bundle --external <package>` is not a way around this. It leaves the import for node to resolve and a browser cannot, so a
   request that needs it will not run in the portal. Do not use it for requests or flows. There is no node-only exception: if a request
   cannot be written with `fetch` and plain code, tell the user instead of adding a Node-only dependency.
@@ -249,6 +324,7 @@ Markdown next to what it describes is shown in the UI: `requests/<service>/<Oper
 - [Command line](https://docs.specbook.dev/reference/cli/): every command and flag
 - [Config](https://docs.specbook.dev/reference/config/): `specbook.config.ts` fields
 - [Authorization](https://docs.specbook.dev/reference/authorization/): security schemes as profiles, choosing one, sign-in, client credentials, runs and monitors
+- [Scripts](https://docs.specbook.dev/reference/scripts/): steps that are code: a browser SDK or a library, with typed inputs and outputs
 - [Environments and secrets](https://docs.specbook.dev/reference/environments-and-secrets/): variables per environment, where secrets come from
 - [Testing and monitoring guide](https://github.com/specbook-dev/specbook/blob/main/docs/testing-and-monitoring.md): the long form, with CI examples
 

@@ -1,0 +1,13 @@
+---
+import { slugify } from '../lib/slug'
+
+interface Props {
+  /** the address of the section, when its title is not the one to use */
+  id?: string
+}
+// the id is made from the words of the title, whatever markup is inside it
+const title = (await Astro.slots.render('default')).replace(/<[^>]*>/g, '').trim()
+const id = Astro.props.id ?? slugify(title)
+---
+
+<h2 class="title" id={id}><slot />{' '}<a class="anchor" href={`#${id}`} aria-label={`Link to ${title}`}>#</a></h2>

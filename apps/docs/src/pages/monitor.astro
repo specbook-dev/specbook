@@ -1,5 +1,6 @@
 ---
 import cli from '../../../../packages/cli/package.json'
+import Heading from '../components/Heading.astro'
 import Next from '../components/Next.astro'
 import Replay from '../components/Replay'
 import Snippet from '../components/Snippet.astro'
@@ -27,7 +28,7 @@ import { capture } from '../lib/captures'
 
   <section class="block" style="padding-top: 8px">
     <div class="wrap">
-      <h2 class="title">Build one file</h2>
+      <Heading>Build one file</Heading>
       <div class="prose">
         <p>
           Compile the tests you want to watch. The file holds your requests and flows and the runner, and a{' '}
@@ -36,13 +37,13 @@ import { capture } from '../lib/captures'
       </div>
       <Snippet file="snippets/install.sh" region="monitor" title={false} />
 
-      <h2 class="title">Run it anywhere</h2>
+      <Heading>Run it anywhere</Heading>
       <div class="prose">
         <p>Node is all the machine needs. This recording runs the file against a staging address.</p>
       </div>
       <Replay client:visible capture={capture('bundle-run')} />
 
-      <h2 class="title">Know when it breaks</h2>
+      <Heading>Know when it breaks</Heading>
       <div class="prose">
         <p>
           This is the same run in your browser. Choose what the demo API does, then press Run. When the API is
@@ -52,7 +53,7 @@ import { capture } from '../lib/captures'
       <Terminal client:visible tag="monitor" chaos={['calm', 'down', 'flaky', 'missing']} version={cli.version} />
       <Replay client:visible capture={capture('test-down')} />
 
-      <h2 class="title">Keep production safe</h2>
+      <Heading>Keep production safe</Heading>
       <div class="prose">
         <p>
           By default a run sends everything, so you can test flows that create and delete against a lower
@@ -67,7 +68,7 @@ import { capture } from '../lib/captures'
         </p>
       </div>
 
-      <h2 class="title">Run it on a schedule</h2>
+      <Heading>Run it on a schedule</Heading>
       <div class="prose">
         <p>A scheduled workflow downloads the file, runs it and fails when a flow does.</p>
       </div>

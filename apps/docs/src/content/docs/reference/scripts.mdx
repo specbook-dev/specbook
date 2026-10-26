@@ -1,0 +1,163 @@
+---
+title: Scripts
+description: Steps that are code instead of requests, such as a payment SDK that needs a browser or a library that runs anywhere, with typed inputs and outputs.
+---
+
+import ScriptDemo from '../../../components/ScriptDemo.astro'
+import Snippet from '../../../components/Snippet.astro'
+
+A request calls an operation of a spec. Some steps of a flow are not that: approving a payment in a provider's SDK with a
+token an earlier request fetched, or encrypting a card number with a vendor's library before it is sent. A **script** is
+code with a contract, used as a step. Its inputs are controls, like a flow's, and what it returns is typed, so the next
+step reads it as `ctx.captured.<name>` with the compiler checking the name.
+
+A script is modelled on a request. It has `with()` and `withMock()`, `capture`, `assert`, `tags` and `safe`. The `mock`
+environment answers with what its `withMock` returns and never runs its body, and `--safe` polices what its `fetch` sends. A script also
+runs [on its own](#on-its-own), as a flow of one step.
+
+## Try it
+
+This flow starts with a script. It shows Cloudflare's [Turnstile](https://developers.cloudflare.com/turnstile/) widget, with
+one of Cloudflare's test keys, and returns the token the widget gives. The next step is a request that verifies the token
+against a demo API, the way a server would. The test keys need no account and no secret of ours.
+
+<ScriptDemo />
+
+Turnstile is a captcha, not a payment, but a payment SDK fits the same way: a widget in the step, a value out. Nothing from
+Cloudflare loads until you press Run, and the buttons run in the `demo` environment, because the `mock` environment never
+runs a script's body.
+
+## The contract
+
+A script lives at `scripts/<name>.script.ts`. The file holds the contract and nothing that needs a page, so a flow can
+import it anywhere:
+
+<Snippet file="demo/scripts/turnstile.script.ts" region="contract" title="scripts/turnstile.script.ts" />
+
+- `inputs` are the same controls a flow uses (`c.text`, `c.number`, `c.select`, and the rest). A control with no default
+  that nothing gave a value is an error that names it, because an empty string is no answer.
+- There is no `output` to declare. What the body returns is the script's output: the step's captures are typed from it, and
+  the next step reads them as `ctx.captured.<name>`. A field that may hold one of several values is pinned the way
+  TypeScript always does it, by annotating the body: `ScriptBody<Inputs, Output>`, with `type Output = { status: 'approved' | 'declined' }`.
+- `runtime` says where the script can run: `isomorphic` (the default, anywhere), `browser` or `node`.
+- `name`, `description` and `tags` are optional. They are what the catalog shows and what `specbook test --tag` selects by;
+  without a `name` the title is the `id`.
+- `withMock` is the mock: its function gets the inputs and returns what the mock environment answers, checked against what
+  the body returns. A script without one fails on `mock`, and `specbook check` warns about it. It is separate from the
+  body, so the mock's values never read as the values the script always returns.
+
+## The body
+
+The body is the code that runs when the step does. A script that needs a page keeps it in its own file, loaded when the step
+runs, so a flow does not carry an SDK's code until someone presses Run, and a bundle leaves it out:
+
+<Snippet file="demo/scripts/turnstile.browser.ts" region="body" title="scripts/turnstile.browser.ts" />
+
+The file exports the body as `run`, and declares its own `Output`. It imports only the contract's `Inputs` type
+(`import type`), so the two files agree without importing each other at run time, and the contract takes its output type from
+what `run` returns. A body that asks for an input the contract does not have is an error where the script is written, and
+so is a `withMock` that answers with another shape than the body returns.
+
+A small script that works anywhere can hold its body in the same file, with `run` in place of `load`. The contract's
+`withMock` still comes after it:
+
+<Snippet file="../example/scripts/card-fingerprint.script.ts" region="isomorphic" title="scripts/card-fingerprint.script.ts" />
+
+`run` and `load` are alternatives: a script has one, never both. `specbook check` warns about a script that needs a browser
+and holds its body inline.
+
+| File | Holds |
+| --- | --- |
+| `<name>.script.ts` | The contract. A flow imports it. |
+| `<name>.browser.ts` | A body that needs a browser, exported as `run`. A bundle replaces it with a stub that says so. |
+
+A body that does not need a browser stays inline with `run`, or lives in any file the contract imports. A bundle keeps it.
+
+## In a flow
+
+A script is a step, like a request. Its output is captured, so later steps and checks read it by name:
+
+<Snippet file="demo/sequences/human-check.seq.ts" region="flow" title="sequences/human-check.seq.ts" />
+
+`.with({ inputs })` gives the script its values: a value of the control's type, or a `{{placeholder}}` that names a flow
+input, a config variable or something an earlier step captured. A whole-string placeholder keeps the type of the value it
+stands for, so `'{{cardNumber}}'` is the number or the text, not its text form. Nothing is taken from the flow by name: an
+input that `.with` does not give is its default.
+
+A step can also be built from what the flow has so far, with the types checked:
+
+```ts
+.step('Approve', (ctx) => approve.with({ inputs: { amount: ctx.captured.total } }))
+```
+
+Every key of what the body returns is captured. A `capture` map in the contract replaces that: it names what the step keeps,
+and the captured type is what it returns. The `assert` of the contract is recorded and shown like a
+request's checks, and it also runs on the `mock` environment, so put a script's checks there. A script is not used in `.each()`.
+
+## On its own
+
+A script is also a target, like a request or a flow. It runs as a flow of one step whose inputs are the script's controls, so
+everything a flow has applies:
+
+- The portal lists it under **Scripts** in the catalog, and `#/script/<id>` opens it. A form built from its controls (labels,
+  descriptions, options) sets the inputs, and Run shows the step like any other.
+- A page opens it with `data-specbook-script="<id>"`, and `data-specbook-inputs` sets its inputs. See
+  [Embed](../embed/).
+- `specbook test` runs `scripts/**/*.script.ts` with the flows and requests. `--input name=value` sets an input, and `--tag`
+  selects by the script's tags. On a real environment a script that needs a browser is listed as skipped and counts as passed;
+  on `mock` it answers with its `withMock`.
+- A report calls it a flow, and its one step a script.
+
+## Where it runs
+
+| Where | A script that needs a browser | A script that needs node | An isomorphic one |
+| --- | --- | --- | --- |
+| The portal, `specbook dev` | Runs. It renders into its step's row. | The flow is skipped. | Runs. |
+| `specbook test` and a bundle | The flow is skipped. | Runs. | Runs. |
+| The `mock` environment, anywhere | Answers with its `withMock`. | Answers with its `withMock`. | Answers with its `withMock`. |
+
+A flow that needs another host than the one it was started in is **skipped as a whole** and counts as passed. The report
+says why (`Needs a browser: run this flow in the portal.`), `specbook test --list` marks it, and none of its secrets are
+asked for. A step built by a function is only known when it is reached: the steps before it have run, and the rest are
+skipped. A flow with one step for each host runs only on `mock`, and `specbook check` warns about it.
+
+So a flow with a browser step is still checked in CI on the mock, where every step answers, and used by a person on a
+real environment in the portal.
+
+## What the body is given
+
+| Helper | What it is |
+| --- | --- |
+| `h.fetch` | `fetch`. In a page, a call to another site goes through the browser extension when the person has allowed it, and a call the browser blocks fails with the offer to install or allow it. It never goes through the dev server's proxy: a call to one of the project's own APIs belongs in a request step. |
+| `h.loadScript<T>(url, { global, integrity, once })` | Loads a script file and returns the global it defines, typed as `T`. By default a file loads once per address: in a page it is a script tag, for the life of the page, and in node it runs once per `specbook test` or bundle run, however many flows and retries ask. `once: false` loads it again on that call, and takes the last such tag down. A body may call it for each file of an SDK. In node it runs the file in a sandbox that stands in for a window, with the web platform's basics (`fetch`, `URL`, `crypto`, `AbortController` and the like) but no `document`, which the second file of an SDK shares with the first. A file that needs `document` fails with a message that says the script needs a browser. `integrity` checks the file against its hash. |
+| `h.mount()` | A container in the step's row of the flow panel, for an SDK to render into. Hand the SDK the element, never a selector: the project embed lives in a shadow root. Node has none, and says so. |
+| `h.signal` | Ends when the person presses Stop or the script's `timeoutMs` passes. A body that waits for a person should listen to it. |
+| `h.log(message)` | Shown with the step. Never log a token. |
+| `h.env`, `h.vars`, `h.runtime` | The environment's name, its variables, and `browser` or `node`. |
+
+A script is not handed secrets: a `{{secrets.NAME}}` among its inputs fails the step. Capture what it needs from an earlier
+request, which has the credentials.
+
+## Runs and monitors
+
+- `--safe` refuses a script's `fetch` that is not a GET, HEAD or OPTIONS, unless the script says `safe: true`, as a request
+  does.
+- `timeoutMs` on a script limits its whole body. Without it, a script in a page waits as long as a person does, and a script in
+  node ends at the run's `--timeout`, as a request does.
+- A bundle holds the contract, `run` bodies and node bodies, and leaves out `<name>.browser.ts` and the SDKs it imports.
+
+## Payments and other SDKs
+
+Turnstile is the demo because it needs nothing of yours. The same shape fits PayPal, Braintree and Stripe: a value your server
+made, such as a client token or a payment intent, comes from an earlier request step. The SDK's button or form renders in
+the step, and what the person approves comes out as a value the next request sends. Their sandboxes need accounts of your
+own, and PayPal's approval needs a sandbox buyer to sign in with. That is why the demo does not run them.
+
+## What a portal needs
+
+An SDK a script loads comes from another site, so the page that serves the portal must allow it: its `script-src` for the
+file, its `connect-src` for what the SDK calls, and its `frame-src` for a frame it opens. Turnstile needs
+`https://challenges.cloudflare.com` for scripts and frames, and this site allows it. The hosted viewer runs no project code, and a
+portal you build adds no policy of its own.
+
+A script that cannot be fetched from a page (the site sends no CORS headers) needs the [browser extension](../browser-extension/).
