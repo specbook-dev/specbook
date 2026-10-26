@@ -84,6 +84,14 @@ function redactStep(s: StepResult): StepResult {
         }
       : undefined,
     captured: redactValue(s.captured) as Record<string, unknown>,
+    // what a script was given and what it returned: a token, a password, a nonce are named like one
+    script: s.script
+      ? {
+          ...s.script,
+          inputs: redactValue(s.script.inputs) as Record<string, unknown>,
+          output: redactValue(s.script.output),
+        }
+      : undefined,
     children: s.children?.map(redactStep),
   }
 }

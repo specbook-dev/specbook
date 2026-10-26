@@ -1,4 +1,5 @@
 // The request and response of a step as text, for a failure: what was sent, what came back, redacted and shortened.
+// For a script step: what it was given, what it said and what it returned.
 
 import { statusText } from '../diff'
 import type { StepResult } from '../types'
@@ -43,7 +44,7 @@ const query = (q: Record<string, string | string[]>) => {
   return parts.length ? `?${parts.join('&')}` : ''
 }
 
-/** The trace of one step as lines (without indentation): `Request`, its headers and body, `Response`, and the same. */
+/** The trace of one step as lines (without indentation): `Request`, its headers and body, `Response`, and the same. A script has `Script`. */
 export function traceLines(step: StepResult, o: TraceOptions = {}): string[] {
   const max = o.maxBody ?? 2048
   const out: string[] = []
@@ -65,6 +66,16 @@ export function traceLines(step: StepResult, o: TraceOptions = {}): string[] {
       if (v !== undefined) out.push(`  ${name}: ${isDeniedHeader(name) ? REDACTED : v}`)
     }
     for (const l of body(res.body, max)) out.push(`  ${l}`)
+  }
+  const sc = step.script
+  if (sc) {
+    out.push(`Script    ${sc.id} (${sc.runtime})`)
+    const part = (title: string, lines: string[]) => {
+      if (lines.length) out.push(`  ${title}`, ...lines.map((l) => `    ${l}`))
+    }
+    part('Inputs', Object.keys(sc.inputs).length ? body(sc.inputs, max) : [])
+    part('Logs', sc.logs ?? [])
+    part('Output', body(sc.output, max))
   }
   return out
 }

@@ -10,8 +10,15 @@ import {
   type OAuthSettings,
   parseTokenResponse,
 } from '../oauth'
+import type { ScriptDef, ScriptHelpers, ScriptHost } from '../script'
 import { MissingSecretsError, maskDeep } from '../secrets'
-import type { Sequence, StepCtx } from '../sequence'
+import {
+  flowSkipReason,
+  type Sequence,
+  type StepCtx,
+  type StepNode,
+  scriptSkipReason,
+} from '../sequence'
 import {
   collectPlaceholders,
   deepMerge,
@@ -94,6 +101,7 @@ export type RunEvent =
   | { type: 'assert:pass'; name: string; assertion: AssertionResult }
   | { type: 'assert:fail'; name: string; assertion: AssertionResult }
   | { type: 'input:required'; name: string; controls: ReturnType<typeof describeControls> }
+  | { type: 'script:log'; name: string; message: string }
   | { type: 'step:end'; name: string; status: StepResult['status'] }
   | { type: 'done'; result: RunResult }
 
@@ -106,6 +114,12 @@ export interface RunOptions {
   /** Flow input values: the ones a person would set (UI controls, CLI --input). */
   inputs?: Record<string, unknown>
   transport: Transport
+  /**
+   * What lets script steps run: the kind of host this is (a page, or node), its `fetch`, and the few things only it can do.
+   * Without it, a script that needs one is skipped, with its flow. The mock environment answers a script with its mock
+   * and needs no host.
+   */
+  scripts?: ScriptHost
   /** Resolved secret values, keyed by secret name. Not needed in the mock env. */
   secrets?: Record<string, string>
   /**
@@ -285,7 +299,7 @@ function emit(rt: Runtime, e: RunEvent) {
   rt.o.onEvent?.(rt.mask.size ? maskDeep(e, rt.mask) : e)
 }
 
-const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+export const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 /** True when the request cannot change data: a read method, a GraphQL query, or one marked `safe`. */
 function isReadOnly(def: RequestDef<any, any, any>, prepared: PreparedRequest): boolean {
@@ -709,16 +723,253 @@ async function execute(
   } catch (e: any) {
     result.status = 'error'
     result.error = e instanceof Error ? e.message : String(e)
-    const hint = e?.hint
-    if (hint && typeof hint.code === 'string')
-      result.errorHint = {
-        code: hint.code,
-        ...(typeof hint.origin === 'string' ? { origin: hint.origin } : {}),
-      }
+    const hint = hintOf(e)
+    if (hint) result.errorHint = hint
   }
   result.durationMs = (rt.o.now?.() ?? now0()) - t0
   emit(rt, { type: 'step:end', name, status: result.status })
   return { result, response, authResults }
+}
+
+/** What a page can offer the person for a failure, when the error that ended a step said so (it carries a `hint`). */
+function hintOf(e: unknown): StepResult['errorHint'] {
+  const hint = (e as { hint?: { code?: unknown; origin?: unknown } } | undefined)?.hint
+  return hint && typeof hint.code === 'string'
+    ? { code: hint.code, ...(typeof hint.origin === 'string' ? { origin: hint.origin } : {}) }
+    : undefined
+}
+
+const STOPPED = 'Stopped before the step finished.'
+
+/** Names only a browser has. A script run in node that reaches for one needs a browser, whatever it says it is. */
+const BROWSER_GLOBALS = [
+  'Element',
+  'HTMLElement',
+  'Image',
+  'MutationObserver',
+  'XMLHttpRequest',
+  'alert',
+  'document',
+  'history',
+  'localStorage',
+  'location',
+  'navigator',
+  'screen',
+  'sessionStorage',
+]
+const MISSING_GLOBAL = new RegExp(`\\b(${BROWSER_GLOBALS.join('|')}) is not defined\\b`)
+
+/** What a thrown value says: an error from another realm (the node host's sandbox) is no `Error` here, but has a message. */
+const messageOf = (e: unknown): string => {
+  const m = (e as { message?: unknown } | undefined)?.message
+  return typeof m === 'string' ? m : String(e)
+}
+
+/**
+ * A script run in node that fails for want of `document`, `navigator` and the like needs a browser: say so, in place of a
+ * bare "document is not defined" that leaves the author to work out why. Only a node host is told this; in a page those
+ * names exist.
+ */
+function explainMissingGlobal(message: string, host: ScriptHost | undefined): string {
+  const name = host?.runtime === 'node' ? MISSING_GLOBAL.exec(message)?.[1] : undefined
+  return name
+    ? `${message}. This script uses \`${name}\`, which a run in node does not have. If it needs a browser, give it runtime: 'browser'.`
+    : message
+}
+
+/** Waits, and ends early with an error when the run is stopped. */
+function wait(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((done, stop) => {
+    if (signal?.aborted) return stop(new StepError(STOPPED))
+    const onAbort = () => {
+      clearTimeout(timer)
+      stop(new StepError(STOPPED))
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      done()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+/** A control with no default that nothing gave a value: a person has to say what it is (`''` and 0 are no answer). */
+const NEEDS_VALUE = new Set(['text', 'number', 'date'])
+
+/**
+ * Runs one script step: its inputs from `.with()` and the flow (as a request's fields are), then the body, or in the `mock`
+ * environment the contract's output example (which the `withMock` hook may change). What the body returns is what the
+ * step captures. A script that needs a host this is not is skipped, with a note, and the flow goes on or is ended by the
+ * caller.
+ */
+async function runScript(
+  rt: Runtime,
+  def: ScriptDef<any, any, any>,
+  name: string,
+  flow: Flow,
+): Promise<StepResult> {
+  const t0 = rt.o.now?.() ?? now0()
+  const result: StepResult = {
+    name,
+    kind: 'script',
+    status: 'pass',
+    assertions: [],
+    captured: {},
+    durationMs: 0,
+    script: { id: def.meta.id, runtime: def.meta.runtime, inputs: {} },
+  }
+  const mode = def.assertMode ?? rt.seqAssertMode ?? rt.o.assertMode ?? 'soft'
+  const a = createAsserter(mode)
+  const logs: string[] = []
+  const stopper = new AbortController()
+  let timedOut = false
+  emit(rt, { type: 'step:start', name })
+  const relay = () => stopper.abort()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const host = rt.o.scripts
+    const mocked = rt.o.env === 'mock'
+    // A step this host cannot run is skipped before anything else: what it would have been given may not exist here
+    const why = mocked ? undefined : scriptSkipReason(def, host?.runtime)
+    if (why) {
+      result.status = 'skipped'
+      result.note = why
+      result.durationMs = (rt.o.now?.() ?? now0()) - t0
+      emit(rt, { type: 'step:end', name, status: 'skipped' })
+      return result
+    }
+    const layers: [VarUse['source'], Record<string, unknown>][] = [
+      ['config', rt.o.vars ?? {}],
+      ['input', flow.inputs],
+      ['capture', flow.captured],
+      ['override', rt.o.overrides ?? {}],
+    ]
+    const scope: Record<string, unknown> = Object.assign({}, ...layers.map((l) => l[1]))
+    const placeholders = collectPlaceholders(def.given)
+    result.uses = usesOf(placeholders, layers, flow.from)
+    if ([...placeholders].some(isDeferred))
+      throw new StepError(
+        `Script ${def.meta.id} is given a {{secrets.*}} or {{session.*}} placeholder: a script cannot be handed secrets. Capture what it needs from an earlier request instead.`,
+      )
+    const given = render(def.given, scope) as Record<string, unknown>
+    for (const [k, ctl] of Object.entries(def.inputs as Controls))
+      if (given[k] === undefined && NEEDS_VALUE.has(ctl.kind) && ctl.opts.default === undefined)
+        throw new StepError(
+          `Missing input "${k}" of script ${def.meta.id}: give it with .with({ inputs: { ${k}: ... } }), or give the control a default.`,
+        )
+    const inputs = resolveControls(def.inputs as Controls, given)
+    result.script = { id: def.meta.id, runtime: def.meta.runtime, inputs }
+
+    let out: unknown
+    if (mocked) {
+      // the script's mock answers, in any host: nothing is fetched and no body is loaded
+      if (!def.mockHook)
+        throw new StepError(
+          `Script ${def.meta.id} has no mock: the mock environment never runs a body. Wrap it: withMock(script({ ... }), ({ inputs }) => ({ ... })) returns what it answers.`,
+        )
+      const res = { delayMs: 0 }
+      out = await def.mockHook({ inputs, vars: scope }, res)
+      if (res.delayMs) await wait(res.delayMs, rt.o.signal)
+    } else {
+      const there = host as ScriptHost
+      if (rt.o.signal?.aborted) stopper.abort()
+      else rt.o.signal?.addEventListener('abort', relay, { once: true })
+      // no person waits on a node run: it gets the run's time limit, as a request does
+      const limit =
+        def.meta.timeoutMs ??
+        (there.runtime === 'node' ? (rt.o.timeoutMs ?? DEFAULT_TIMEOUT_MS) : undefined)
+      if (limit)
+        timer = setTimeout(() => {
+          timedOut = true
+          stopper.abort()
+        }, limit)
+      const guarded: typeof fetch = async (input, init) => {
+        const method = (
+          init?.method ??
+          (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')
+        ).toUpperCase()
+        if (rt.o.readOnly && !def.meta.safe && !READ_METHODS.has(method)) {
+          const url =
+            typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+          throw new StepError(
+            `Refusing ${method} ${url} in "${rt.o.env}": this is a --safe run, which only reads. Mark the script safe: true if it only reads.`,
+          )
+        }
+        // Stop ends a call even when the body gave it a signal of its own
+        const signal =
+          init?.signal && typeof AbortSignal.any === 'function'
+            ? AbortSignal.any([init.signal, stopper.signal])
+            : (init?.signal ?? stopper.signal)
+        return there.fetch(input, { ...init, signal })
+      }
+      const h: ScriptHelpers = {
+        fetch: guarded,
+        loadScript: async (url, o) => {
+          if (!there.loadScript) throw new StepError('This host cannot load a script file.')
+          return (await there.loadScript(url, o)) as any
+        },
+        mount: async () => {
+          if (!there.mount)
+            throw new StepError('This script needs a place on the page, and this host has none.')
+          return there.mount(name, stopper.signal)
+        },
+        signal: stopper.signal,
+        env: rt.o.env,
+        vars: scope,
+        log: (message) => {
+          logs.push(message)
+          emit(rt, { type: 'script:log', name, message })
+        },
+        runtime: there.runtime,
+      }
+      const endedError = () => new StepError(timedOut ? `Timed out after ${limit}ms.` : STOPPED)
+      const ended = new Promise<never>((_, stop) => {
+        const fire = () => stop(endedError())
+        if (stopper.signal.aborted) fire()
+        else stopper.signal.addEventListener('abort', fire, { once: true })
+      })
+      // Stop may come while the body is still being loaded: nothing is waiting on `ended` yet, so it is handled here
+      ended.catch(() => {})
+      const body = def.run ?? (await def.load?.())?.run
+      if (typeof body !== 'function')
+        throw new StepError(`Script ${def.meta.id} has no body: its loader gave no \`run\` export.`)
+      // stopped while the body was loading: it is not started. `ended` goes first in the race, so a body that finishes in
+      // the same moment as a Stop does not win it
+      if (stopper.signal.aborted) throw endedError()
+      out = await Promise.race([ended, body(inputs, h)])
+    }
+
+    if (!isPlainObject(out))
+      throw new StepError(
+        `Script ${def.meta.id} must return an object, and so must its mock: its fields are what the step captures.`,
+      )
+    result.script.output = out
+    if (def.capture)
+      for (const [k, fn] of Object.entries(def.capture)) result.captured[k] = fn(out, scope)
+    else result.captured = { ...out }
+    emit(rt, { type: 'capture', name, captured: result.captured })
+    if (def.assert)
+      await def.assert(out, { assert: a.assert, vars: { ...scope, ...result.captured }, inputs })
+  } catch (e: any) {
+    // a failed check ends the body in a hard run; it is recorded below, and is no error of its own
+    if (e?.name !== 'Assertion') {
+      result.status = 'error'
+      result.error = explainMissingGlobal(messageOf(e), rt.o.scripts)
+      const hint = hintOf(e)
+      if (hint) result.errorHint = hint
+    }
+  } finally {
+    clearTimeout(timer)
+    rt.o.signal?.removeEventListener('abort', relay)
+  }
+  if (logs.length) result.script = { ...(result.script as NonNullable<StepResult['script']>), logs }
+  result.assertions = a.results
+  for (const r of a.results)
+    emit(rt, { type: r.pass ? 'assert:pass' : 'assert:fail', name, assertion: r })
+  if (result.status === 'pass' && a.results.some((r) => !r.pass)) result.status = 'fail'
+  result.durationMs = (rt.o.now?.() ?? now0()) - t0
+  emit(rt, { type: 'step:end', name, status: result.status })
+  return result
 }
 
 function summarize(steps: StepResult[]): RunResult['totals'] {
@@ -756,6 +1007,7 @@ function finish(
   meta: { id: string; title: string; tags?: string[] },
   steps: StepResult[],
   startedAt: number,
+  skipped?: string,
 ): RunResult {
   const result: RunResult = {
     schemaVersion: 1,
@@ -769,6 +1021,7 @@ function finish(
     usedDrafts: rt.o.usedDrafts ?? false,
     tags: meta.tags ?? [],
     status: overall(steps),
+    ...(skipped && steps.every((s) => s.status === 'skipped') ? { skipped } : {}),
     startedAt: new Date(startedAt).toISOString(),
     durationMs: (rt.o.now?.() ?? now0()) - startedAt,
     totals: summarize(steps),
@@ -825,7 +1078,7 @@ export async function collectSecretNames(
     for (const n of target.nodes) {
       if (n.kind !== 'step') continue
       if (typeof n.def === 'function') allProfiles = true
-      else await addDef(n.def, target.meta.auth)
+      else if (n.def.kind === 'request') await addDef(n.def, target.meta.auth)
     }
   }
   for (const [name, p] of Object.entries(auth)) {
@@ -876,6 +1129,12 @@ export async function runRequest(
   )
 }
 
+/** What a node is called in a result: a step given as a script is a script, any other step a request. */
+function kindOf(node: StepNode): StepResult['kind'] {
+  if (node.kind !== 'step') return node.kind
+  return typeof node.def !== 'function' && node.def.kind === 'script' ? 'script' : 'request'
+}
+
 export async function runSequence(seq: Sequence<any, any>, o: RunOptions): Promise<RunResult> {
   const rt = newRuntime(o)
   rt.seqAuth = seq.meta.auth
@@ -889,6 +1148,22 @@ export async function runSequence(seq: Sequence<any, any>, o: RunOptions): Promi
     tags: seq.meta.tags,
   })
   const steps: StepResult[] = []
+  // A flow whose scripts need what this host is not does not start (the `mock` environment answers them all): it is
+  // skipped as a whole, and counts as passed, so a bundle on a server does not fail for a flow made for the portal.
+  const reason = flowSkipReason(seq, o.scripts?.runtime, o.env)
+  if (reason) {
+    for (const n of seq.nodes)
+      steps.push({
+        name: n.name,
+        kind: kindOf(n),
+        status: 'skipped',
+        note: reason,
+        assertions: [],
+        captured: {},
+        durationMs: 0,
+      })
+    return finish(rt, 'sequence', seq.meta, steps, t0, reason)
+  }
   const captured: Record<string, any> = {}
   const from: Record<string, string> = {}
   const remember = (values: Record<string, unknown>, step: string) => {
@@ -918,23 +1193,45 @@ export async function runSequence(seq: Sequence<any, any>, o: RunOptions): Promi
     env: o.env,
   })
   let failed = false
+  /** Set when a script step made by a function needed a host this is not: the rest of the flow is not run here. */
+  let halted: string | undefined
 
-  const skip = (name: string, kind: StepResult['kind']) =>
-    steps.push({ name, kind, status: 'skipped', assertions: [], captured: {}, durationMs: 0 })
+  const skip = (name: string, kind: StepResult['kind'], note?: string) =>
+    steps.push({
+      name,
+      kind,
+      status: 'skipped',
+      ...(note ? { note } : {}),
+      assertions: [],
+      captured: {},
+      durationMs: 0,
+    })
 
   for (const node of seq.nodes) {
+    if (halted) {
+      skip(node.name, kindOf(node), halted)
+      continue
+    }
     if (failed && !seq.meta.continueOnFailure) {
-      skip(node.name, node.kind === 'step' ? 'request' : node.kind)
+      skip(node.name, kindOf(node))
       continue
     }
     if (o.signal?.aborted) {
-      skip(node.name, node.kind === 'step' ? 'request' : node.kind)
+      skip(node.name, kindOf(node))
       failed = true
       continue
     }
     try {
       if (node.kind === 'step') {
         const def = typeof node.def === 'function' ? node.def(ctx()) : node.def
+        if (def.kind === 'script') {
+          const result = await runScript(rt, def, node.name, { inputs, captured, from })
+          steps.push(result)
+          remember(result.captured, node.name)
+          if (result.status === 'skipped') halted = result.note
+          else if (result.status !== 'pass') failed = true
+          continue
+        }
         const { result, authResults } = await execute(rt, def, node.name, {
           inputs,
           captured,
@@ -1024,7 +1321,7 @@ export async function runSequence(seq: Sequence<any, any>, o: RunOptions): Promi
       const isControl = e instanceof ControlError
       steps.push({
         name: node.name,
-        kind: node.kind === 'step' ? 'request' : node.kind,
+        kind: kindOf(node),
         status: 'error',
         assertions: [],
         captured: {},
@@ -1034,5 +1331,5 @@ export async function runSequence(seq: Sequence<any, any>, o: RunOptions): Promi
       failed = true
     }
   }
-  return finish(rt, 'sequence', seq.meta, steps, t0)
+  return finish(rt, 'sequence', seq.meta, steps, t0, halted)
 }

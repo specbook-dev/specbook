@@ -3,15 +3,27 @@ import {
   type AuthProfile,
   c,
   collectSecretNames,
+  createListReporter,
   defineOperation,
   exitCode,
+  flowSkipReason,
+  formatList,
   formatPretty,
   MissingSecretsError,
+  redactResults,
   request,
   runRequest,
   runSequence,
+  type ScriptBody,
+  type ScriptHost,
+  script,
+  scriptFlow,
+  scriptSkipReason,
   sequence,
+  testExitCode,
   toJUnit,
+  traceLines,
+  withMock,
 } from '../src'
 import { fakeTransport } from './helpers'
 
@@ -918,5 +930,949 @@ describe('a flow whose list input has a minimum', () => {
     })
     const r = await runSequence(seq, {} as never)
     expect(r.status).not.toBe('error')
+  })
+})
+
+describe('scripts', () => {
+  const sign = withMock(
+    script({
+      id: 'sign',
+      name: 'Sign',
+      runtime: 'isomorphic',
+      inputs: { text: c.text({ default: 'x' }) },
+      run: async ({ text }) => ({ signature: `signed:${text}` }),
+    }),
+    () => ({ signature: 'sig' }),
+  )
+  const approve = withMock(
+    script({
+      id: 'approve',
+      name: 'Approve',
+      runtime: 'browser',
+      inputs: { token: c.text(), amount: c.number({ default: 10 }) },
+      run: async ({ token, amount }) => ({ nonce: `nonce:${token}`, payerId: `P${amount}` }),
+    }),
+    () => ({ nonce: 'fake-nonce', payerId: 'FAKE' }),
+  )
+  const host = (over: Partial<ScriptHost> = {}): ScriptHost => ({
+    runtime: 'node',
+    fetch: async () => new Response('{}'),
+    ...over,
+  })
+  const getToken = CreateOrder.request({
+    data: { itemCode: 'x', quantity: 1 },
+    capture: { clientToken: (res) => (res.status === 201 ? res.data.id : '') },
+  })
+
+  it('a flow with a script step still lists the secrets of its request steps', async () => {
+    const seq = sequence({ id: 's', title: 'S' })
+      .step('Create', create.with({ headers: { authorization: 'Bearer {{secrets.ORDER_KEY}}' } }))
+      .step('Sign', sign)
+    expect(await collectSecretNames(seq)).toEqual(new Set(['ORDER_KEY']))
+  })
+
+  it('runs an inline body, captures what it returns and hands it to the next request', async () => {
+    const { transport, calls } = fakeOrderApi()
+    const seq = sequence({ id: 's', title: 'S' })
+      .step('Sign', sign.with({ inputs: { text: 'hello' } }))
+      .step('Order', CreateOrder.request({ data: { itemCode: '{{signature}}', quantity: 1 } }))
+      .check('typed', (ctx, { assert }) => assert.is(ctx.captured.signature, 'signed:hello'))
+    const r = await runSequence(seq, { env: 'live', transport, scripts: host() })
+    expect(r.status).toBe('pass')
+    expect(r.steps.map((s) => [s.kind, s.status])).toEqual([
+      ['script', 'pass'],
+      ['request', 'pass'],
+      ['check', 'pass'],
+    ])
+    expect(r.steps[0]?.captured).toEqual({ signature: 'signed:hello' })
+    expect(r.steps[0]?.script).toMatchObject({
+      id: 'sign',
+      runtime: 'isomorphic',
+      inputs: { text: 'hello' },
+      output: { signature: 'signed:hello' },
+    })
+    expect(calls[0]?.body).toEqual({ itemCode: 'signed:hello', quantity: 1 })
+  })
+
+  it('fills inputs from placeholders that name the flow so far, and says where each came from', async () => {
+    const { transport } = fakeOrderApi()
+    const seq = sequence({ id: 's', title: 'S', inputs: { amount: c.number({ default: 7 }) } })
+      .step('Token', getToken)
+      .step('Approve', approve.with({ inputs: { token: '{{clientToken}}', amount: '{{amount}}' } }))
+    const r = await runSequence(seq, {
+      env: 'live',
+      transport,
+      scripts: host({ runtime: 'browser' }),
+    })
+    expect(r.status).toBe('pass')
+    // a whole-string placeholder keeps the type: amount is the number 7, not "7"
+    expect(r.steps[1]?.script?.inputs).toEqual({ token: 'ord_1', amount: 7 })
+    expect(r.steps[1]?.captured).toEqual({ nonce: 'nonce:ord_1', payerId: 'P7' })
+    expect(r.steps[1]?.uses?.map((u) => [u.key, u.source, u.step])).toEqual([
+      ['clientToken', 'capture', 'Token'],
+      ['amount', 'input', undefined],
+    ])
+  })
+
+  it('does not pick up a value by name: an input nothing gave is its default, or missing', async () => {
+    const { transport } = fakeOrderApi()
+    const seq = sequence({ id: 's', title: 'S' })
+      .step('Token', getToken)
+      // `token` is captured by name, but the step does not ask for it, and the control has no default
+      .step('Approve', approve)
+    const r = await runSequence(seq, {
+      env: 'live',
+      transport,
+      scripts: host({ runtime: 'browser' }),
+    })
+    expect(r.status).toBe('error')
+    expect(r.steps[1]?.error).toContain('Missing input "token"')
+    expect(r.steps[1]?.error).toContain('.with({ inputs: { token: ... } })')
+  })
+
+  it('runtime overrides decide what a placeholder in an input stands for', async () => {
+    const seq = sequence({ id: 's', title: 'S' }).step(
+      'Approve',
+      approve.with({ inputs: { token: 'a', amount: '{{amount}}' } }),
+    )
+    const r = await runSequence(seq, {
+      env: 'live',
+      transport: fakeOrderApi().transport,
+      scripts: host({ runtime: 'browser' }),
+      vars: { amount: 1 },
+      overrides: { amount: 99 },
+    })
+    expect(r.steps[0]?.script?.inputs).toEqual({ token: 'a', amount: 99 })
+  })
+
+  it('refuses a secret placeholder: a script is not handed secrets', async () => {
+    const seq = sequence({ id: 's', title: 'S' }).step(
+      'Sign',
+      sign.with({ inputs: { text: '{{secrets.KEY}}' } }),
+    )
+    const r = await runSequence(seq, {
+      env: 'live',
+      transport: fakeOrderApi().transport,
+      scripts: host(),
+    })
+    expect(r.steps[0]?.status).toBe('error')
+    expect(r.steps[0]?.error).toContain('cannot be handed secrets')
+  })
+
+  it('a value that is not one of the control options fails the step', async () => {
+    const pick = script({
+      id: 'pick',
+      name: 'Pick',
+      runtime: 'isomorphic',
+      inputs: { size: c.select(['S', 'M'] as const) },
+      run: async ({ size }) => ({ size }),
+    })
+    const seq = sequence({ id: 's', title: 'S' })
+      .step('Pick', pick.with({ inputs: { size: '{{size}}' } }))
+      .step('After', sign)
+    const r = await runSequence(seq, {
+      env: 'live',
+      transport: fakeOrderApi().transport,
+      scripts: host(),
+      vars: { size: 'XL' },
+    })
+    expect(r.steps.map((s) => s.status)).toEqual(['error', 'skipped'])
+    expect(r.steps[0]?.error).toContain('not one of the available options')
+  })
+
+  it('loads a body only when the step runs, and once per run of the step', async () => {
+    let loads = 0
+    const lazy = script({
+      id: 'lazy',
+      name: 'Lazy',
+      runtime: 'isomorphic',
+      load: async () => {
+        loads++
+        return { run: async () => ({ ok: true }) }
+      },
+    })
+    const seq = sequence({ id: 's', title: 'S' }).step('Lazy', lazy)
+    expect(loads).toBe(0)
+    const r = await runSequence(seq, {
+      env: 'live',
+      transport: fakeOrderApi().transport,
+      scripts: host(),
+    })
+    expect(r.status).toBe('pass')
+    expect(loads).toBe(1)
+  })
+
+  it('a loader that gives no `run` export is an error that says so', async () => {
+    const bad = script({
+      id: 'bad',
+      name: 'Bad',
+      runtime: 'isomorphic',
+      load: (async () => ({})) as never,
+    })
+    const r = await runSequence(sequence({ id: 's', title: 'S' }).step('Bad', bad), {
+      env: 'live',
+      transport: fakeOrderApi().transport,
+      scripts: host(),
+    })
+    expect(r.steps[0]?.error).toContain('no `run` export')
+  })
+
+  describe('time limits', () => {
+    const slow = (runtime: 'node' | 'browser') =>
+      script({
+        id: 'slow',
+        runtime: runtime === 'node' ? 'isomorphic' : 'browser',
+        run: async () => {
+          await new Promise((r) => setTimeout(r, 80))
+          return { ok: true }
+        },
+      })
+    const go = (def: ReturnType<typeof slow>, runtime: 'node' | 'browser') =>
+      runSequence(sequence({ id: 's', title: 'S' }).step('Slow', def), {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host({ runtime }),
+        timeoutMs: 20,
+      })
+
+    it('a script in node ends at the run’s time limit when it names none', async () => {
+      const r = await go(slow('node'), 'node')
+      expect(r.steps[0]?.status).toBe('error')
+      expect(r.steps[0]?.error).toMatch(/Timed out after 20ms/)
+    })
+
+    it('a script in a page waits as long as a person does', async () => {
+      const r = await go(slow('browser'), 'browser')
+      expect(r.steps[0]?.status).toBe('pass')
+    })
+  })
+
+  describe('skip reasons and a script on its own', () => {
+    it('say why a flow or a script does not run on a host, and that mock runs all', () => {
+      const flow = sequence({ id: 's', title: 'S' }).step(
+        'Approve',
+        approve.with({ inputs: { token: 'x' } }),
+      )
+      expect(flowSkipReason(flow, 'node', 'live')).toContain('Needs a browser')
+      expect(flowSkipReason(flow, 'browser', 'live')).toBeUndefined()
+      expect(flowSkipReason(flow, undefined, 'live')).toContain('no script host')
+      expect(flowSkipReason(flow, 'node', 'mock')).toBeUndefined()
+      expect(scriptSkipReason(sign, undefined)).toContain('no script host')
+      expect(scriptSkipReason(sign, 'node')).toBeUndefined()
+      expect(scriptSkipReason(approve, 'node')).toContain('Needs a browser')
+    })
+
+    it('runs as a flow of one step: the mock answers on mock, the body gets the inputs live', async () => {
+      const flow = scriptFlow(sign)
+      expect(flow.meta).toMatchObject({ id: 'sign', title: 'Sign' })
+      const mock = await runSequence(flow, { env: 'mock', transport: fakeOrderApi().transport })
+      expect(mock.steps[0]?.script?.output).toEqual({ signature: 'sig' })
+      const live = await runSequence(flow, {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host(),
+        inputs: { text: 'hello' },
+      })
+      expect(live.status).toBe('pass')
+      expect(live.steps[0]?.script?.inputs).toEqual({ text: 'hello' })
+      expect(live.steps[0]?.captured).toEqual({ signature: 'signed:hello' })
+    })
+
+    it('is skipped as a whole in node when it needs a browser', async () => {
+      const r = await runSequence(scriptFlow(approve), {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host(),
+      })
+      expect(r.skipped).toContain('Needs a browser')
+    })
+
+    it('refuses a write of the body in a --safe run', async () => {
+      const writer = script({
+        id: 'writer',
+        runtime: 'isomorphic',
+        run: async (_i, h) => {
+          await h.fetch('https://x.test/', { method: 'POST' })
+          return { ok: true }
+        },
+      })
+      const r = await runSequence(scriptFlow(writer), {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host(),
+        readOnly: true,
+      })
+      expect(r.steps[0]?.error).toContain('--safe')
+    })
+  })
+
+  describe('where it runs', () => {
+    it('a flow that needs a browser is skipped as a whole in node, and counts as passed', async () => {
+      const { transport, calls } = fakeOrderApi()
+      const seq = sequence({ id: 's', title: 'S' })
+        .step('Token', getToken)
+        .step('Approve', approve.with({ inputs: { token: 'x' } }))
+      const events: string[] = []
+      const r = await runSequence(seq, {
+        env: 'live',
+        transport,
+        scripts: host(),
+        onEvent: (e) => events.push(e.type),
+      })
+      expect(calls).toHaveLength(0)
+      expect(r.status).toBe('pass')
+      expect(r.skipped).toContain('Needs a browser')
+      expect(r.steps.map((s) => [s.name, s.status, s.kind])).toEqual([
+        ['Token', 'skipped', 'request'],
+        ['Approve', 'skipped', 'script'],
+      ])
+      expect(r.totals).toMatchObject({ steps: 2, skipped: 2, passed: 0 })
+      expect(events).toEqual(['run:start', 'done'])
+    })
+
+    it('a flow that needs node is skipped in a page', async () => {
+      const onNode = withMock(
+        script({
+          id: 'n',
+          name: 'N',
+          runtime: 'node',
+          run: async () => ({ ok: true }),
+        }),
+        () => ({ ok: true }),
+      )
+      const r = await runSequence(sequence({ id: 's', title: 'S' }).step('N', onNode), {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host({ runtime: 'browser' }),
+      })
+      expect(r.skipped).toContain('Needs node')
+    })
+
+    it('a step this host cannot run is skipped before its inputs are looked at', async () => {
+      // `token` has no default and nothing gives it: on a host that could run it that is an error, on this one it is no matter
+      const seq = sequence({ id: 's', title: 'S' }).step('Approve', () => approve)
+      const r = await runSequence(seq, {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host(),
+      })
+      expect(r.steps[0]).toMatchObject({ status: 'skipped' })
+      expect(r.steps[0]?.error).toBeUndefined()
+      expect(r.skipped).toContain('Needs a browser')
+      const onBrowser = await runSequence(seq, {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host({ runtime: 'browser' }),
+      })
+      expect(onBrowser.steps[0]?.error).toContain('Missing input "token"')
+    })
+
+    it('a flow with no host is skipped as well, and an isomorphic one is not restricted', async () => {
+      const seq = sequence({ id: 's', title: 'S' }).step(
+        'Approve',
+        approve.with({ inputs: { token: 'x' } }),
+      )
+      const none = await runSequence(seq, { env: 'live', transport: fakeOrderApi().transport })
+      expect(none.skipped).toContain('no script host')
+      for (const runtime of ['browser', 'node'] as const) {
+        const r = await runSequence(sequence({ id: 's', title: 'S' }).step('Sign', sign), {
+          env: 'live',
+          transport: fakeOrderApi().transport,
+          scripts: host({ runtime }),
+        })
+        expect([r.status, r.skipped]).toEqual(['pass', undefined])
+      }
+    })
+
+    it('a flow with a step for each runtime only runs on mock', async () => {
+      const onNode = withMock(
+        script({
+          id: 'n',
+          name: 'N',
+          runtime: 'node',
+          run: async () => ({ ok: true }),
+        }),
+        () => ({ ok: true }),
+      )
+      const seq = sequence({ id: 's', title: 'S' })
+        .step('Approve', approve.with({ inputs: { token: 'x' } }))
+        .step('N', onNode)
+      for (const runtime of ['browser', 'node'] as const) {
+        const r = await runSequence(seq, {
+          env: 'live',
+          transport: fakeOrderApi().transport,
+          scripts: host({ runtime }),
+        })
+        expect(r.skipped).toContain('needs a browser and one that needs node')
+      }
+      const mock = await runSequence(seq, { env: 'mock', transport: fakeOrderApi().transport })
+      expect([mock.status, mock.skipped]).toEqual(['pass', undefined])
+    })
+
+    it('a script step made by a function ends the flow where it is reached: the steps before it ran', async () => {
+      const { transport, calls } = fakeOrderApi()
+      const seq = sequence({ id: 's', title: 'S' })
+        .step('Token', getToken)
+        .step('Approve', (ctx) => approve.with({ inputs: { token: ctx.captured.clientToken } }))
+        .step('After', getToken)
+      const events: string[] = []
+      const r = await runSequence(seq, {
+        env: 'live',
+        transport,
+        scripts: host(),
+        onEvent: (e) => events.push(e.type === 'step:end' ? `end:${e.name}:${e.status}` : e.type),
+      })
+      expect(calls).toHaveLength(1)
+      expect(r.steps.map((s) => s.status)).toEqual(['pass', 'skipped', 'skipped'])
+      expect(r.steps[1]?.note).toContain('Needs a browser')
+      expect(r.steps[2]?.note).toContain('Needs a browser')
+      expect(r.skipped).toBeUndefined()
+      expect(r.status).toBe('pass')
+      // the skip of the script itself is seen as it happens, as a step that ended
+      expect(events).toContain('end:Approve:skipped')
+    })
+  })
+
+  describe('the mock environment', () => {
+    it('answers from the mock in any host, and never loads the body', async () => {
+      let loaded = false
+      const lazy = withMock(
+        script({
+          id: 'pay',
+          name: 'Pay',
+          runtime: 'browser',
+          inputs: { token: c.text() },
+          load: async () => {
+            loaded = true
+            return { run: async () => ({ nonce: 'real' }) }
+          },
+        }),
+        () => ({ nonce: 'fake-nonce' }),
+      )
+      const seq = sequence({ id: 's', title: 'S' })
+        .step('Token', getToken)
+        .step('Pay', lazy.with({ inputs: { token: '{{clientToken}}' } }))
+        .step('Order', CreateOrder.request({ data: { itemCode: '{{nonce}}', quantity: 1 } }))
+      const { transport, calls } = fakeOrderApi()
+      const r = await runSequence(seq, { env: 'mock', transport })
+      expect(r.status).toBe('pass')
+      expect(r.skipped).toBeUndefined()
+      expect(loaded).toBe(false)
+      expect(r.steps[1]?.captured).toEqual({ nonce: 'fake-nonce' })
+      expect(r.steps[1]?.script?.inputs).toEqual({ token: 'ord_1' })
+      expect(calls[1]?.body).toEqual({ itemCode: 'fake-nonce', quantity: 1 })
+    })
+
+    it('a withMock hook answers from the inputs, and throwing fails the step', async () => {
+      const shaped = withMock(approve, (req) => {
+        if (req.inputs.token === 'bad') throw new Error('the sandbox said no')
+        return { nonce: `fake-${req.inputs.token}`, payerId: `PAYER-${req.inputs.amount}` }
+      })
+      const run = (token: string) =>
+        runSequence(
+          sequence({ id: 's', title: 'S' }).step('Approve', shaped.with({ inputs: { token } })),
+          {
+            env: 'mock',
+            transport: fakeOrderApi().transport,
+          },
+        )
+      const ok = await run('t')
+      expect(ok.steps[0]?.captured).toEqual({ nonce: 'fake-t', payerId: 'PAYER-10' })
+      const bad = await run('bad')
+      expect(bad.steps[0]).toMatchObject({ status: 'error', error: 'the sandbox said no' })
+    })
+
+    it('a mock may wait, and stopping ends the wait', async () => {
+      const slow = withMock(sign, (_req, res) => {
+        res.delayMs = 5_000
+        return { signature: 'sig' }
+      })
+      const ctl = new AbortController()
+      const run = runSequence(sequence({ id: 's', title: 'S' }).step('Sign', slow), {
+        env: 'mock',
+        transport: fakeOrderApi().transport,
+        signal: ctl.signal,
+      })
+      setTimeout(() => ctl.abort(), 10)
+      const r = await run
+      expect(r.steps[0]).toMatchObject({
+        status: 'error',
+        error: 'Stopped before the step finished.',
+      })
+    })
+
+    it('a script with no withMock is an error on mock that names the fix', async () => {
+      const bare = script({
+        id: 'bare',
+        name: 'Bare',
+        runtime: 'isomorphic',
+        run: async () => ({ ok: true }),
+      })
+      const r = await runSequence(sequence({ id: 's', title: 'S' }).step('Bare', bare), {
+        env: 'mock',
+        transport: fakeOrderApi().transport,
+      })
+      expect(r.steps[0]?.status).toBe('error')
+      expect(r.steps[0]?.error).toContain('has no mock')
+      expect(r.steps[0]?.error).toContain('withMock(')
+    })
+
+    it('a mock that does not answer with an object is an error', async () => {
+      const odd = withMock(
+        script({ id: 'odd', name: 'Odd', run: async () => ({ ok: true }) }),
+        (() => 'nope') as never,
+      )
+      const r = await runSequence(sequence({ id: 's', title: 'S' }).step('Odd', odd), {
+        env: 'mock',
+        transport: fakeOrderApi().transport,
+      })
+      expect(r.steps[0]?.error).toContain('must return an object, and so must its mock')
+    })
+  })
+
+  describe('what the body is given', () => {
+    const body = (fn: ScriptBody<{ n: number }, { ok: boolean }>) =>
+      script({
+        id: 'b',
+        name: 'B',
+        runtime: 'isomorphic',
+        inputs: { n: c.number({ default: 1 }) },
+        run: fn,
+      })
+    const runBody = (
+      def: ReturnType<typeof body>,
+      o: Partial<Parameters<typeof runSequence>[1]> = {},
+    ) =>
+      runSequence(sequence({ id: 's', title: 'S' }).step('B', def), {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host(),
+        ...o,
+      })
+
+    it('records the checks of the contract, and a failed one fails the step', async () => {
+      const r = await runBody(
+        script({
+          id: 'checked',
+          name: 'Checked',
+          runtime: 'isomorphic',
+          inputs: { n: c.number({ default: 1 }) },
+          run: async () => ({ ok: true }),
+          assert: (_out, { assert, inputs }) => {
+            assert.is(inputs.n, 1, 'one')
+            assert.is(inputs.n, 2, 'two')
+          },
+        }),
+      )
+      expect(r.status).toBe('fail')
+      expect(r.steps[0]?.assertions.map((a) => [a.label, a.pass])).toEqual([
+        ['one', true],
+        ['two', false],
+      ])
+    })
+
+    it('a hard run ends the contract assert at the first failed check, without calling it an error', async () => {
+      let after = false
+      const r = await runBody(
+        script({
+          id: 'hard',
+          name: 'Hard',
+          runtime: 'isomorphic',
+          run: async () => ({ ok: true }),
+          assert: (_out, { assert }) => {
+            assert.is(1, 2, 'nope')
+            after = true
+          },
+        }),
+        { assertMode: 'hard' },
+      )
+      expect(after).toBe(false)
+      expect(r.steps[0]?.status).toBe('fail')
+      expect(r.steps[0]?.error).toBeUndefined()
+    })
+
+    it('the contract assert sees the output, the inputs and what was captured', async () => {
+      const checked = script({
+        id: 'c',
+        name: 'C',
+        runtime: 'isomorphic',
+        inputs: { n: c.number({ default: 3 }) },
+        run: async ({ n }) => ({ double: n * 2 }),
+        capture: { twice: (out) => out.double },
+        assert: (out, { assert, inputs, vars }) => {
+          assert.is(out.double, inputs.n * 2, 'doubled')
+          assert.is(vars.twice, 6, 'captured')
+        },
+      })
+      const r = await runSequence(sequence({ id: 's', title: 'S' }).step('C', checked), {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host(),
+      })
+      expect(r.steps[0]?.captured).toEqual({ twice: 6 })
+      expect(r.steps[0]?.assertions.map((a) => [a.label, a.pass])).toEqual([
+        ['doubled', true],
+        ['captured', true],
+      ])
+    })
+
+    it('keeps what it logs, and tells the listener as it happens', async () => {
+      const lines: string[] = []
+      const r = await runBody(
+        body(async (_i, h) => {
+          h.log('loading the sdk')
+          h.log('rendered')
+          return { ok: true }
+        }),
+        { onEvent: (e) => e.type === 'script:log' && lines.push(e.message) },
+      )
+      expect(lines).toEqual(['loading the sdk', 'rendered'])
+      expect(r.steps[0]?.script?.logs).toEqual(['loading the sdk', 'rendered'])
+    })
+
+    it('must return an object', async () => {
+      const r = await runBody(body((async () => 'nope') as never))
+      expect(r.steps[0]?.status).toBe('error')
+      expect(r.steps[0]?.error).toContain('must return an object')
+    })
+
+    it('an error it throws fails the step with its message, and a hint is kept for the page', async () => {
+      const r = await runBody(
+        body(async () => {
+          throw Object.assign(new Error('blocked'), {
+            hint: { code: 'cors', origin: 'https://sdk.example' },
+          })
+        }),
+      )
+      expect(r.steps[0]).toMatchObject({
+        status: 'error',
+        error: 'blocked',
+        errorHint: { code: 'cors', origin: 'https://sdk.example' },
+      })
+    })
+
+    it('has the host fetch, its kind, the env and the flow vars', async () => {
+      const seen: unknown[] = []
+      const r = await runBody(
+        body(async (_i, h) => {
+          const res = await h.fetch('https://api.example/x')
+          seen.push(h.runtime, h.env, h.vars.region, await res.text())
+          return { ok: true }
+        }),
+        {
+          vars: { region: 'eu' },
+          scripts: host({ runtime: 'node', fetch: async () => new Response('hello') }),
+        },
+      )
+      expect(r.status).toBe('pass')
+      expect(seen).toEqual(['node', 'live', 'eu', 'hello'])
+    })
+
+    it('mount and loadScript are the host’s, and say so when it has none', async () => {
+      const r = await runBody(
+        body(async (_i, h) => {
+          await h.mount()
+          return { ok: true }
+        }),
+      )
+      expect(r.steps[0]?.error).toContain('needs a place on the page')
+      const el = { tag: 'div' }
+      const r2 = await runBody(
+        body(async (_i, h) => {
+          const target = await h.mount()
+          const sdk = await h.loadScript('https://sdk.example/x.js', { global: 'sdk' })
+          return { ok: target === (el as never) && sdk === 'the-sdk' }
+        }),
+        {
+          scripts: host({
+            runtime: 'browser',
+            mount: async () => el as never,
+            loadScript: async () => 'the-sdk',
+          }),
+        },
+      )
+      expect(r2.steps[0]?.captured).toEqual({ ok: true })
+    })
+
+    it('stopping the run ends a body that waits, and tells the body', async () => {
+      const ctl = new AbortController()
+      let told = false
+      const run = runBody(
+        body(
+          (_i, h) =>
+            new Promise(() => {
+              h.signal?.addEventListener('abort', () => {
+                told = true
+              })
+            }),
+        ),
+        { signal: ctl.signal },
+      )
+      setTimeout(() => ctl.abort(), 10)
+      const r = await run
+      expect(told).toBe(true)
+      expect(r.steps[0]).toMatchObject({
+        status: 'error',
+        error: 'Stopped before the step finished.',
+      })
+    })
+
+    it('stopping while the body is still being loaded does not leave an unhandled rejection', async () => {
+      const ctl = new AbortController()
+      const slow = script({
+        id: 'slow',
+        name: 'Slow',
+        runtime: 'isomorphic',
+        load: async () => {
+          await new Promise((done) => setTimeout(done, 30))
+          return { run: async () => ({ ok: true }) }
+        },
+      })
+      const unhandled: unknown[] = []
+      const on = (e: unknown) => unhandled.push(e)
+      // core's tests are checked without node's types
+      const proc = (
+        globalThis as unknown as {
+          process: { on(e: string, f: typeof on): void; off(e: string, f: typeof on): void }
+        }
+      ).process
+      proc.on('unhandledRejection', on)
+      setTimeout(() => ctl.abort(), 5)
+      const r = await runSequence(sequence({ id: 's', title: 'S' }).step('Slow', slow), {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host(),
+        signal: ctl.signal,
+      })
+      await new Promise((done) => setTimeout(done, 20))
+      proc.off('unhandledRejection', on)
+      expect(unhandled).toEqual([])
+      expect(r.steps[0]?.status).toBe('error')
+    })
+
+    it('a script with a timeout ends when it passes', async () => {
+      const limited = script({
+        id: 'limited',
+        name: 'Limited',
+        runtime: 'isomorphic',
+        timeoutMs: 20,
+        run: () => new Promise<{ ok: boolean }>(() => {}),
+      })
+      const r = await runSequence(sequence({ id: 's', title: 'S' }).step('L', limited), {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host(),
+      })
+      expect(r.steps[0]).toMatchObject({ status: 'error', error: 'Timed out after 20ms.' })
+    })
+  })
+
+  describe('a script that needs a browser, run in node', () => {
+    const throwing = (error: unknown) =>
+      script({
+        id: 'sdk',
+        name: 'Sdk',
+        runtime: 'isomorphic',
+        run: async () => {
+          throw error
+        },
+      })
+    const run = async (error: unknown, runtime: 'node' | 'browser' = 'node') =>
+      (
+        await runSequence(sequence({ id: 's', title: 'S' }).step('Sdk', throwing(error)), {
+          env: 'live',
+          transport: fakeOrderApi().transport,
+          scripts: host({ runtime }),
+        })
+      ).steps[0]
+
+    it('is told what is missing, and what to do about it', async () => {
+      for (const name of ['document', 'navigator', 'localStorage', 'XMLHttpRequest']) {
+        const step = await run(new ReferenceError(`${name} is not defined`))
+        expect(step?.status).toBe('error')
+        expect(step?.error).toContain(`${name} is not defined. This script uses \`${name}\``)
+        expect(step?.error).toContain('which a run in node does not have')
+        expect(step?.error).toContain("give it runtime: 'browser'")
+      }
+    })
+
+    it('is told too when the file failed to load, whose message begins with where', async () => {
+      const step = await run(
+        new Error('Could not run https://sdk.example/x.js: document is not defined'),
+      )
+      expect(step?.error).toContain(
+        'Could not run https://sdk.example/x.js: document is not defined. This script uses `document`',
+      )
+    })
+
+    it('is told for an error from another realm, which is no Error here but has a name and a message', async () => {
+      const step = await run({ name: 'ReferenceError', message: 'document is not defined' })
+      expect(step?.error).toContain('document is not defined. This script uses `document`')
+    })
+
+    it('leaves alone a name that is not a browser one, a different failure, and a browser host', async () => {
+      expect((await run(new ReferenceError('thing is not defined')))?.error).toBe(
+        'thing is not defined',
+      )
+      expect((await run(new Error('the key is wrong')))?.error).toBe('the key is wrong')
+      expect((await run('plain text'))?.error).toBe('plain text')
+      // in a page those names exist, so a failure there is something else
+      expect((await run(new ReferenceError('document is not defined'), 'browser'))?.error).toBe(
+        'document is not defined',
+      )
+      // and a name that merely contains one is no match
+      expect((await run(new ReferenceError('mydocument is not defined')))?.error).toBe(
+        'mydocument is not defined',
+      )
+    })
+  })
+
+  describe('--safe', () => {
+    const poster = (safe: boolean) =>
+      script({
+        id: 'poster',
+        name: 'Poster',
+        runtime: 'node',
+        safe,
+        run: async (_i, h) => {
+          const res = await h.fetch('https://api.example/charge', { method: 'POST' })
+          return { status: res.status }
+        },
+      })
+    const go = (def: ReturnType<typeof poster>, readOnly: boolean) =>
+      runSequence(sequence({ id: 's', title: 'S' }).step('Post', def), {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host({ fetch: async () => new Response('{}', { status: 201 }) }),
+        readOnly,
+      })
+
+    it('refuses a write unless the script says it only reads', async () => {
+      const refused = await go(poster(false), true)
+      expect(refused.steps[0]?.status).toBe('error')
+      expect(refused.steps[0]?.error).toContain('Refusing POST https://api.example/charge')
+      expect(refused.steps[0]?.error).toContain('safe: true')
+      expect((await go(poster(true), true)).steps[0]?.captured).toEqual({ status: 201 })
+      expect((await go(poster(false), false)).steps[0]?.captured).toEqual({ status: 201 })
+    })
+
+    it('always lets a read through', async () => {
+      const reader = script({
+        id: 'reader',
+        name: 'Reader',
+        runtime: 'node',
+        run: async (_i, h) => {
+          await h.fetch('https://api.example/x')
+          await h.fetch(new Request('https://api.example/y', { method: 'HEAD' }))
+          return { ok: true }
+        },
+      })
+      const r = await runSequence(sequence({ id: 's', title: 'S' }).step('R', reader), {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host(),
+        readOnly: true,
+      })
+      expect(r.status).toBe('pass')
+    })
+  })
+
+  describe('reports', () => {
+    it('masks a secret the run holds wherever a script shows it', async () => {
+      const leaky = script({
+        id: 'leaky',
+        name: 'Leaky',
+        runtime: 'isomorphic',
+        inputs: { text: c.text({ default: 'x' }) },
+        run: async ({ text }, h) => {
+          h.log(`got ${text}`)
+          return { echoed: text }
+        },
+      })
+      const events: string[] = []
+      const r = await runSequence(
+        sequence({ id: 's', title: 'S' }).step(
+          'Leaky',
+          leaky.with({ inputs: { text: 'sk_live_abcdef' } }),
+        ),
+        {
+          env: 'live',
+          transport: fakeOrderApi().transport,
+          scripts: host(),
+          secrets: { KEY: 'sk_live_abcdef' },
+          onEvent: (e) => events.push(JSON.stringify(e)),
+        },
+      )
+      expect(JSON.stringify(r)).not.toContain('sk_live_abcdef')
+      expect(events.join('')).not.toContain('sk_live_abcdef')
+    })
+
+    it('redacts the inputs and the output of a script that look like credentials', async () => {
+      const login = script({
+        id: 'login',
+        name: 'Login',
+        runtime: 'isomorphic',
+        inputs: { password: c.text({ default: 'hunter2' }) },
+        run: async () => ({ accessToken: 'abc123', nonce: 'n1' }),
+      })
+      const r = await runSequence(sequence({ id: 's', title: 'S' }).step('Login', login), {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host(),
+      })
+      const [clean] = redactResults([r])
+      expect(clean?.steps[0]?.script?.inputs).toEqual({ password: '***' })
+      expect(clean?.steps[0]?.script?.output).toEqual({ accessToken: '***', nonce: 'n1' })
+      expect(JSON.stringify(clean)).not.toContain('hunter2')
+      expect(JSON.stringify(clean)).not.toContain('abc123')
+    })
+
+    it('a failed script shows what it was given, what it said and what it returned', async () => {
+      const failing = script({
+        id: 'failing',
+        name: 'Failing',
+        runtime: 'isomorphic',
+        inputs: { amount: c.number({ default: 5 }) },
+        run: async (_i, h) => {
+          h.log('rendering')
+          return { ok: false }
+        },
+        assert: (out, { assert }) => assert.ok(out.ok, 'approved'),
+      })
+      const r = await runSequence(sequence({ id: 's', title: 'S' }).step('Failing', failing), {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host(),
+      })
+      const lines = traceLines(r.steps[0] as never)
+      expect(lines[0]).toBe('Script    failing (isomorphic)')
+      expect(lines.join('\n')).toContain('"amount": 5')
+      expect(lines.join('\n')).toContain('rendering')
+      expect(lines.join('\n')).toContain('"ok": false')
+    })
+
+    it('says a skipped flow once, and counts it as skipped, not passed', async () => {
+      const seq = sequence({ id: 's', title: 'Checkout' }).step(
+        'Approve',
+        approve.with({ inputs: { token: 'x' } }),
+      )
+      const r = await runSequence(seq, {
+        env: 'live',
+        transport: fakeOrderApi().transport,
+        scripts: host(),
+      })
+      const text = formatList([r])
+      expect(text).toContain('– Checkout  skipped: Needs a browser')
+      expect(text).not.toContain('Checkout › Approve')
+      expect(text).toContain('1 skipped')
+      expect(text).not.toContain('1 passed')
+      expect(exitCode([r])).toBe(0)
+      expect(testExitCode([r])).toBe(0)
+      expect(toJUnit([r])).toContain('<skipped/>')
+      const out: string[] = []
+      const rep = createListReporter({ write: (t) => out.push(t) })
+      rep.onEvent({ type: 'done', result: r })
+      expect(out.join('')).toContain('– Checkout  skipped: Needs a browser')
+    })
   })
 })

@@ -238,8 +238,18 @@ export interface VarUse {
 
 export interface StepResult {
   name: string
-  kind: 'request' | 'each' | 'input' | 'check' | 'auth'
+  kind: 'request' | 'each' | 'input' | 'check' | 'auth' | 'script'
   status: 'pass' | 'fail' | 'error' | 'skipped'
+  /** Why a step did not run, when that is no failure: a script that needs a browser run in node. */
+  note?: string
+  /** For a script step: which script, what it was given, what it returned and said. */
+  script?: {
+    id: string
+    runtime: import('./script').ScriptRuntime
+    inputs: Record<string, unknown>
+    output?: unknown
+    logs?: string[]
+  }
   request?: RenderedRequest
   /** Placeholders the request used and where each value came from. */
   uses?: VarUse[]
@@ -274,6 +284,8 @@ export interface RunResult {
   /** It failed, then passed on a retry; set by the CLI. */
   flaky?: boolean
   status: 'pass' | 'fail' | 'error'
+  /** Set when the flow was not run here, with why: it needs a browser, or node. It still counts as passed. */
+  skipped?: string
   startedAt: string
   durationMs: number
   totals: {

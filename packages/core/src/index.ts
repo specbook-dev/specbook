@@ -21,9 +21,30 @@ export * from './proxy/index'
 export * from './reporters/index'
 export { defineOperation, request, withMock } from './request'
 export * from './runner/index'
+export type {
+  PageElement,
+  ScriptBody,
+  ScriptDef,
+  ScriptHelpers,
+  ScriptHost,
+  ScriptInput,
+  ScriptLoadOptions,
+  ScriptMeta,
+  ScriptMockHook,
+  ScriptOverrides,
+  ScriptRuntime,
+} from './script'
+export { script } from './script'
 export * from './secrets'
 export type { Sequence, SequenceMeta, StepCtx, StepNode } from './sequence'
-export { sequence } from './sequence'
+export {
+  flowRuntime,
+  flowSkipReason,
+  SKIP_REASONS,
+  scriptFlow,
+  scriptSkipReason,
+  sequence,
+} from './sequence'
 export type { SnippetInput, SnippetLang } from './snippets'
 export { snippetLangs, toSnippet } from './snippets'
 export {
