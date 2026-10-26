@@ -1,8 +1,43 @@
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-/** Inline markup on already-escaped text: `code`, **bold**, *italic*, and http(s)/mailto links. */
-function inline(text: string): string {
+const unesc = (s: string) =>
+  s
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&')
+
+/** The address relative links in a spec's descriptions are resolved against: an http(s) URL, as a folder. */
+function linkBase(docsUrl: string | undefined): URL | undefined {
+  if (!docsUrl) return undefined
+  try {
+    const u = new URL(docsUrl)
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return undefined
+    if (!u.pathname.endsWith('/')) u.pathname += '/'
+    return u
+  } catch {
+    return undefined
+  }
+}
+
+/** The escaped address a link written as a path (`/api/accounts`) goes to, or nothing when there is no base for it. */
+function resolveLink(target: string, base: URL | undefined): string | undefined {
+  if (!base) return undefined
+  try {
+    const u = new URL(unesc(target), base)
+    return u.protocol === 'https:' || u.protocol === 'http:' ? esc(u.href) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Inline markup on already-escaped text: `code`, **bold**, *italic*, and links. http(s) and mailto links are linked; a
+ * link written as a path goes to `docsUrl` when the project says where its docs are, and otherwise keeps its label.
+ */
+function inline(text: string, docsUrl?: string): string {
+  const base = linkBase(docsUrl)
   const codes: string[] = []
   let s = text.replace(/`([^`]+)`/g, (_m, c: string) => {
     codes.push(`<code>${c}</code>`)
@@ -13,6 +48,14 @@ function inline(text: string): string {
       /\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^)\s]+)\)/g,
       (_m, label: string, href: string) => {
         return `<a href="${href}" target="_blank" rel="noreferrer">${label}</a>`
+      },
+    )
+    // a link written as a path on the API's own docs site (`/api/accounts`: Stripe writes them)
+    .replace(
+      /\[([^\]]+)\]\(((?![a-z][a-z0-9+.-]*:)[^)\s]+)\)/gi,
+      (_m, label: string, target: string) => {
+        const href = resolveLink(target, base)
+        return href ? `<a href="${href}" target="_blank" rel="noreferrer">${label}</a>` : label
       },
     )
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
@@ -58,7 +101,7 @@ export function fromHtml(src: string): string {
  * code, and inline code, bold, italics and links. Everything is HTML-escaped first, and only http(s) and
  * mailto links are linked, so descriptions from a spec or a sequence can be rendered without trusting them.
  */
-export function markdownToHtml(src: string | undefined): string {
+export function markdownToHtml(src: string | undefined, docsUrl?: string): string {
   if (!src) return ''
   const lines = fromHtml(src).replace(/\r\n?/g, '\n').split('\n')
   const out: string[] = []
@@ -66,13 +109,13 @@ export function markdownToHtml(src: string | undefined): string {
   let list: { tag: 'ul' | 'ol'; items: string[] } | undefined
 
   const flushPara = () => {
-    if (para.length) out.push(`<p>${inline(esc(para.join(' ')))}</p>`)
+    if (para.length) out.push(`<p>${inline(esc(para.join(' ')), docsUrl)}</p>`)
     para = []
   }
   const flushList = () => {
     if (list)
       out.push(
-        `<${list.tag}>${list.items.map((i) => `<li>${inline(esc(i))}</li>`).join('')}</${list.tag}>`,
+        `<${list.tag}>${list.items.map((i) => `<li>${inline(esc(i), docsUrl)}</li>`).join('')}</${list.tag}>`,
       )
     list = undefined
   }
@@ -93,7 +136,7 @@ export function markdownToHtml(src: string | undefined): string {
       flushPara()
       flushList()
       const level = Math.min(4, (heading[1] as string).length + 1)
-      out.push(`<h${level}>${inline(esc(heading[2] as string))}</h${level}>`)
+      out.push(`<h${level}>${inline(esc(heading[2] as string), docsUrl)}</h${level}>`)
       continue
     }
     const quote = /^>\s?(.*)$/.exec(line)
@@ -103,7 +146,7 @@ export function markdownToHtml(src: string | undefined): string {
       const text: string[] = [quote[1] as string]
       while (i + 1 < lines.length && /^>\s?/.test(lines[i + 1] as string))
         text.push((lines[++i] as string).replace(/^>\s?/, ''))
-      out.push(`<blockquote>${inline(esc(text.join(' ')))}</blockquote>`)
+      out.push(`<blockquote>${inline(esc(text.join(' ')), docsUrl)}</blockquote>`)
       continue
     }
     const bullet = /^\s*[-*+]\s+(.*)$/.exec(line)
@@ -149,17 +192,19 @@ export function firstParagraph(src: string | undefined): string {
 }
 
 /** Inline markup only (code, bold, italics, links) in already-safe HTML, for a single line or cell. */
-export function inlineMarkdown(src: string | undefined): string {
-  return src ? inline(esc(src)) : ''
+export function inlineMarkdown(src: string | undefined, docsUrl?: string): string {
+  return src ? inline(esc(src), docsUrl) : ''
 }
 
 /**
  * A one-paragraph summary for table cells: inline markdown when it is short, plain text with an ellipsis
  * when it is long (cutting markdown mid-link would break it).
  */
-export function inlineSummary(src: string | undefined, max = 300): string {
+export function inlineSummary(src: string | undefined, max = 300, docsUrl?: string): string {
   const para = firstParagraph(src)
   if (!para) return ''
   const text = plainText(para)
-  return text.length > max ? esc(`${text.slice(0, max - 1).trimEnd()}…`) : inlineMarkdown(para)
+  return text.length > max
+    ? esc(`${text.slice(0, max - 1).trimEnd()}…`)
+    : inlineMarkdown(para, docsUrl)
 }

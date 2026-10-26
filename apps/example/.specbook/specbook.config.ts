@@ -39,6 +39,8 @@ export default defineConfig({
       spec: './openapi/stripe.json',
       baseUrl: '{{stripeUrl}}',
       auth: 'stripe',
+      // the spec's descriptions link to pages by path (`/api/accounts`): this is where they go
+      docsUrl: 'https://docs.stripe.com',
     },
     countries: {
       spec: './openapi/countries.json',
@@ -47,6 +49,7 @@ export default defineConfig({
     github: {
       spec: './openapi/github.json',
       baseUrl: '{{githubUrl}}',
+      docsUrl: 'https://docs.github.com',
       auth: 'github',
     },
   },

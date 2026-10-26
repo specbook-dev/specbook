@@ -29,6 +29,12 @@ export interface ServiceConfig<E extends string = string> {
    * (or a person, in the UI) may use instead. A single name is the same as a list of one.
    */
   auth?: string | string[]
+  /**
+   * Where the API's docs site is (`'https://docs.stripe.com'`). The descriptions in a spec may link to its pages by path
+   * (`[Accounts](/api/accounts)`); with this, such a link goes to that site. Without it, the link shows its label only:
+   * the spec does not say where the paths lead, and Specbook does not guess.
+   */
+  docsUrl?: string
 }
 
 /** The profile names a service lists, in order; the first is its default. */

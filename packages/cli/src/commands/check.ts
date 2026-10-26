@@ -108,6 +108,12 @@ export async function checkCommand(project: Project, loader: Loader): Promise<nu
       )
     }
   }
+  for (const [name, svc] of Object.entries(cfg.services))
+    if (
+      svc.docsUrl !== undefined &&
+      !(typeof svc.docsUrl === 'string' && isAbsoluteHttp(svc.docsUrl))
+    )
+      errors.push(`[${name}] docsUrl is not an http(s) URL: ${String(svc.docsUrl)}`)
   for (const [name, profile] of Object.entries(cfg.auth ?? {})) {
     const oauth = profile.oauth
     if (!oauth || !isClientCredentials(oauth)) continue

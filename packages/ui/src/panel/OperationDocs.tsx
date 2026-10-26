@@ -9,6 +9,7 @@ import type { Defs, JsonSchema } from '../schema'
 import { typeInfo, unwrap } from '../schema'
 import { statusClass, statusName } from '../status'
 import { version } from '../store'
+import { useDocsUrl } from './docs-url'
 import { FieldTable } from './FieldTable'
 import type { BlockName, Segment } from './includes'
 import { useOperationPage } from './page'
@@ -132,6 +133,7 @@ function ResponseSection({
   schemas?: Record<string, JsonSchema>
   defs?: Defs
 }) {
+  const docsUrl = useDocsUrl()
   const [status, setStatus] = useState(
     () => statuses.find((s) => s >= 200 && s < 300) ?? (statuses[0] as number),
   )
@@ -158,7 +160,7 @@ function ResponseSection({
         {doc?.description && (
           <div
             class="doc-custom"
-            dangerouslySetInnerHTML={{ __html: markdownToHtml(doc.description) }}
+            dangerouslySetInnerHTML={{ __html: markdownToHtml(doc.description, docsUrl) }}
           />
         )}
         <BodyType schema={schema} defs={defs} contentType={doc?.contentType} />
@@ -184,6 +186,7 @@ export function OperationDocs({
   onTry: (example?: string) => void
 }) {
   const key = `${service}/${op.id}`
+  const docsUrl = useDocsUrl()
   const [loaded, setLoaded] = useState<Loaded>()
   const files = variants.map((v) => v.file)
   const fileKey = files.join('\n')
@@ -229,7 +232,7 @@ export function OperationDocs({
   const description = long?.description && (
     <div
       class="doc-custom"
-      dangerouslySetInnerHTML={{ __html: markdownToHtml(long.description) }}
+      dangerouslySetInnerHTML={{ __html: markdownToHtml(long.description, docsUrl) }}
     />
   )
   const auth =

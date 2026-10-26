@@ -12,7 +12,7 @@ sidebar:
 | `project` | The project's name. |
 | `vars` | Defaults for every environment, such as each API's address. |
 | `environments` | Variables for one environment, and a `risk` of `production` or `sandbox` where the name does not say. |
-| `services` | `{ spec, baseUrl, auth }` for each API. `baseUrl` is a template like `'{{petstoreUrl}}'`, and `auth` is a profile name or a list of them, the default first. |
+| `services` | `{ spec, baseUrl, auth, docsUrl }` for each API. `baseUrl` is a template like `'{{petstoreUrl}}'`, `auth` is a profile name or a list of them, the default first, and `docsUrl` is where the API's docs site is, such as `'https://docs.stripe.com'`: a spec's descriptions that link to a page by path (`/api/accounts`) go there. Without it, such a link shows its label only. |
 | `timeoutMs` | How long a request waits for an answer, in the CLI and in the browser. Default 30000; `0` waits as long as it takes. |
 | `auth` | Profiles that apply a credential, such as headers built from `{{secrets.NAME}}`, a login, or an OAuth sign-in or grant. A service lists the ones it accepts. See [Authorization](/reference/authorization/). |
 | `secrets` | The secrets the project uses, by name. |

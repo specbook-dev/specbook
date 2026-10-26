@@ -60,6 +60,43 @@ describe('markdownToHtml', () => {
     expect(html).toContain('href="https://ok.test"')
   })
 
+  describe('a link written as a path on the API docs site', () => {
+    const text =
+      'Use the [Accounts v2 API](/api/v2/core/accounts), see [the object](/api/accounts/object#x?a=1&b=2) and [here](https://ok.test).'
+
+    it('shows its label when the project gives no docsUrl', () => {
+      expect(markdownToHtml(text)).toBe(
+        '<p>Use the Accounts v2 API, see the object and <a href="https://ok.test" target="_blank" rel="noreferrer">here</a>.</p>',
+      )
+    })
+
+    it('goes to the docsUrl when there is one', () => {
+      expect(markdownToHtml(text, 'https://docs.stripe.com')).toBe(
+        '<p>Use the <a href="https://docs.stripe.com/api/v2/core/accounts" target="_blank" rel="noreferrer">Accounts v2 API</a>, ' +
+          'see <a href="https://docs.stripe.com/api/accounts/object#x?a=1&amp;b=2" target="_blank" rel="noreferrer">the object</a> ' +
+          'and <a href="https://ok.test" target="_blank" rel="noreferrer">here</a>.</p>',
+      )
+    })
+
+    it('resolves a path with no leading slash under the docsUrl folder', () => {
+      expect(markdownToHtml('[x](guide/start)', 'https://example.test/docs')).toContain(
+        'href="https://example.test/docs/guide/start"',
+      )
+    })
+
+    it('ignores a docsUrl that is no http(s) address', () => {
+      for (const bad of ['docs.example.test', 'javascript:alert(1)', 'ftp://example.test', ''])
+        expect(markdownToHtml('[x](/a)', bad)).toBe('<p>x</p>')
+    })
+
+    it('reaches the summaries in tables as well', () => {
+      expect(inlineSummary('See [x](/a).', 300, 'https://example.test')).toBe(
+        'See <a href="https://example.test/a" target="_blank" rel="noreferrer">x</a>.',
+      )
+      expect(inlineSummary('See [x](/a).')).toBe('See x.')
+    })
+  })
+
   it('renders blockquotes', () => {
     expect(markdownToHtml('> Tip: **go**\n> on')).toBe(
       '<blockquote>Tip: <strong>go</strong> on</blockquote>',

@@ -4,6 +4,7 @@ import type { FieldDoc } from '../fielddoc'
 import { inlineSummary, plainText } from '../markdown'
 import { kv } from '../storage'
 import { Combo } from './Combo'
+import { useDocsUrl } from './docs-url'
 import type { FieldRow } from './draft'
 
 export interface Documented {
@@ -172,6 +173,7 @@ export function ParamGrid({
   bare,
   readOnly,
 }: Props) {
+  const docsUrl = useDocsUrl()
   const root = useRef<HTMLElement>(null)
   const table = useRef<HTMLTableElement>(null)
   const focusNext = useRef<string | undefined>(undefined)
@@ -337,7 +339,9 @@ export function ParamGrid({
                       <span class="chip">{d.type}</span>{' '}
                       <span
                         class="doc-inline"
-                        dangerouslySetInnerHTML={{ __html: inlineSummary(d.description) }}
+                        dangerouslySetInnerHTML={{
+                          __html: inlineSummary(d.description, undefined, docsUrl),
+                        }}
                       />
                     </>
                   )}

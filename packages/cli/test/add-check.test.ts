@@ -227,6 +227,12 @@ export default defineConfig({
     )
   }, 60_000)
 
+  it('errors on a docsUrl that is no http(s) address', async () => {
+    const r = await checkWith('c: { apply: {} }', "auth: ['c'], docsUrl: 'docs.example.test'")
+    expect(r.code).toBe(1)
+    expect(r.said).toContain('[petstore] docsUrl is not an http(s) URL: docs.example.test')
+  }, 60_000)
+
   it('errors on a client secret that is a value, and a client without a token address', async () => {
     const r = await checkWith(
       "c: { apply: {}, oauth: { tokenUrl: 'https://i.test/t', clientId: '{{secrets.ID}}', clientSecret: 'hunter2' } }, d: { apply: {}, oauth: { tokenUrl: '', clientId: '{{secrets.ID}}', clientSecret: '{{secrets.SECRET}}' } }",

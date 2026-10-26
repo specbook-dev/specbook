@@ -1,8 +1,10 @@
 import type { FieldDoc as Doc } from '../fielddoc'
 import { markdownToHtml } from '../markdown'
+import { useDocsUrl } from './docs-url'
 
 /** The documentation for the field the cursor is on, shown below the editor instead of beside each line. */
 export function FieldDoc({ doc, hint }: { doc?: Doc; hint?: string }) {
+  const docsUrl = useDocsUrl()
   if (!doc)
     return (
       <div class="field-doc empty" part="field-doc" aria-live="polite">
@@ -20,7 +22,7 @@ export function FieldDoc({ doc, hint }: { doc?: Doc; hint?: string }) {
       {doc.description ? (
         <div
           class="field-doc-text"
-          dangerouslySetInnerHTML={{ __html: markdownToHtml(doc.description) }}
+          dangerouslySetInnerHTML={{ __html: markdownToHtml(doc.description, docsUrl) }}
         />
       ) : (
         <p class="muted">

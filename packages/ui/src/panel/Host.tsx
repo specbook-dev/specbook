@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'preact/hooks'
 import type { SequenceInfo, Variant } from '../engine'
 import type { PanelTab } from '../nav'
+import { DocsUrl } from './docs-url'
 import { OperationDocs } from './OperationDocs'
 import { Panel } from './Panel'
 import { type OpInfo, RequestPanel } from './RequestPanel'
+import { useServiceDocsUrl } from './service-docs-url'
 
 /**
  * A flow's views are fetched when a flow is opened: opening one request does not pay for the form of a flow's inputs
@@ -41,6 +43,7 @@ type Props = {
 /** Lazy entry for everything the side panel needs, so the catalog carries no editor code. */
 export function Host(p: Props) {
   const tab = p.tab ?? 'try'
+  const docsUrl = useServiceDocsUrl(p.kind === 'op' ? p.service : undefined)
   const panelView = useLoaded(loadSequencePanel, p.kind === 'seq' && tab !== 'docs')
   const docsView = useLoaded(loadSequenceDocs, p.kind === 'seq' && tab === 'docs')
   const tabs = (
@@ -99,29 +102,31 @@ export function Host(p: Props) {
       onNext={p.onNext}
       onClose={p.onClose}
     >
-      <div class="panel-split">
-        {tabs}
-        <div class={`panel-main ${tab === 'docs' ? 'scroll' : ''}`}>
-          {tab === 'docs' ? (
-            <OperationDocs
-              key={`${p.service}/${p.op.id}`}
-              service={p.service}
-              op={p.op}
-              variants={p.variants}
-              onTry={(example) => p.onNavigate({ tab: 'try', example })}
-            />
-          ) : (
-            <RequestPanel
-              key={`${p.service}/${p.op.id}${p.example.startsWith('saved:') ? `@${p.example}` : ''}`}
-              service={p.service}
-              op={p.op}
-              variants={p.variants}
-              initial={p.example}
-              autoRun={p.autoRun}
-            />
-          )}
+      <DocsUrl.Provider value={docsUrl}>
+        <div class="panel-split">
+          {tabs}
+          <div class={`panel-main ${tab === 'docs' ? 'scroll' : ''}`}>
+            {tab === 'docs' ? (
+              <OperationDocs
+                key={`${p.service}/${p.op.id}`}
+                service={p.service}
+                op={p.op}
+                variants={p.variants}
+                onTry={(example) => p.onNavigate({ tab: 'try', example })}
+              />
+            ) : (
+              <RequestPanel
+                key={`${p.service}/${p.op.id}${p.example.startsWith('saved:') ? `@${p.example}` : ''}`}
+                service={p.service}
+                op={p.op}
+                variants={p.variants}
+                initial={p.example}
+                autoRun={p.autoRun}
+              />
+            )}
+          </div>
         </div>
-      </div>
+      </DocsUrl.Provider>
     </Panel>
   )
 }

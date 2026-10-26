@@ -11,6 +11,7 @@ import {
   unionFor,
   unwrap,
 } from '../schema'
+import { useDocsUrl } from './docs-url'
 
 export interface Row {
   /** what the row is called: a field's name, or for an object under an open field its whole path (`address.county`) */
@@ -165,6 +166,7 @@ function Breakable({ name }: { name: string }) {
 }
 
 function RowView({ r, open, onToggle }: { r: Row; open?: boolean; onToggle?: () => void }) {
+  const docsUrl = useDocsUrl()
   return (
     <tr
       class={
@@ -221,7 +223,7 @@ function RowView({ r, open, onToggle }: { r: Row; open?: boolean; onToggle?: () 
       <td>
         <span
           class="doc-inline wrap"
-          dangerouslySetInnerHTML={{ __html: inlineSummary(r.description, 220) }}
+          dangerouslySetInnerHTML={{ __html: inlineSummary(r.description, 220, docsUrl) }}
         />
         {r.enum && (
           <span class="field-doc-enum">
