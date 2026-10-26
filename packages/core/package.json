@@ -1,6 +1,6 @@
 {
   "name": "@specbook/core",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "The authoring API behind Specbook (requests, flows, scripts, config), plus the runner, mock engine and proxy its tools share.",
   "keywords": [
     "specbook",
